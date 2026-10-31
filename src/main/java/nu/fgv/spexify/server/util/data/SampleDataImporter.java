@@ -157,7 +157,17 @@ public class SampleDataImporter {
         final boolean large = "large".equalsIgnoreCase(properties.data().sampleDataSize());
 
         log.info("Importing {} sample data", large ? "large" : "small");
-        TABLES.forEach(table -> jdbcTemplate.update("DELETE FROM " + table));
+        // Truncating resets the ids, so sample ids are the same on every run and links between the applications hold
+        jdbcTemplate.execute((java.sql.Connection connection) -> {
+            try (java.sql.Statement statement = connection.createStatement()) {
+                statement.execute("SET FOREIGN_KEY_CHECKS = 0");
+                for (final String table : TABLES) {
+                    statement.execute("TRUNCATE TABLE " + table);
+                }
+                statement.execute("SET FOREIGN_KEY_CHECKS = 1");
+            }
+            return null;
+        });
         storage.wipe();
 
         final List<SpexDto> spex = spexWithRetry();
