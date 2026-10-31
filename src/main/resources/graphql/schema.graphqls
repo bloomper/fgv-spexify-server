@@ -1,0 +1,321 @@
+scalar Instant
+scalar Void
+
+type Query {
+    "Anyone logged in. The caller and their roles."
+    me: Me!
+    "USER. The start page texts and the limits for app passwords."
+    settings: Settings!
+    "USER. Albums by year, newest first. Unpublished ones only for EDITOR, and only when asked for."
+    albums(filter: AlbumFilter): [Album!]!
+    "USER. An album; unpublished or trashed ones only for EDITOR."
+    album(id: ID!): Album
+    "USER. The most recently published albums."
+    recentAlbums(limit: Int = 12): [Album!]!
+    "USER. The categories of the published albums."
+    categories: [Category!]!
+    "USER. The years of the published albums, newest first."
+    years: [Int!]!
+    "USER. Albums and tracks whose titles, performers, melodies or lyrics match."
+    search(q: String!): SearchResult!
+    "EDITOR. Spex in Spexregister matching a title or year, for linking an album."
+    spexSearch(q: String!): [Spex!]!
+    "USER. The caller's app passwords that are not revoked."
+    appPasswords: [AppPassword!]!
+    "USER. The caller's API keys that are not revoked."
+    apiKeys: [ApiKey!]!
+    "ADMIN. Everyone who has used Spexify, with how many app passwords and keys they have."
+    users: [UserSummary!]!
+    "EDITOR. Trashed albums and tracks."
+    trash: Trash!
+    "EDITOR. Navidrome's state and the last scan."
+    libraryStatus: LibraryStatus!
+    "EDITOR. The audit log: the caller's own changes, or everyone's for ADMIN."
+    auditLog(page: Int = 0, size: Int = 50): AuditPage!
+    "SPEXFLIX or EDITOR. The published tracks of the published albums of a spex, for linking chapters."
+    spexTracks(spexId: ID!): [TrackRef!]!
+    "SPEXFLIX or USER. Published tracks by id; unknown and unpublished ones are left out."
+    tracksByIds(ids: [ID!]!): [TrackRef!]!
+}
+
+type Mutation {
+    "EDITOR. New albums start unpublished."
+    albumCreate(input: AlbumInput!): Album!
+    "EDITOR."
+    albumUpdate(id: ID!, input: AlbumInput!): Album!
+    "EDITOR. Publishing puts the album's published tracks into Navidrome."
+    albumPublish(id: ID!, published: Boolean!): Album!
+    "EDITOR. Hides the album everywhere except the trash."
+    albumTrash(id: ID!): Album!
+    "EDITOR."
+    albumRestore(id: ID!): Album!
+    "ADMIN. Only a trashed album; deletes its files."
+    albumDelete(id: ID!): Void
+    "EDITOR. The spex poster is shown instead."
+    albumCoverRemove(id: ID!): Album!
+    "EDITOR. Numbers the album's tracks in the given order, per disc."
+    tracksReorder(albumId: ID!, trackIds: [ID!]!): Album!
+    "EDITOR. A track from a finished upload; tags in the file pre-fill its fields."
+    trackCreate(albumId: ID!, uploadId: String!): Track!
+    "EDITOR."
+    trackUpdate(id: ID!, input: TrackInput!): Track!
+    "EDITOR. Replaces the audio file with a finished upload."
+    trackReplaceAudio(id: ID!, uploadId: String!): Track!
+    "EDITOR."
+    trackPublish(id: ID!, published: Boolean!): Track!
+    "EDITOR."
+    trackTrash(id: ID!): Track!
+    "EDITOR."
+    trackRestore(id: ID!): Track!
+    "ADMIN. Only a trashed track; deletes its file."
+    trackDelete(id: ID!): Void
+    "ADMIN. Deletes every trashed album and track with their files."
+    trashEmpty: Void
+    "USER. The password is shown once."
+    appPasswordCreate(name: String!): AppPasswordCreated!
+    "USER. One of the caller's own."
+    appPasswordRevoke(id: ID!): Void
+    "USER. The key is shown once."
+    apiKeyCreate(name: String!): ApiKeyCreated!
+    "USER. One of the caller's own."
+    apiKeyRevoke(id: ID!): Void
+    "ADMIN. Revokes all of a user's app passwords and API keys."
+    userCredentialsRevoke(userId: ID!): Void
+    "ADMIN. Lifts a lock-out after failed logins."
+    userUnlock(userId: ID!): Void
+    "ADMIN. Asks Navidrome to scan the music folder."
+    libraryRescan: Void
+    "ADMIN."
+    settingsUpdate(input: SettingsInput!): Settings!
+}
+
+type Me {
+    username: String!
+    displayName: String
+    roles: [String!]!
+    "Whether the caller also has access to Spexflix, for showing links there."
+    spexflixUser: Boolean!
+}
+
+type Settings {
+    welcomeSv: String
+    welcomeEn: String
+    appPasswordExpiryMonths: Int!
+    lockoutAttempts: Int!
+    lockoutMinutes: Int!
+}
+
+input SettingsInput {
+    welcomeSv: String
+    welcomeEn: String
+    appPasswordExpiryMonths: Int!
+    lockoutAttempts: Int!
+    lockoutMinutes: Int!
+}
+
+enum AlbumKind {
+    SHOW
+    STUDIO
+    COMPILATION
+    OTHER
+}
+
+input AlbumFilter {
+    categoryId: ID
+    year: Int
+    spexId: ID
+    "EDITOR only."
+    includeUnpublished: Boolean
+}
+
+input AlbumInput {
+    "A spex in Spexregister. Without it the album is not about one spex, e.g. a jubilee compilation."
+    spexId: ID
+    "Defaults to the spex title."
+    title: String
+    "Defaults to the spex year."
+    year: Int
+    kind: AlbumKind!
+    description: String
+}
+
+input TrackInput {
+    discNumber: Int!
+    trackNumber: Int!
+    title: String!
+    performers: String
+    melody: String
+    lyricsAuthor: String
+    arranger: String
+    lyrics: String
+    "Whether the lyrics are LRC with timestamps."
+    lyricsSynced: Boolean!
+}
+
+type Category {
+    id: ID!
+    name: String!
+    albumCount: Int!
+}
+
+type Spex {
+    id: ID!
+    title: String
+    year: Int
+    revival: Boolean!
+    categoryName: String
+}
+
+type AlbumSpex {
+    id: ID!
+    title: String
+    year: Int
+    revival: Boolean
+    categoryId: ID
+    categoryName: String
+}
+
+type Album {
+    id: ID!
+    uuid: String!
+    title: String!
+    year: Int
+    kind: AlbumKind!
+    description: String
+    spex: AlbumSpex
+    "Whether the album has its own cover; otherwise the spex poster is used."
+    hasCover: Boolean!
+    published: Boolean!
+    publishedAt: Instant
+    trashedAt: Instant
+    navidromeId: String
+    "Listed tracks for listeners; every track not in the trash for EDITOR."
+    tracks: [Track!]!
+    trackCount: Int!
+    durationMs: Float!
+    createdAt: Instant!
+    lastModifiedAt: Instant
+}
+
+type Track {
+    id: ID!
+    uuid: String!
+    albumId: ID!
+    albumTitle: String!
+    discNumber: Int!
+    trackNumber: Int!
+    title: String!
+    performers: String
+    melody: String
+    lyricsAuthor: String
+    arranger: String
+    lyrics: String
+    lyricsSynced: Boolean!
+    format: String!
+    fileSize: Float!
+    durationMs: Float!
+    bitrate: Int
+    published: Boolean!
+    "Published, in a published album, and not in the trash: in Navidrome."
+    listed: Boolean!
+    trashedAt: Instant
+    navidromeId: String
+    fileMissing: Boolean!
+    "Published Spexflix videos with a chapter linked to the track; empty when Spexflix is unavailable."
+    videoLinks: [VideoLink!]!
+}
+
+type VideoLink {
+    videoId: ID!
+    videoTitle: String!
+    chapterTitle: String!
+    startSeconds: Int!
+}
+
+type TrackRef {
+    id: ID!
+    title: String!
+    discNumber: Int!
+    trackNumber: Int!
+    albumId: ID!
+    albumTitle: String!
+    spexId: ID
+}
+
+type SearchResult {
+    albums: [Album!]!
+    tracks: [Track!]!
+}
+
+type AppPassword {
+    id: ID!
+    name: String!
+    createdAt: Instant!
+    lastUsedAt: Instant
+    expiresAt: Instant!
+    expired: Boolean!
+}
+
+type AppPasswordCreated {
+    appPassword: AppPassword!
+    "Shown once."
+    password: String!
+    "The username to type into the app."
+    username: String!
+}
+
+type ApiKey {
+    id: ID!
+    name: String!
+    createdAt: Instant!
+    lastUsedAt: Instant
+}
+
+type ApiKeyCreated {
+    apiKey: ApiKey!
+    "Shown once."
+    key: String!
+}
+
+type UserSummary {
+    id: ID!
+    username: String!
+    displayName: String
+    lastSeenAt: Instant!
+    appPasswordCount: Int!
+    apiKeyCount: Int!
+    locked: Boolean!
+}
+
+type Trash {
+    albums: [Album!]!
+    "Trashed tracks of albums that are not trashed themselves."
+    tracks: [Track!]!
+}
+
+type LibraryStatus {
+    navidromeAvailable: Boolean!
+    scanning: Boolean!
+    scanPending: Boolean!
+    lastScanAt: Instant
+    lastScanError: String
+    trackCount: Int!
+    listedTrackCount: Int!
+}
+
+type AuditPage {
+    entries: [AuditLogEntry!]!
+    totalCount: Int!
+    page: Int!
+    size: Int!
+}
+
+type AuditLogEntry {
+    id: ID!
+    at: Instant!
+    actorName: String
+    action: String!
+    entityType: String!
+    entityId: ID
+    summary: String!
+}

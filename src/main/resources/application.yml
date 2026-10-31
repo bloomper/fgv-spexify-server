@@ -1,0 +1,128 @@
+spring:
+  config:
+    import: "optional:configtree:/run/secrets/"
+  datasource:
+    password: ${MYSQL_API_USER_PASSWORD:}
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        transaction:
+          jta:
+            platform: org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform
+  messages:
+    basename: messages
+    fallback-to-system-locale: false
+    encoding: UTF-8
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${spexify.keycloak.url}/realms/${spexify.keycloak.realm}
+      client:
+        registration:
+          fgv-spexify-service:
+            provider: fgv
+            client-id: ${API_KEYCLOAK_SERVICE_CLIENT_ID:fgv-spexify-service}
+            client-secret: ${API_KEYCLOAK_SERVICE_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+        provider:
+          fgv:
+            token-uri: ${spexify.keycloak.url}/realms/${spexify.keycloak.realm}/protocol/openid-connect/token
+  threads:
+    virtual:
+      enabled: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+  web:
+    locale: sv
+  graphql:
+    schema:
+      printer:
+        enabled: true
+      introspection:
+        enabled: false
+    http:
+      path: /api/graphql
+
+management:
+  server:
+    port: 9000
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info
+
+server:
+  port: 8080
+  forward-headers-strategy: framework
+  tomcat:
+    # tus chunks are at most 50 MB
+    max-swallow-size: 60MB
+
+logging:
+  file:
+    path: ./data/log_data
+
+spexify:
+  time-zone: Europe/Stockholm
+  keycloak:
+    url: ${API_KEYCLOAK_URL:https://auth.fgv.local.nu:8443/auth}
+    realm: ${API_KEYCLOAK_REALM:fgv}
+    # The service account checks that app password owners still have access; it needs realm-management view-users
+    service-client-id: ${API_KEYCLOAK_SERVICE_CLIENT_ID:fgv-spexify-service}
+    service-client-secret: ${API_KEYCLOAK_SERVICE_CLIENT_SECRET:}
+    # Only for the sample data import, which creates users
+    admin-client-id: ${API_KEYCLOAK_ADMIN_CLIENT_ID:fgv-admin}
+    admin-client-secret: ${API_KEYCLOAK_ADMIN_CLIENT_SECRET:}
+  security:
+    authorized-parties: ${API_SECURITY_AUTHORIZED_PARTIES:fgv-spexify,fgv-spexflix-service}
+    # How long a user's access in Keycloak is trusted before it is checked again, for app passwords
+    access-cache: 10m
+  media:
+    root: ${API_MEDIA_ROOT:./data/media}
+    max-track-size: ${API_MAX_TRACK_SIZE:2GB}
+  navidrome:
+    url: ${API_NAVIDROME_URL:http://localhost:4533}
+    system-user: ${API_NAVIDROME_SYSTEM_USER:spexify-system}
+  crypto:
+    # 32 bytes, base64; encrypts app passwords, which Subsonic token authentication needs to read back
+    app-password-key: ${APP_PASSWORD_KEY:}
+  spexregister:
+    graphql-url: ${API_SPEXREGISTER_GRAPHQL_URL:https://api.register.fgv.local.nu:8443/api/graphql}
+  spexflix:
+    graphql-url: ${API_SPEXFLIX_GRAPHQL_URL:}
+  data:
+    import-sample-data: ${API_IMPORT_SAMPLE_DATA:false}
+    sample-data-size: ${API_SAMPLE_DATA_SIZE:small}
+    sample-user-password: ${SAMPLE_USER_PASSWORD:s3cr3t-s3cr3t}
+    sample-app-password: ${SAMPLE_APP_PASSWORD:sample-app-password-0001}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  graphql:
+    schema:
+      introspection:
+        enabled: true
+  datasource:
+    url: jdbc:mysql://localhost:3308/spexify
+    username: spexify
+    password: spexify
+
+server:
+  port: 8082
+
+management:
+  server:
+    port: 9002
+
+spexify:
+  keycloak:
+    url: https://auth.fgv.local.nu:8443/auth
+  navidrome:
+    url: http://localhost:4533

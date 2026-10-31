@@ -1,0 +1,46 @@
+# Local development: MySQL and Navidrome for an API run with `./gradlew bootRun --args='--spring.profiles.active=local'`.
+# Keycloak and Spexregister come from fgv-infra-deploy/local and spexregister-server.
+name: fgv-spexify-server
+
+services:
+  spexify-mysql:
+    image: 'mysql:8.4'
+    environment:
+      MYSQL_DATABASE: spexify
+      MYSQL_USER: spexify
+      MYSQL_PASSWORD: spexify
+      MYSQL_ROOT_PASSWORD: spexify-root
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    ports:
+      - "127.0.0.1:3308:3306"
+    volumes:
+      - fgv_spexify_mysql_data:/var/lib/mysql
+
+  spexify-navidrome:
+    image: 'deluan/navidrome:0.64.2'
+    environment:
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_LOGLEVEL: info
+      # Locally the API runs on the host, so every address is trusted; the port is bound to localhost only.
+      # The deploy repo trusts only the API's fixed address.
+      ND_EXTAUTH_TRUSTEDSOURCES: 0.0.0.0/0
+      ND_SUBSONIC_DEFAULTREPORTREALPATH: "true"
+      ND_ENABLESHARING: "false"
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
+      ND_ENABLEEXTERNALSERVICES: "false"
+      ND_SCANNER_SCHEDULE: "0"
+    ports:
+      - "127.0.0.1:4533:4533"
+    volumes:
+      - ./data/media/music:/music:ro
+      - fgv_spexify_navidrome_data:/data
+
+volumes:
+  fgv_spexify_mysql_data:
+  fgv_spexify_navidrome_data:
