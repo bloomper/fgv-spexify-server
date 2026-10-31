@@ -104,6 +104,11 @@ public class CatalogGraphqlApi {
     }
 
     @QueryMapping
+    public List<TrackDto> tracksByNavidromeIds(@Argument final List<String> ids) {
+        return service.tracksByNavidromeIds(ids);
+    }
+
+    @QueryMapping
     public List<TrackRefDto> tracksByIds(@Argument final List<Long> ids) {
         return service.tracksByIds(ids);
     }

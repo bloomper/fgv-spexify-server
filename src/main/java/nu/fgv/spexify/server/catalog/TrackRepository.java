@@ -40,6 +40,8 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
 
     List<Track> findByLocation(Location location);
 
+    List<Track> findByNavidromeIdIn(Collection<String> navidromeIds);
+
     @Query("""
             SELECT t FROM Track t JOIN t.album a
             WHERE t.trashedAt IS NULL AND a.trashedAt IS NULL AND (:editor = TRUE OR (a.published = TRUE AND t.published = TRUE))

@@ -232,6 +232,17 @@ public class CatalogService {
     }
 
     @Transactional(readOnly = true)
+    public List<TrackDto> tracksByNavidromeIds(final List<String> ids) {
+        callerService.current().requireUser();
+
+        final Map<String, Track> byId = trackRepository.findByNavidromeIdIn(ids).stream()
+                .filter(Track::isListed)
+                .collect(Collectors.toMap(Track::getNavidromeId, track -> track, (a, _) -> a));
+
+        return ids.stream().map(byId::get).filter(Objects::nonNull).map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
     public TrashDto trash() {
         final Caller caller = callerService.current();
 

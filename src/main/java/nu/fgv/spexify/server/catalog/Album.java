@@ -93,6 +93,16 @@ public class Album extends AbstractAuditable {
     @OrderBy("discNumber ASC, trackNumber ASC")
     private List<Track> tracks = new ArrayList<>();
 
+    /**
+     * The spex, never null: Hibernate loads an embedded value whose columns are all null as null.
+     */
+    public SpexRef getSpex() {
+        if (spex == null) {
+            spex = new SpexRef();
+        }
+        return spex;
+    }
+
     public boolean isTrashed() {
         return trashedAt != null;
     }

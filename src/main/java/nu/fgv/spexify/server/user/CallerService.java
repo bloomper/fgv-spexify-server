@@ -82,9 +82,11 @@ public class CallerService {
                     }
                 });
 
-        final String username = firstText(jwt.getClaimAsString("preferred_username"), jwt.getClaimAsString("email"), jwt.getSubject());
+        // A service account's token may have no subject; it never acts as a user, so its client id stands in
+        final String subject = firstText(jwt.getSubject(), "client:" + jwt.getClaimAsString("azp"));
+        final String username = firstText(jwt.getClaimAsString("preferred_username"), jwt.getClaimAsString("email"), subject);
 
-        return new Caller(jwt.getSubject(), username == null ? jwt.getSubject() : username,
+        return new Caller(java.util.Objects.requireNonNull(subject), username == null ? subject : username,
                 firstText(jwt.getClaimAsString("name"), username), roles, authorities.contains(SPEXFLIX_USER));
     }
 

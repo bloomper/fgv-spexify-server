@@ -34,6 +34,8 @@ type Query {
     auditLog(page: Int = 0, size: Int = 50): AuditPage!
     "SPEXFLIX or EDITOR. The published tracks of the published albums of a spex, for linking chapters."
     spexTracks(spexId: ID!): [TrackRef!]!
+    "USER. Published tracks by Navidrome's ids, in the given order, for stars and playlists; unknown ones are left out."
+    tracksByNavidromeIds(ids: [String!]!): [Track!]!
     "SPEXFLIX or USER. Published tracks by id; unknown and unpublished ones are left out."
     tracksByIds(ids: [ID!]!): [TrackRef!]!
 }

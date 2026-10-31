@@ -14,7 +14,7 @@ What kind of change does this PR introduce?
 [ ] Other
 ```
 
-[Issue Link](https://github.com/bloomper/fgv-revival-server/issues)
+[Issue Link](https://github.com/bloomper/fgv-spexify-server/issues)
 
 ## What's new?
 
