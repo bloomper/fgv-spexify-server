@@ -1,8 +1,16 @@
+buildscript {
+    dependencies {
+        classpath('com.google.cloud.tools:jib-layer-filter-extension-gradle:0.3.0')
+    }
+}
+
 plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.2'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.asciidoctor.jvm.convert' version '4.0.5'
     id 'jacoco'
+    id 'com.google.cloud.tools.jib' version '3.5.4'
 }
 
 group = 'nu.fgv.spexify'
@@ -30,6 +38,7 @@ configurations {
     compileOnly.extendsFrom annotationProcessor
     integrationTestImplementation.extendsFrom testImplementation
     integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+    asciidoctorExtensions
     mockitoAgent {
         transitive = false
         canBeConsumed = false
@@ -46,8 +55,14 @@ repositories {
     mavenCentral()
 }
 
+ext {
+    set('snippetsDir', file('build/generated-snippets'))
+}
+
 dependencies {
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    asciidoctorExtensions 'org.springframework.restdocs:spring-restdocs-asciidoctor'
 
     compileOnly 'org.projectlombok:lombok'
 
@@ -77,11 +92,14 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
+    testImplementation 'org.wiremock:wiremock-standalone:3.13.2'
 
     integrationTestImplementation 'org.springframework.boot:spring-boot-starter-test'
     integrationTestImplementation 'org.springframework.boot:spring-boot-testcontainers'
     integrationTestImplementation 'org.testcontainers:testcontainers-junit-jupiter'
     integrationTestImplementation 'org.testcontainers:testcontainers-mysql'
+    integrationTestImplementation 'com.github.dasniko:testcontainers-keycloak:4.4.0'
 
     runtimeOnly 'com.mysql:mysql-connector-j'
     if (System.getProperty("os.name").toLowerCase().contains("mac") && System.getProperty("os.arch").toLowerCase().contains("aarch64")) {
@@ -105,7 +123,30 @@ tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += ['-Xlint:all,-processing,-serial', '-Werror']
 }
 
+javadoc {
+    source = sourceSets.main.allJava
+    destinationDir = layout.buildDirectory.dir('docs/javadoc').get().asFile
+    title = 'Spexify Server JavaDoc'
+    classpath = sourceSets.main.compileClasspath + sourceSets.main.runtimeClasspath
+    options {
+        encoding 'UTF-8'
+        charSet 'UTF-8'
+        author true
+        version true
+        failOnError true
+    }
+}
+
+tasks.register('createSnippetsDir') {
+    doLast {
+        project.mkdir snippetsDir
+    }
+}
+
 tasks.named('test') {
+    outputs.dir snippetsDir
+    dependsOn createSnippetsDir
+
     useJUnitPlatform()
     jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}"
 }
@@ -125,11 +166,21 @@ rootProject.tasks.named("processIntegrationTestResources") {
     duplicatesStrategy = 'include'
 }
 
+tasks.register('syncRealm', Copy) {
+    description = 'Copies fgv-keycloak/realm/fgv.json into the integration test resources'
+    group = 'build setup'
+    from(file('../fgv-keycloak/realm/fgv.json'))
+    into(file('src/integrationtest/resources/realm'))
+}
+
 jacocoTestReport {
     dependsOn test, integrationTest
     reports {
         xml.required = true
     }
+    additionalSourceDirs.from = files(sourceSets.main.allSource.srcDirs)
+    sourceDirectories.from = files(sourceSets.main.allSource.srcDirs)
+    classDirectories.from = files(sourceSets.main.output.classesDirs)
     executionData.from = fileTree(layout.buildDirectory).include(
             'jacoco/test.exec',
             'jacoco/integrationTest.exec'
@@ -138,7 +189,89 @@ jacocoTestReport {
 
 check.dependsOn integrationTest, jacocoTestReport
 
-// The image is built from the Dockerfile, not with Jib: the API needs ffmpeg and ffprobe, which no JRE base image has
-bootJar {
-    archiveFileName = 'app.jar'
+asciidoctorj {
+    version = '3.0.0'
 }
+
+asciidoctor {
+    dependsOn createSnippetsDir, test
+    configurations 'asciidoctorExtensions'
+    inputs.dir snippetsDir
+    sourceDir 'src/main/asciidoc'
+    forkOptions {
+        jvmArgs '--add-opens', 'java.base/sun.nio.ch=ALL-UNNAMED',
+                '--add-opens', 'java.base/java.io=ALL-UNNAMED',
+                '--enable-native-access=ALL-UNNAMED'
+    }
+    attributes    \
+         'snippets': file('build/generated-snippets')
+}
+
+bootJar {
+    dependsOn asciidoctor, javadoc
+    from("${asciidoctor.outputDir}") {
+        into 'static/docs'
+    }
+    from("${javadoc.destinationDir}") {
+        into 'static/docs/javadoc'
+    }
+}
+
+jib {
+    from {
+        // eclipse-temurin:25-jre plus ffmpeg, built from base/Dockerfile and published by CI: Jib can't add packages
+        image = "bloomper/${project.name}-base:25"
+        platforms {
+            platform {
+                architecture = 'amd64'
+                os = 'linux'
+            }
+            platform {
+                architecture = 'arm64'
+                os = 'linux'
+            }
+        }
+    }
+    to {
+        image = "bloomper/${project.name}:develop"
+    }
+    container {
+        user = '1000:1000'
+    }
+    pluginExtensions {
+        pluginExtension {
+            implementation = 'com.google.cloud.tools.jib.gradle.extension.layerfilter.JibLayerFilterExtension'
+            configuration {
+                filters {
+                    filter {
+                        glob = '**/spring-boot-docker-compose-*.jar'
+                    }
+                    filter {
+                        glob = '**/spring-boot-devtools-*.jar'
+                    }
+                }
+            }
+        }
+    }
+    extraDirectories {
+        paths {
+            path {
+                from = "${asciidoctor.outputDir}"
+                into = "/app/resources/static/docs"
+            }
+            path {
+                from = "${javadoc.destinationDir}"
+                into = "/app/resources/static/docs/javadoc"
+            }
+        }
+    }
+}
+
+tasks.named('jib') {
+    dependsOn asciidoctor, javadoc
+}
+
+jibDockerBuild {
+    dependsOn asciidoctor, javadoc
+}
+

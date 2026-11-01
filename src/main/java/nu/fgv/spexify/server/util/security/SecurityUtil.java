@@ -33,10 +33,6 @@ public final class SecurityUtil {
 
     public static final String SYSTEM = "system";
     public static final String CLIENT_ID = "fgv-spexify";
-    public static final String ROLE_USER = KeycloakJwtRolesConverter.PREFIX_RESOURCE_ROLE + CLIENT_ID + "_USER";
-    public static final String ROLE_EDITOR = KeycloakJwtRolesConverter.PREFIX_RESOURCE_ROLE + CLIENT_ID + "_EDITOR";
-    public static final String ROLE_ADMIN = KeycloakJwtRolesConverter.PREFIX_RESOURCE_ROLE + CLIENT_ID + "_ADMIN";
-    public static final String ROLE_SPEXFLIX = KeycloakJwtRolesConverter.PREFIX_RESOURCE_ROLE + CLIENT_ID + "_SPEXFLIX";
 
     private SecurityUtil() {
     }

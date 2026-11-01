@@ -39,6 +39,12 @@ import java.util.concurrent.TimeUnit;
 public class Ffmpeg {
 
     private static final Duration TIMEOUT = Duration.ofMinutes(10);
+    /**
+     * Input options for audio files people uploaded: local files and audio containers only, so that a file posing as a
+     * playlist cannot make ffmpeg read other files or URLs. They go before the {@code -i} they apply to.
+     */
+    public static final List<String> AUDIO_INPUT = List.of("-protocol_whitelist", "file",
+            "-format_whitelist", "flac,mp3,mov,ogg,wav,w64,aiff,caf,aac");
 
     public String probe(final List<String> arguments) throws IOException {
         final List<String> command = new ArrayList<>();

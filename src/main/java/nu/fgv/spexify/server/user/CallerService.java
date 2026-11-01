@@ -18,18 +18,21 @@ package nu.fgv.spexify.server.user;
 
 import nu.fgv.spexify.server.util.security.SecurityUtil;
 import org.jspecify.annotations.Nullable;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -49,17 +52,20 @@ public class CallerService {
 
     private final AppUserRepository repository;
     private final Clock clock;
+    private final TransactionTemplate transactionTemplate;
 
-    public CallerService(final AppUserRepository repository, final Clock clock) {
+    public CallerService(final AppUserRepository repository, final Clock clock, final PlatformTransactionManager transactionManager) {
         this.repository = repository;
         this.clock = clock;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     /**
      * The caller, or an exception when there is no valid token.
      */
     public Caller current() {
-        return currentIfAny().orElseThrow(() -> new AccessDeniedException("Not authenticated"));
+        return currentIfAny().orElseThrow(() -> new AuthenticationCredentialsNotFoundException("No access token"));
     }
 
     public Optional<Caller> currentIfAny() {
@@ -102,8 +108,16 @@ public class CallerService {
     /**
      * Records the caller as a user, or refreshes their username, name and when they were last seen.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AppUser record(final Caller caller) {
+        try {
+            return Objects.requireNonNull(transactionTemplate.execute(_ -> recordInTransaction(caller)));
+        } catch (final DataIntegrityViolationException e) {
+            // Two first requests from the same user, e.g. two GraphQL fields, raced to insert them; now the row exists
+            return Objects.requireNonNull(transactionTemplate.execute(_ -> recordInTransaction(caller)));
+        }
+    }
+
+    private AppUser recordInTransaction(final Caller caller) {
         final Instant now = clock.instant();
         final AppUser user = repository.findBySubject(caller.subject()).orElseGet(() -> {
             final AppUser created = new AppUser();
@@ -116,7 +130,7 @@ public class CallerService {
 
         if (user.getId() == null
                 || !caller.username().equals(user.getUsername())
-                || !java.util.Objects.equals(caller.displayName(), user.getDisplayName())
+                || !Objects.equals(caller.displayName(), user.getDisplayName())
                 || user.getLastSeenAt().plus(LAST_SEEN_RESOLUTION).isBefore(now)) {
             user.setUsername(caller.username());
             user.setDisplayName(caller.displayName());
@@ -129,7 +143,6 @@ public class CallerService {
     /**
      * The record of the caller, created on first use.
      */
-    @Transactional
     public AppUser currentUser() {
         return record(current());
     }

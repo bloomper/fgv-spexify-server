@@ -26,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PasswordCryptoTest {
 
+    private static final String KEY = Base64.getEncoder().encodeToString(new byte[32]);
+
     private static PasswordCrypto crypto(final String key) {
         return new PasswordCrypto(new SpexifyProperties(null, null, null, null, null,
                 new SpexifyProperties.Crypto(key), null, null, null));
@@ -43,8 +45,15 @@ class PasswordCryptoTest {
     }
 
     @Test
+    void refusesToStartWithoutAKey() {
+        assertThatThrownBy(() -> crypto(""))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("API_APP_PASSWORD_ENCRYPTION_KEY");
+    }
+
+    @Test
     void makesPasswordsThatAreEasyToType() {
-        final String password = crypto("").newPassword();
+        final String password = crypto(KEY).newPassword();
 
         assertThat(password).matches("([a-zA-Z2-9]{4}-){5}[a-zA-Z2-9]{4}").doesNotContain("l", "I", "O", "0", "1");
     }
@@ -57,6 +66,6 @@ class PasswordCryptoTest {
 
     @Test
     void makesApiKeysWithAPrefix() {
-        assertThat(crypto("").newApiKey()).startsWith("spx_").hasSize(44);
+        assertThat(crypto(KEY).newApiKey()).startsWith("spx_").hasSize(44);
     }
 }

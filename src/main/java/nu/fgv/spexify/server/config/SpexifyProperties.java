@@ -53,7 +53,7 @@ public record SpexifyProperties(String timeZone,
     public record Navidrome(String url, String systemUser) {
     }
 
-    public record Crypto(String appPasswordKey) {
+    public record Crypto(String appPasswordEncryptionKey) {
     }
 
     public record Spexregister(String graphqlUrl) {

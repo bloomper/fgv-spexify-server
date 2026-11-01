@@ -23,6 +23,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -53,7 +54,10 @@ public class AudioProbe {
         final String json;
 
         try {
-            json = ffmpeg.probe(List.of("-v", "error", "-print_format", "json", "-show_format", "-show_streams", file.toString()));
+            final List<String> arguments = new ArrayList<>(Ffmpeg.AUDIO_INPUT);
+
+            arguments.addAll(List.of("-v", "error", "-print_format", "json", "-show_format", "-show_streams", file.toString()));
+            json = ffmpeg.probe(arguments);
         } catch (final IOException e) {
             return Optional.empty();
         }

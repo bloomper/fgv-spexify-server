@@ -78,7 +78,7 @@ public class AdminGraphqlApi {
         final LibraryScanner.Status status = scanner.status();
 
         return new LibraryStatusDto(status.available(), status.scanning(), status.pending(), status.lastScanAt(),
-                status.lastError(), trackRepository.count(), trackRepository.findByLocation(Location.MUSIC).size());
+                status.lastError(), trackRepository.count(), trackRepository.countByLocation(Location.MUSIC));
     }
 
     @MutationMapping

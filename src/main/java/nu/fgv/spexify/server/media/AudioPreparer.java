@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 
@@ -53,7 +54,10 @@ public class AudioPreparer {
         if (AudioFormat.isPcm(result.codec())) {
             final Path flac = upload.resolveSibling(upload.getFileName() + ".flac");
 
-            ffmpeg.ffmpeg(List.of("-i", upload.toString(), "-map", "0:a:0", "-map_metadata", "0", "-c:a", "flac", "-f", "flac", flac.toString()));
+            final List<String> arguments = new ArrayList<>(Ffmpeg.AUDIO_INPUT);
+
+            arguments.addAll(List.of("-i", upload.toString(), "-map", "0:a:0", "-map_metadata", "0", "-c:a", "flac", "-f", "flac", flac.toString()));
+            ffmpeg.ffmpeg(arguments);
             Files.delete(upload);
             file = flac;
             result = probe.probe(flac).orElseThrow(() -> new BadRequestException("error.upload.notAudio"));

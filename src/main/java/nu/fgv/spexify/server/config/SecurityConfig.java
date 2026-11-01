@@ -69,6 +69,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize ->
                         authorize
                                 .requestMatchers(EndpointRequest.to(HealthEndpoint.class)).permitAll()
+                                .requestMatchers(HttpMethod.GET, "/docs/**").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/api/graphql").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/graphql").permitAll()
                                 .anyRequest().authenticated()

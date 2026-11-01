@@ -16,8 +16,9 @@
 
 package nu.fgv.spexify.server.spex;
 
-import lombok.extern.slf4j.Slf4j;
+import nu.fgv.spexify.server.config.CacheConfig;
 import org.jspecify.annotations.Nullable;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.graphql.client.ClientGraphQlResponse;
 import org.springframework.graphql.client.HttpSyncGraphQlClient;
 import org.springframework.http.HttpStatus;
@@ -39,7 +40,6 @@ import java.util.function.Supplier;
  * @author Anders Jacobsson
  * @since 1.0
  */
-@Slf4j
 @Component
 public class SpexregisterClient {
 
@@ -68,6 +68,7 @@ public class SpexregisterClient {
     /**
      * Every spex, originals and revivals, by year.
      */
+    @Cacheable(cacheNames = CacheConfig.ALL_SPEX)
     public List<SpexDto> allSpex() {
         return call(() -> {
             final List<SpexDto> spex = new ArrayList<>();

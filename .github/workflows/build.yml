@@ -91,14 +91,12 @@ jobs:
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      # The image is built from the Dockerfile, not with Jib, because the API needs ffmpeg
+      - name: Publish base image to Docker Hub
+        if: steps.image.outputs.image
+        run: docker buildx build --platform linux/amd64,linux/arm64 --pull --push --tag bloomper/fgv-spexify-server-base:25 base
       - name: Publish image to Docker Hub
         if: steps.image.outputs.image
-        run: |
-          ./gradlew bootJar
-          image="${{ steps.image.outputs.image }}"
-          args="--tag $image"
-          for tag in $(echo "${{ steps.image.outputs.tags }}" | tr ',' ' '); do
-            args="$args --tag ${image%:*}:$tag"
-          done
-          docker buildx build --platform linux/amd64,linux/arm64 --push $args .
+        run: ./gradlew jib -Djib.to.image=${{ steps.image.outputs.image }} -Djib.to.tags=${{ steps.image.outputs.tags }} -Djib.to.auth.username=$DOCKERHUB_USERNAME -Djib.to.auth.password=$DOCKERHUB_TOKEN
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

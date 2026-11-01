@@ -46,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -102,7 +103,7 @@ public class SubsonicGateway {
     @RequestMapping(path = "/rest/**", method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.HEAD})
     public void handle(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
         final Map<String, String[]> parameters = request.getParameterMap();
-        final String format = first(parameters, "f") == null ? "xml" : first(parameters, "f");
+        final String format = Objects.requireNonNullElse(first(parameters, "f"), "xml");
         final String endpoint = endpoint(request.getRequestURI());
 
         if (endpoint.isEmpty()) {
@@ -121,11 +122,16 @@ public class SubsonicGateway {
         if (user == null) {
             return;
         }
+        if (user.username().equalsIgnoreCase(navidrome.systemUser())) {
+            // The system user is Navidrome's admin; nobody may act as it through the gateway
+            SubsonicResponses.error(response, format, SubsonicResponses.NOT_AUTHORIZED, "Not available in Spexify");
+            return;
+        }
         if (REFUSED.contains(endpoint.toLowerCase(Locale.ROOT))) {
             SubsonicResponses.error(response, format, SubsonicResponses.NOT_AUTHORIZED, "Not available in Spexify");
             return;
         }
-        forward(request, response, endpoint, parameters, user.username());
+        forward(request, response, endpoint, parameters, format, user.username());
     }
 
     private @Nullable Authenticated authenticate(final HttpServletRequest request, final Map<String, String[]> parameters,
@@ -146,7 +152,7 @@ public class SubsonicGateway {
                 SubsonicResponses.error(response, format, SubsonicResponses.CONFLICTING_AUTHENTICATION, "Give either an API key or a username");
                 return null;
             }
-            if (throttle.isLocked("", address)) {
+            if (throttle.isAddressLocked(address)) {
                 SubsonicResponses.error(response, format, SubsonicResponses.INVALID_API_KEY, "Too many failed attempts; try again later");
                 return null;
             }
@@ -154,7 +160,7 @@ public class SubsonicGateway {
             final AppUser user = appPasswordService.verifyApiKey(apiKey).orElse(null);
 
             if (user == null) {
-                throttle.failed("", address);
+                throttle.failedAddress(address);
                 SubsonicResponses.error(response, format, SubsonicResponses.INVALID_API_KEY, "Invalid API key");
                 return null;
             }
@@ -208,7 +214,7 @@ public class SubsonicGateway {
     }
 
     private void forward(final HttpServletRequest request, final HttpServletResponse response, final String endpoint,
-                         final Map<String, String[]> parameters, final String username) throws IOException {
+                         final Map<String, String[]> parameters, final String format, final String username) throws IOException {
         final Map<String, List<String>> forwarded = new LinkedHashMap<>();
 
         parameters.forEach((key, values) -> {
@@ -222,8 +228,7 @@ public class SubsonicGateway {
             navidrome.ensureUser(username);
         } catch (final IOException e) {
             log.warn("Navidrome is unavailable: {}", e.getMessage());
-            SubsonicResponses.error(response, first(parameters, "f") == null ? "xml" : first(parameters, "f"),
-                    SubsonicResponses.GENERIC, "The music server is unavailable right now");
+            SubsonicResponses.error(response, format, SubsonicResponses.GENERIC, "The music server is unavailable right now");
             return;
         }
 
@@ -257,8 +262,7 @@ public class SubsonicGateway {
             throw new IOException("Interrupted", e);
         } catch (final IOException e) {
             log.warn("Navidrome is unavailable: {}", e.getMessage());
-            SubsonicResponses.error(response, first(parameters, "f") == null ? "xml" : first(parameters, "f"),
-                    SubsonicResponses.GENERIC, "The music server is unavailable right now");
+            SubsonicResponses.error(response, format, SubsonicResponses.GENERIC, "The music server is unavailable right now");
             return;
         }
 

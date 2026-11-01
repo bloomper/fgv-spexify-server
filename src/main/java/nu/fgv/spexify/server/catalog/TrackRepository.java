@@ -34,11 +34,11 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
 
     Optional<Track> findByUuid(String uuid);
 
-    List<Track> findByUuidIn(Collection<String> uuids);
-
     List<Track> findByTrashedAtIsNotNullOrderByTrashedAtDesc();
 
     List<Track> findByLocation(Location location);
+
+    long countByLocation(Location location);
 
     List<Track> findByNavidromeIdIn(Collection<String> navidromeIds);
 

@@ -53,6 +53,13 @@ public class LoginThrottle {
         return locked("u:" + username) || locked("a:" + address);
     }
 
+    /**
+     * For API keys, which name no user: only the address counts.
+     */
+    public boolean isAddressLocked(final String address) {
+        return locked("a:" + address);
+    }
+
     public boolean isUsernameLocked(final String username) {
         return locked("u:" + username);
     }
@@ -61,6 +68,12 @@ public class LoginThrottle {
         final var settings = settingsService.current();
 
         record("u:" + username, settings.getLockoutAttempts(), settings.getLockoutMinutes());
+        record("a:" + address, settings.getLockoutAttempts() * ADDRESS_FACTOR, settings.getLockoutMinutes());
+    }
+
+    public void failedAddress(final String address) {
+        final var settings = settingsService.current();
+
         record("a:" + address, settings.getLockoutAttempts() * ADDRESS_FACTOR, settings.getLockoutMinutes());
     }
 

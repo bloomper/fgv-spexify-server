@@ -1,0 +1,306 @@
+= Spexify Server
+:doctype: book
+:icons: font
+:source-highlighter: highlightjs
+:toc: left
+:toclevels: 4
+
+xref:index.adoc[Back to start page]
+
+[[prerequisites]]
+== Prerequisites
+
+You need to have the following installed to run Spexify Server:
+
+* Docker
+
+You also need the following if you are to do development in Spexify Server:
+
+* Git
+* Java
+** Version 25 is required, later versions might work as well
+* ffmpeg and ffprobe, on the path, for the media tests and for running the server outside Docker
+* An IDE of your choice
+
+[[cloning_the_repository]]
+== Cloning the repository
+
+Clone the Git repository:
+
+[source,bash]
+----
+$ git clone https://github.com/bloomper/fgv-spexify-server
+----
+
+[[setup]]
+== Setup
+
+[[infrastructure]]
+=== Shared infrastructure
+
+Keycloak (with the realm ``fgv``), Mailpit, Umami and Caddy, which FGV's applications share, run in the local stack of https://github.com/bloomper/fgv-infra-deploy[fgv-infra-deploy].
+Check it out next to this repository and start it once; it keeps running for every application:
+
+[source,bash]
+----
+$ git clone https://github.com/bloomper/fgv-infra-deploy ../fgv-infra-deploy
+$ cd ../fgv-infra-deploy/local
+$ printf '%s' 'verysecret' > .docker/secrets/KEYCLOAK_MYSQL_ROOT_PASSWORD
+$ printf '%s' 'secret' > .docker/secrets/KEYCLOAK_MYSQL_USER_PASSWORD
+$ printf '%s' 'password' > .docker/secrets/KEYCLOAK_ADMIN_PASSWORD   # for the user KEYCLOAK_ADMIN in local/.env
+$ git update-index --skip-worktree .docker/secrets/*
+$ docker compose up -d
+----
+
+It creates the Docker network ``fgv-local``, which this repository's ``docker-compose.yaml`` joins.
+Keycloak imports the realm, with its clients and their secrets, from ``realm/fgv.json`` in https://github.com/bloomper/fgv-keycloak[fgv-keycloak].
+
+Spexify reads spex from Spexregister, and its sample data is built on Spexregister's (see <<sample_data>>).
+Run https://github.com/bloomper/spexregister-server[spexregister-server]'s local stack as well, as its getting started guide describes.
+
+[[configuration]]
+=== Configuration
+
+There are some configuration parameters that need to be set before Spexify Server can be started.
+Each parameter is a file under ``.docker/secrets``, containing only the value.
+The files are in git with the placeholder ``CHANGE_ME``, as are the directories that ``docker-compose.yaml`` mounts (kept by ``.gitkeep``).
+Replace each placeholder, without a trailing newline, e.g. ``printf '%s' 'verysecret' > .docker/secrets/FGV_SPEXIFY_MYSQL_ROOT_PASSWORD``, and tell git to leave your values alone so they are never committed:
+
+[source,bash]
+----
+$ git update-index --skip-worktree .docker/secrets/*
+----
+
+To see a changed placeholder after a pull, undo it with ``git update-index --no-skip-worktree .docker/secrets/*``.
+
+|===
+|Parameter|Purpose|Comment|Example value
+
+|FGV_SPEXIFY_MYSQL_ROOT_PASSWORD|The password for the root user of Spexify Server's database||verysecret
+|FGV_SPEXIFY_MYSQL_USER_PASSWORD|The password for the user of Spexify Server's database||secret
+|API_KEYCLOAK_SERVICE_CLIENT_SECRET|The client secret of ``fgv-spexify-service``, with which Spexify Server calls Spexregister and Spexflix and checks that users still have access|Must match the value in ``realm/fgv.json`` in fgv-keycloak, search for ``fgv-spexify-service`` and pick the value for ``secret`` in the same section|
+|API_KEYCLOAK_ADMIN_CLIENT_SECRET|The client secret of ``fgv-admin``, with which the sample data import gives users roles|Must match the value in ``realm/fgv.json``, search for ``fgv-admin``|
+|API_APP_PASSWORD_ENCRYPTION_KEY|Encrypts the app passwords, which Subsonic's token login needs to read back|32 random bytes, base64, e.g. from ``openssl rand -base64 32``|
+
+|===
+
+There are also configuration parameters in ``.env`` that can be tweaked if so desired but the default values will work just fine.
+
+|===
+|Parameter|Purpose|Default value
+
+|FGV_SPEXIFY_MYSQL_DATABASE|The name of the database used by Spexify Server|spexify
+|FGV_SPEXIFY_MYSQL_ROOT_USER|The root user of Spexify Server's database|root
+|FGV_SPEXIFY_MYSQL_USER|The user of Spexify Server's database|spexify
+|API_KEYCLOAK_REALM|The Keycloak realm of Spexify Server|fgv
+|API_KEYCLOAK_ADMIN_CLIENT_ID|The Keycloak admin client id of Spexify Server|fgv-admin
+|API_KEYCLOAK_CLIENT_CLIENT_ID|The Keycloak client id of Spexify Web|fgv-spexify
+|API_SPEXFLIX_GRAPHQL_URL|Spexflix's GraphQL endpoint, for the links to Spexflix; empty for none|(empty); ``http://spexflix-api:8080/api/graphql`` when Spexflix runs too
+|API_IMPORT_SAMPLE_DATA|A flag determining whether to import sample data or not|false
+|API_SAMPLE_DATA_SIZE|``small`` (20 albums) or ``large`` (about 300)|small
+
+|===
+
+Access tokens are only accepted from the Keycloak clients ``fgv-spexify`` and ``fgv-spexflix-service`` (``API_SECURITY_AUTHORIZED_PARTIES``).
+
+Add the following to `/etc/hosts` (or the Windows equivalent):
+
+[source,bash]
+----
+###################################
+#             Spexify             #
+###################################
+127.0.0.1 auth.fgv.local.nu
+127.0.0.1 api.spexify.fgv.local.nu
+127.0.0.1 spexify.fgv.local.nu
+127.0.0.1 mail.fgv.local.nu
+127.0.0.1 analytics.fgv.local.nu
+----
+
+[[run]]
+== Run
+
+You are now ready to get Spexify Server up and running, after fgv-infra-deploy's local stack:
+
+[source,bash]
+----
+$ docker compose -f ../fgv-infra-deploy/local/compose.yaml up -d
+$ docker compose up -d
+----
+
+This starts MySQL, Navidrome and ``spexify-api``, which reaches Keycloak and Spexregister by their container names on the ``fgv-local`` network.
+Caddy serves it on ``https://api.spexify.fgv.local.nu:8443``.
+MySQL and Navidrome are also published on localhost, on ports 3308 and 4533.
+
+When the ``spexify-api`` container isn't running, Caddy forwards ``https://api.spexify.fgv.local.nu:8443`` to port 8082 on the host, i.e. Spexify Server started from the IDE or with ``./gradlew bootRun`` with the Spring profile ``local``:
+
+[source,bash]
+----
+$ docker compose up -d spexify-mysql spexify-navidrome
+$ MYSQL_API_USER_PASSWORD=<FGV_SPEXIFY_MYSQL_USER_PASSWORD> \
+  API_KEYCLOAK_SERVICE_CLIENT_SECRET=<…> API_KEYCLOAK_ADMIN_CLIENT_SECRET=<…> API_APP_PASSWORD_ENCRYPTION_KEY=<…> \
+  ./gradlew bootRun --args='--spring.profiles.active=local'
+----
+
+The JVM must then trust Caddy's local root certificate (see <<caddy>>), since it reaches Keycloak at ``https://auth.fgv.local.nu:8443``, e.g. with ``JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=<a truststore with it>"``.
+ffmpeg and ffprobe must be on the path.
+
+The realm lets a locally running https://github.com/bloomper/fgv-spexify-web[fgv-spexify-web], i.e. ``npm run dev``, log in from ``SPEXIFY_URL`` in fgv-infra-deploy's ``local/.env``, which defaults to ``http://localhost:3002``.
+
+``./scripts/configure-keycloak.sh`` allows Postman's callback URL in Keycloak (see <<testing_the_api>>).
+It finds fgv-infra-deploy in ``../fgv-infra-deploy``, or where ``INFRA_DEPLOY`` points.
+
+The same setup for staging and production is in https://github.com/bloomper/fgv-spexify-deploy[fgv-spexify-deploy] and fgv-infra-deploy.
+
+[[media]]
+== Media
+
+The catalogue (albums linked to spex, and their tracks) lives in MySQL.
+Audio files and covers live in the media folder (``./data/media``, ``API_MEDIA_ROOT``), named by id, never in the database:
+
+|===
+|Folder|Content|Navidrome sees it
+
+|``music/``|Published tracks and their covers|Yes, read-only
+|``unpublished/``|Unpublished tracks|No
+|``trash/``|Trashed tracks|No
+|``covers/``|Every album's cover|No
+|``uploads/``|Unfinished uploads, kept 24 hours|No
+
+|===
+
+* *Tags.* When a track enters ``music/``, or its metadata changes there, ffmpeg writes the tags, with the track's and album's uuids as MusicBrainz release track id and album id. Navidrome derives its persistent ids from those, so editing a title keeps stars and playlists. MP4 files cannot carry them through ffmpeg; Navidrome then falls back to album, disc, number and title. Lyrics are written beside the file as ``.lrc`` or ``.txt``.
+* *Scans.* After a change the server asks Navidrome to scan, then matches Navidrome's song ids to tracks by the uuid in the path (``ND_SUBSONIC_DEFAULTREPORTREALPATH=true``).
+* *Navidrome* trusts the ``Remote-User`` header only from its trusted sources (``ND_EXTAUTH_TRUSTEDSOURCES``). Locally that is every address, with the port bound to localhost; fgv-spexify-deploy trusts only the API's fixed address on a network of their own.
+
+[[sample_data]]
+== Sample data
+
+If ``API_IMPORT_SAMPLE_DATA`` is set to ``true``, the database is replaced and the media folders are emptied at every start (it refuses in the Spring profile ``production``).
+None of the data can be traced to real individuals, i.e. no personally identifiable information (PII).
+The import needs the secret of ``fgv-admin``.
+
+The sample data is built on Spexregister's, so Spexregister must run with ``API_IMPORT_SAMPLE_DATA=true``:
+
+* The albums belong to Spexregister's sample spex, read from its API. The import waits up to 5 minutes for Spexregister.
+* Spexregister's sample users get roles on ``fgv-spexify`` (see <<test_credentials>>). The import refuses to run without them, which keeps it away from real environments.
+
+[sidebar]
+.NOTE
+--
+Spexregister's import deletes all Keycloak users at every start, so restart Spexify Server after Spexregister.
+--
+
+The import builds 20 albums (about 300 with ``API_SAMPLE_DATA_SIZE=large``) with audio generated by ffmpeg in every accepted format, covers for two albums in three (the rest fall back to the spex poster), synced and plain lyrics, a compilation, unpublished and trashed albums and tracks, a track whose file is missing, app passwords and audit log entries.
+The ids are the same on every run, so Spexflix's links to tracks hold when both run with sample data.
+
+[[keycloak]]
+== Keycloak
+
+[[keycloak_administration]]
+=== Administration UI
+
+The administrative UI of Keycloak can be accessed at https://auth.fgv.local.nu:8443/auth.
+The username is ``KEYCLOAK_ADMIN`` in fgv-infra-deploy's ``local/.env`` and the password is in its ``local/.docker/secrets/KEYCLOAK_ADMIN_PASSWORD``.
+
+[[keycloak_setup]]
+=== Setup
+
+The realm is defined by ``realm/fgv.json`` in fgv-keycloak, whose README describes what it contains.
+Spexify uses its clients ``fgv-spexify`` (the web, and Spexify's roles), ``fgv-spexify-service`` (calls to Spexregister and Spexflix, and checking that app password owners still have access) and ``fgv-admin`` (the sample data's users).
+
+The integration tests import a copy of ``fgv.json``.
+Refresh it with ``./gradlew syncRealm`` from a sibling ``fgv-keycloak`` checkout after every realm change, and commit it.
+
+To get a changed ``fgv.json`` into the local Keycloak, run ``docker compose down`` in fgv-infra-deploy's ``local``, empty ``local/.docker/keycloak-mysql/data`` and start it again.
+
+[[caddy]]
+== Caddy
+
+Caddy, in fgv-infra-deploy's local stack, is used as a web server in front of Keycloak and Spexify Server and takes care of creating and assigning an SSL certificate.
+However, since it is listening to local addresses, the certificate is not created by a proper CA (Certificate Authority).
+It is therefore needed to import the root certificate to avoid browsers complaining about the certificate.
+
+The root certificate can be found in fgv-infra-deploy's ``local/.docker/caddy/data/caddy/pki/authorities/local/root.crt``.
+Import it into your OS's trust manager.
+
+[[mailpit]]
+== Mailpit
+
+Mailpit (https://mailpit.axllent.org/), in fgv-infra-deploy's local stack, acts as the SMTP server when running locally.
+It catches all emails sent by Keycloak, nothing is delivered to real recipients.
+Spexify Server itself sends no email.
+
+The caught emails can be viewed at https://mail.fgv.local.nu:8443 (or http://localhost:8025).
+
+[[tests]]
+== Tests
+
+There are two types of tests:
+
+* Unit tests, located under ``src/test``
+* Integration tests, located under ``src/integrationtest``
+
+Unit tests do not require any external dependencies, such as a database, and are therefore quicker to run; the media tests run ffmpeg.
+Among them are the API tests, which are used to generate the xref:api-guide.adoc[HTTP API documentation].
+
+Integration tests start MySQL, Keycloak and Navidrome with Testcontainers, so they need Docker, and use WireMock as a stand-in for Spexregister and Spexflix.
+They generate audio with ffmpeg and go through the real HTTP endpoints, the Subsonic gateway included.
+
+[source,bash]
+----
+$ ./gradlew test               # unit tests, also generates the snippets for the HTTP API documentation
+$ ./gradlew integrationTest
+$ ./gradlew check              # both, with compiler warnings as errors, and Jacoco
+$ ./gradlew build              # all of the above, plus this documentation
+----
+
+[[test_credentials]]
+== Test credentials
+
+The following test users have roles on ``fgv-spexify`` when sample data is imported (see <<sample_data>>), with the password in ``SAMPLE_USER_PASSWORD`` (default ``s3cr3t-s3cr3t``, the same as Spexregister's).
+The first three are Spexregister's sample users, which are the same in every FGV application.
+
+|===
+|Username|Roles on ``fgv-spexify``|Comment
+
+|admin@fgv.nu|``USER``, ``EDITOR``, ``ADMIN``|
+|editor@fgv.nu|``USER``, ``EDITOR``|Has made the audit log's changes
+|user@fgv.nu|``USER``|Has the app password ``SAMPLE_APP_PASSWORD`` (default ``sample-app-password-0001``) and an expired one
+|no-access@fgv.nu|None|Created by the import when missing; shared with Spexflix's sample data
+
+|===
+
+With Spexflix's sample data too, the three Spexregister users have ``USER`` on both, so they see the links between them.
+
+[[testing_the_api]]
+== Testing the API
+
+There are many tools out there that can be used for manual testing of the APIs, e.g. Postman (https://www.postman.com/).
+The Keycloak client requires PKCE, so the tool must support it.
+
+To use Postman, first run ``./scripts/configure-keycloak.sh``, which allows Postman's callback URL in Keycloak.
+Then select ``OAuth 2.0`` as ``Auth Type`` under the ``Authorization`` tab and then select
+``Authorization Code (With PKCE)`` as ``Grant type`` and ``SHA-256`` as ``Code Challenge Method``.
+Enter values as follows (leave other fields empty).
+
+|===
+
+|Field|Value|Comment
+
+|Callback URL|https://oauth.pstmn.io/v1/browser-callback|
+|Auth URL|https://auth.fgv.local.nu:8443/auth/realms/fgv/protocol/openid-connect/auth|If ``API_KEYCLOAK_REALM`` in ``.env`` has been changed, the value must be changed accordingly
+|Access Token URL|https://auth.fgv.local.nu:8443/auth/realms/fgv/protocol/openid-connect/token|If ``API_KEYCLOAK_REALM`` in ``.env`` has been changed, the value must be changed accordingly
+|Client ID|fgv-spexify|If ``API_KEYCLOAK_CLIENT_CLIENT_ID`` in ``.env`` has been changed, the value must be changed accordingly
+|Client Secret|The secret of ``fgv-spexify`` in ``realm/fgv.json``|If the secret of the client has been changed in Keycloak, the value must be changed accordingly
+|Client Authentication|Send as Basic Auth header|
+
+|===
+
+Request an access token by clicking ``Get New Access Token`` and use any of the test credentials to login.
+Use the obtained access token when invoking the API, e.g. https://api.spexify.fgv.local.nu:8443/api/graphql.
+
+A Subsonic app can be pointed at ``https://api.spexify.fgv.local.nu:8443`` (once it trusts Caddy's root certificate) with ``user@fgv.nu`` and the sample app password.
+Through fgv-spexify-deploy, the apps use the web's address, whose ``/rest/*`` reaches the API.
+
+xref:index.adoc[Back to start page]

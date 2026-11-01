@@ -16,7 +16,6 @@
 
 package nu.fgv.spexify.server.apppassword;
 
-import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.config.SpexifyProperties;
 import org.springframework.stereotype.Component;
 
@@ -38,7 +37,6 @@ import java.util.HexFormat;
  * @author Anders Jacobsson
  * @since 1.0
  */
-@Slf4j
 @Component
 public class PasswordCrypto {
 
@@ -46,17 +44,16 @@ public class PasswordCrypto {
     private static final int TAG_BITS = 128;
     private static final String PASSWORD_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final String KEY_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    private static final String DEVELOPMENT_KEY = "c3BleGlmeS1kZXZlbG9wbWVudC1rZXktbm90LXNlY3Jl";
 
     private final SecureRandom random = new SecureRandom();
     private final SecretKeySpec key;
 
     public PasswordCrypto(final SpexifyProperties properties) {
-        String encoded = properties.crypto().appPasswordKey();
+        final String encoded = properties.crypto() == null ? null : properties.crypto().appPasswordEncryptionKey();
 
         if (encoded == null || encoded.isBlank()) {
-            log.warn("APP_PASSWORD_KEY is not set; app passwords are encrypted with a development key");
-            encoded = DEVELOPMENT_KEY;
+            // Never fall back to a known key: app passwords encrypted with it could be read by anyone
+            throw new IllegalStateException("API_APP_PASSWORD_ENCRYPTION_KEY is not set");
         }
 
         final byte[] bytes = Base64.getDecoder().decode(encoded.strip());

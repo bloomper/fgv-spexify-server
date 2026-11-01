@@ -31,13 +31,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Uploads: created, appended to chunk by chunk, then claimed by the operation that uses the file. Only the person who
@@ -57,6 +61,7 @@ public class UploadService {
     private final MediaStorage storage;
     private final long maxSize;
     private final Clock clock;
+    private final Set<String> appending = ConcurrentHashMap.newKeySet();
 
     public UploadService(final UploadSessionRepository repository, final MediaStorage storage,
                          final SpexifyProperties properties, final Clock clock) {
@@ -95,39 +100,51 @@ public class UploadService {
     }
 
     /**
-     * Appends a chunk at the given offset, which must be where the upload stands.
+     * Appends a chunk at the given offset, which must be where the upload stands. Runs without a transaction, so that no
+     * database connection is held while the chunk streams in; one chunk at a time per upload.
      *
      * @return the new offset
      */
-    @Transactional
     public long append(final Caller caller, final String id, final long offset, final InputStream body) throws IOException {
-        final UploadSession session = owned(caller, id);
-
-        if (offset != session.getOffset()) {
+        if (!appending.add(id)) {
             throw new ConflictException("error.upload.offset");
         }
+        try {
+            final UploadSession session = owned(caller, id);
 
-        final Path file = storage.uploadFile(id);
-        final long remaining = session.getLength() - session.getOffset();
-        long written = 0;
-
-        try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.WRITE, StandardOpenOption.APPEND)) {
-            final byte[] buffer = new byte[64 * 1024];
-            int read;
-
-            while ((read = body.read(buffer)) != -1) {
-                if (written + read > remaining || written + read > MAX_CHUNK) {
-                    throw new BadRequestException("error.upload.tooLarge");
-                }
-                out.write(buffer, 0, read);
-                written += read;
+            if (offset != session.getOffset()) {
+                throw new ConflictException("error.upload.offset");
             }
+
+            final long remaining = session.getLength() - session.getOffset();
+            long written = 0;
+
+            try (FileChannel channel = FileChannel.open(storage.uploadFile(id), StandardOpenOption.WRITE)) {
+                // Drops what an earlier chunk wrote before it broke off, which the offset does not count
+                channel.truncate(session.getOffset());
+                channel.position(session.getOffset());
+
+                final OutputStream out = Channels.newOutputStream(channel);
+                final byte[] buffer = new byte[64 * 1024];
+                int read;
+
+                while ((read = body.read(buffer)) != -1) {
+                    if (written + read > remaining || written + read > MAX_CHUNK) {
+                        throw new BadRequestException("error.upload.tooLarge");
+                    }
+                    out.write(buffer, 0, read);
+                    written += read;
+                }
+            }
+            session.setOffset(session.getOffset() + written);
+            if (session.isComplete()) {
+                session.setCompletedAt(clock.instant());
+            }
+            repository.save(session);
+            return session.getOffset();
+        } finally {
+            appending.remove(id);
         }
-        session.setOffset(session.getOffset() + written);
-        if (session.isComplete()) {
-            session.setCompletedAt(clock.instant());
-        }
-        return session.getOffset();
     }
 
     @Transactional
@@ -168,7 +185,7 @@ public class UploadService {
         }
     }
 
-    @Scheduled(fixedDelay = 1, timeUnit = java.util.concurrent.TimeUnit.HOURS, initialDelay = 5)
+    @Scheduled(fixedDelay = 60, initialDelay = 5, timeUnit = java.util.concurrent.TimeUnit.MINUTES)
     @Transactional
     public void cleanUp() {
         for (final UploadSession session : repository.findByCreatedAtBefore(clock.instant().minus(KEEP))) {

@@ -39,6 +39,7 @@ public class CacheConfig {
 
     public static final String SPEX_POSTERS = "spexPosters";
     public static final String VIDEO_LINKS = "videoLinks";
+    public static final String ALL_SPEX = "allSpex";
     private static final long POSTER_CACHE_BYTES = 64L * 1024 * 1024;
 
     @Bean
@@ -51,6 +52,11 @@ public class CacheConfig {
                 .weigher((_, value) -> value instanceof Optional<?> poster && poster.orElse(null) instanceof SpexregisterClient.Poster image
                         ? image.content().length + 64
                         : 64)
+                .build());
+        // Editors search the spex as they type; Spexregister is asked once every few minutes, not on every key
+        cacheManager.registerCustomCache(ALL_SPEX, Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofMinutes(5))
+                .maximumSize(1)
                 .build());
         cacheManager.registerCustomCache(VIDEO_LINKS, Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMinutes(5))

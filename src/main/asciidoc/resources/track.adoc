@@ -1,0 +1,31 @@
+= Track
+:doctype: book
+:icons: font
+:source-highlighter: highlightjs
+:toc: left
+:toclevels: 4
+:operation-http-request-title: Example request
+:operation-http-response-title: Example response
+
+xref:../api-guide.adoc[Back to API guide]
+
+A track's audio, for playing and for downloading.
+Listeners reach published tracks of published albums; editors every track that is not deleted.
+`404 Not Found` when the track does not exist, the caller may not reach it, or its file is missing.
+
+[[audio]]
+== Audio
+
+The audio file as it was uploaded, for the web player.
+It honours `Range` requests, so the player can seek.
+
+operation::track-audio-get[snippets='security,path-parameters,request-headers,http-request,response-headers']
+
+[[download]]
+== Download
+
+The same file as an attachment, named by the track's number and title.
+
+operation::track-download-get[snippets='security,path-parameters,request-headers,http-request,response-headers']
+
+xref:../api-guide.adoc[Back to API guide]

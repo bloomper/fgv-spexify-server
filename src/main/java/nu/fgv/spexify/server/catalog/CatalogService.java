@@ -273,6 +273,14 @@ public class CatalogService {
     }
 
     /**
+     * An album the caller may see, without its tracks.
+     */
+    @Transactional(readOnly = true)
+    public Album visibleAlbum(final Long id) {
+        return visibleAlbum(id, callerService.current());
+    }
+
+    /**
      * An album the caller may see, with its tracks loaded.
      */
     @Transactional(readOnly = true)

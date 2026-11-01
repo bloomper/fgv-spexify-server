@@ -45,8 +45,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -114,7 +116,7 @@ public class MediaController {
                 .filter(storage::exists)
                 .toList();
         final List<Path> files = tracks.stream().map(storage::trackFile).toList();
-        final List<String> names = tracks.stream().map(MediaController::downloadName).toList();
+        final List<String> names = uniqueNames(tracks.stream().map(MediaController::downloadName).toList());
         final String zipName = safe(album.getTitle() + (album.getYear() == null ? "" : " (" + album.getYear() + ")")) + ".zip";
 
         final StreamingResponseBody body = out -> {
@@ -138,25 +140,21 @@ public class MediaController {
      * The album's own cover, else the spex poster from Spexregister, else 404.
      */
     @GetMapping("/api/albums/{id}/cover")
-    public ResponseEntity<?> cover(@PathVariable final Long id) throws IOException {
-        final AlbumDto album = catalogService.album(id);
+    public ResponseEntity<?> cover(@PathVariable final Long id) {
+        final Album album = catalogService.visibleAlbum(id);
 
-        if (album == null) {
-            throw new ResourceNotFoundException("error.album.notFound", id);
-        }
-        if (album.hasCover()) {
-            final Album entity = catalogService.visibleAlbumWithTracks(id);
-            final Path file = storage.coverFile(entity);
+        if (album.getCoverExtension() != null) {
+            final Path file = storage.coverFile(album);
 
             if (Files.isRegularFile(file)) {
                 return ResponseEntity.ok()
-                        .contentType(imageType(entity.getCoverExtension()))
+                        .contentType(imageType(album.getCoverExtension()))
                         .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
                         .body(new FileSystemResource(file));
             }
         }
-        if (album.spex() != null) {
-            return spexService.poster(album.spex().id())
+        if (album.getSpex().getId() != null) {
+            return spexService.poster(album.getSpex().getId())
                     .<ResponseEntity<?>>map(poster -> ResponseEntity.ok()
                             .contentType(MediaType.parseMediaType(poster.contentType()))
                             .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
@@ -188,6 +186,23 @@ public class MediaController {
 
     static String downloadName(final Track track) {
         return safe("%02d %s".formatted(track.getTrackNumber(), track.getTitle())) + "." + track.getFileExtension();
+    }
+
+    /**
+     * The names, with a number added to repeats, since a zip cannot hold two entries with the same name.
+     */
+    static List<String> uniqueNames(final List<String> names) {
+        final Set<String> used = new HashSet<>();
+
+        return names.stream().map(name -> {
+            String candidate = name;
+            final int dot = name.lastIndexOf('.');
+
+            for (int i = 2; !used.add(candidate.toLowerCase(Locale.ROOT)); i++) {
+                candidate = dot < 0 ? name + " (" + i + ")" : name.substring(0, dot) + " (" + i + ")" + name.substring(dot);
+            }
+            return candidate;
+        }).toList();
     }
 
     private static String safe(final String name) {

@@ -119,7 +119,9 @@ public class TagWriter {
     public void write(final Track track, final Path file) throws IOException {
         final AudioFormat format = AudioFormat.ofExtension(track.getFileExtension(), track.getFileFormat());
         final Path temporary = file.resolveSibling("." + track.getUuid() + ".tagging." + format.extension());
-        final List<String> arguments = new ArrayList<>(List.of("-i", file.toString(), "-map", "0:a", "-c", "copy", "-map_metadata", "-1"));
+        final List<String> arguments = new ArrayList<>(Ffmpeg.AUDIO_INPUT);
+
+        arguments.addAll(List.of("-i", file.toString(), "-map", "0:a", "-c", "copy", "-map_metadata", "-1"));
 
         tags(track).forEach((key, value) -> {
             arguments.add("-metadata");

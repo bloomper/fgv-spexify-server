@@ -7,6 +7,8 @@ spring:
     open-in-view: false
     properties:
       hibernate:
+        # Loads the tracks of many albums in one query, not one per album
+        default_batch_fetch_size: 100
         transaction:
           jta:
             platform: org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform
@@ -89,7 +91,7 @@ spexify:
     system-user: ${API_NAVIDROME_SYSTEM_USER:spexify-system}
   crypto:
     # 32 bytes, base64; encrypts app passwords, which Subsonic token authentication needs to read back
-    app-password-key: ${APP_PASSWORD_KEY:}
+    app-password-encryption-key: ${API_APP_PASSWORD_ENCRYPTION_KEY:}
   spexregister:
     graphql-url: ${API_SPEXREGISTER_GRAPHQL_URL:https://api.register.fgv.local.nu:8443/api/graphql}
   spexflix:
@@ -109,10 +111,10 @@ spring:
     schema:
       introspection:
         enabled: true
+  # The password comes from MYSQL_API_USER_PASSWORD, as in the container
   datasource:
     url: jdbc:mysql://localhost:3308/spexify
     username: spexify
-    password: spexify
 
 server:
   port: 8082
@@ -126,3 +128,6 @@ spexify:
     url: https://auth.fgv.local.nu:8443/auth
   navidrome:
     url: http://localhost:4533
+  crypto:
+    # A key for development only; every other environment sets API_APP_PASSWORD_ENCRYPTION_KEY
+    app-password-encryption-key: ${API_APP_PASSWORD_ENCRYPTION_KEY:c3BleGlmeS1kZXZlbG9wbWVudC1rZXktbm90LXNlY3Jl}

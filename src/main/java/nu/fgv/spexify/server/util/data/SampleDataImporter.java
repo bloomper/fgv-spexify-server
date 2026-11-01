@@ -85,12 +85,12 @@ import java.util.UUID;
 @Component
 public class SampleDataImporter {
 
-    static final String USER = "spexify-user@fgv.nu";
-    static final String EDITOR = "spexify-editor@fgv.nu";
-    static final String ADMIN = "spexify-admin@fgv.nu";
-    static final String NO_ACCESS = "spexify-no-access@fgv.nu";
-    static final String BOTH = "spexify-spexflix@fgv.nu";
-    static final String SPEXREGISTER_ADMIN = "admin@fgv.nu";
+    // Spexregister's sample users, which its sample data import creates; they get roles here
+    static final String ADMIN = "admin@fgv.nu";
+    static final String EDITOR = "editor@fgv.nu";
+    static final String USER = "user@fgv.nu";
+    // The only user of the applications' own, shared by Spexify's and Spexflix's sample data: an account without access
+    static final String NO_ACCESS = "no-access@fgv.nu";
     private static final int SPEXREGISTER_ATTEMPTS = 30;
     private static final Duration SPEXREGISTER_RETRY_INTERVAL = Duration.ofSeconds(10);
     private static final List<String> TABLES = List.of("audit_entry", "api_key", "app_password", "track", "album", "upload_session", "app_user");
@@ -219,30 +219,36 @@ public class SampleDataImporter {
 
     // ---------------------------------------------------------------------------------------------------- users
 
+    /**
+     * Gives Spexregister's sample users {@code admin@fgv.nu}, {@code editor@fgv.nu} and {@code user@fgv.nu} the roles
+     * of the same name on this client, and creates {@code no-access@fgv.nu}, without roles, when it is missing. Refuses
+     * without Spexregister's sample users, which keeps the import away from real environments.
+     */
     private Map<String, AppUser> createUsers(final RealmResource realm) {
         final ClientResource client = realm.clients().get(realm.clients().findByClientId(SecurityUtil.CLIENT_ID).getFirst().getId());
         final String clientUuid = client.toRepresentation().getId();
         final Map<String, AppUser> users = new LinkedHashMap<>();
 
-        users.put(USER, record(realm, client, clientUuid, USER, "Lyssnare", "USER"));
-        users.put(EDITOR, record(realm, client, clientUuid, EDITOR, "Redaktör", "USER", "EDITOR"));
-        users.put(ADMIN, record(realm, client, clientUuid, ADMIN, "Administratör", "USER", "ADMIN"));
-        users.put(NO_ACCESS, record(realm, client, clientUuid, NO_ACCESS, "Utan behörighet"));
-        users.put(BOTH, record(realm, client, clientUuid, BOTH, "Spexify och Spexflix", "USER"));
-        realm.users().searchByEmail(SPEXREGISTER_ADMIN, true).stream().findFirst().ifPresent(admin -> {
-            grant(realm, client, clientUuid, admin, "USER", "ADMIN");
-            users.put(SPEXREGISTER_ADMIN, recordUser(admin));
-        });
+        users.put(ADMIN, grant(realm, client, clientUuid, spexregisterUser(realm, ADMIN), "USER", "EDITOR", "ADMIN"));
+        users.put(EDITOR, grant(realm, client, clientUuid, spexregisterUser(realm, EDITOR), "USER", "EDITOR"));
+        users.put(USER, grant(realm, client, clientUuid, spexregisterUser(realm, USER), "USER"));
+        users.put(NO_ACCESS, recordUser(noAccessUser(realm)));
         return users;
     }
 
-    private AppUser record(final RealmResource realm, final ClientResource client, final String clientUuid,
-                           final String email, final String firstName, final String... roles) {
-        final UserRepresentation user = sampleUser(realm, email, firstName);
+    private static UserRepresentation spexregisterUser(final RealmResource realm, final String email) {
+        return realm.users().searchByEmail(email, true).stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("Spexregister's sample user " + email
+                        + " is missing; start Spexregister with its sample data first"));
+    }
 
-        if (roles.length > 0) {
-            grant(realm, client, clientUuid, user, roles);
-        }
+    private AppUser grant(final RealmResource realm, final ClientResource client, final String clientUuid,
+                          final UserRepresentation user, final String... roles) {
+        final List<RoleRepresentation> representations = Arrays.stream(roles)
+                .map(role -> client.roles().get(role).toRepresentation())
+                .toList();
+
+        realm.users().get(user.getId()).roles().clientLevel(clientUuid).add(representations);
         return recordUser(user);
     }
 
@@ -258,17 +264,8 @@ public class SampleDataImporter {
         return transactionTemplate.execute(_ -> userRepository.save(user));
     }
 
-    private static void grant(final RealmResource realm, final ClientResource client, final String clientUuid,
-                              final UserRepresentation user, final String... roles) {
-        final List<RoleRepresentation> representations = Arrays.stream(roles)
-                .map(role -> client.roles().get(role).toRepresentation())
-                .toList();
-
-        realm.users().get(user.getId()).roles().clientLevel(clientUuid).add(representations);
-    }
-
-    private UserRepresentation sampleUser(final RealmResource realm, final String email, final String firstName) {
-        final List<UserRepresentation> existing = realm.users().searchByEmail(email, true);
+    private UserRepresentation noAccessUser(final RealmResource realm) {
+        final List<UserRepresentation> existing = realm.users().searchByEmail(NO_ACCESS, true);
 
         if (!existing.isEmpty()) {
             return existing.getFirst();
@@ -280,17 +277,17 @@ public class SampleDataImporter {
         credential.setType(CredentialRepresentation.PASSWORD);
         credential.setValue(properties.data().sampleUserPassword());
         credential.setTemporary(false);
-        user.setUsername(email);
-        user.setEmail(email);
-        user.setFirstName(firstName);
-        user.setLastName("Spexify");
+        user.setUsername(NO_ACCESS);
+        user.setEmail(NO_ACCESS);
+        user.setFirstName("No");
+        user.setLastName("Access");
         user.setEnabled(true);
         user.setEmailVerified(true);
         user.setCredentials(List.of(credential));
 
         try (Response response = realm.users().create(user)) {
             if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
-                throw new IllegalStateException("Could not create user " + email + " in Keycloak: " + response.getStatus());
+                throw new IllegalStateException("Could not create user " + NO_ACCESS + " in Keycloak: " + response.getStatus());
             }
 
             final String path = response.getLocation().getPath();
