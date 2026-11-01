@@ -52,13 +52,13 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+import static nu.fgv.spexify.server.util.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -74,7 +74,7 @@ import static org.mockito.Mockito.when;
 class CatalogServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-11-01T10:00:00Z");
-    private static final SpexDto CLEOPATRA = new SpexDto(7L, "Cleopatra", 2024, false, null, 1L, "Chalmersspexet");
+    private static final SpexDto CLEOPATRA = new SpexDto(uuid(7), "Cleopatra", 2024, false, null, uuid(1), "Chalmersspexet");
 
     private final List<Album> albums = new ArrayList<>();
     @Mock
@@ -107,6 +107,7 @@ class CatalogServiceTest {
         final Album album = new Album();
 
         album.setId(id);
+        album.setUuid(uuid(id));
         album.setTitle(title);
         album.setYear(2024);
         album.setKind(AlbumKind.SHOW);
@@ -118,6 +119,7 @@ class CatalogServiceTest {
         final Track track = new Track();
 
         track.setId(id);
+        track.setUuid(uuid(id));
         track.setAlbum(album);
         track.setTrackNumber(number);
         track.setTitle(title);
@@ -140,11 +142,11 @@ class CatalogServiceTest {
         track(11L, published, 1, "Ouvertyr");
         track(12L, published, 2, "Duetten").setPublished(false);
         albums.addAll(List.of(published, unpublished));
-        lenient().when(albumRepository.findById(anyLong())).thenAnswer(invocation ->
-                albums.stream().filter(album -> album.getId().equals(invocation.getArgument(0))).findFirst());
-        lenient().when(trackRepository.findById(anyLong())).thenAnswer(invocation -> albums.stream()
+        lenient().when(albumRepository.findByUuid(any(UUID.class))).thenAnswer(invocation ->
+                albums.stream().filter(album -> album.getUuid().equals(invocation.getArgument(0))).findFirst());
+        lenient().when(trackRepository.findByUuid(any(UUID.class))).thenAnswer(invocation -> albums.stream()
                 .flatMap(album -> album.getTracks().stream())
-                .filter(track -> track.getId().equals(invocation.getArgument(0))).findFirst());
+                .filter(track -> track.getUuid().equals(invocation.getArgument(0))).findFirst());
         lenient().when(storage.exists(any(Track.class))).thenReturn(true);
         lenient().doAnswer(invocation -> {
             final SpexDto spex = invocation.getArgument(0);
@@ -170,8 +172,8 @@ class CatalogServiceTest {
 
         assertThat(result).extracting(AlbumDto::title).containsExactly("Cleopatra");
         assertThat(result.getFirst().trackCount()).isEqualTo(1);
-        assertThat(service.album(2L)).isNull();
-        assertThat(service.tracks(1L)).extracting(TrackDto::title).containsExactly("Ouvertyr");
+        assertThat(service.album(uuid(2))).isNull();
+        assertThat(service.tracks(uuid(1))).extracting(TrackDto::title).containsExactly("Ouvertyr");
     }
 
     @Test
@@ -180,21 +182,21 @@ class CatalogServiceTest {
         when(albumRepository.findByTrashedAtIsNullOrderByYearDescTitleAsc()).thenReturn(albums);
 
         assertThat(service.albums(new AlbumFilter(null, null, null, true))).extracting(AlbumDto::title).containsExactly("Cleopatra", "Opublicerat");
-        assertThat(service.album(2L)).isNotNull();
-        assertThat(service.tracks(1L)).extracting(TrackDto::title).containsExactly("Ouvertyr", "Duetten");
+        assertThat(service.album(uuid(2))).isNotNull();
+        assertThat(service.tracks(uuid(1))).extracting(TrackDto::title).containsExactly("Ouvertyr", "Duetten");
     }
 
     @Test
     void albumsAreFilteredByCategoryYearAndSpex() {
         as(TestCallers.listener());
-        published.getSpex().setId(7L);
-        published.getSpex().setCategoryId(1L);
+        published.getSpex().setId(uuid(7));
+        published.getSpex().setCategoryId(uuid(1));
         when(albumRepository.findByPublishedTrueAndTrashedAtIsNullOrderByYearDescTitleAsc()).thenReturn(List.of(published));
 
-        assertThat(service.albums(new AlbumFilter(1L, 2024, 7L, null))).hasSize(1);
-        assertThat(service.albums(new AlbumFilter(2L, null, null, null))).isEmpty();
+        assertThat(service.albums(new AlbumFilter(uuid(1), 2024, uuid(7), null))).hasSize(1);
+        assertThat(service.albums(new AlbumFilter(uuid(2), null, null, null))).isEmpty();
         assertThat(service.albums(new AlbumFilter(null, 1999, null, null))).isEmpty();
-        assertThat(service.albums(new AlbumFilter(null, null, 8L, null))).isEmpty();
+        assertThat(service.albums(new AlbumFilter(null, null, uuid(8), null))).isEmpty();
     }
 
     @Test
@@ -203,7 +205,7 @@ class CatalogServiceTest {
 
         assertThatThrownBy(() -> service.albums(null)).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> service.search("cleo")).isInstanceOf(AccessDeniedException.class);
-        assertThatThrownBy(() -> service.playableTrack(11L)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.playableTrack(uuid(11))).isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
@@ -224,11 +226,11 @@ class CatalogServiceTest {
         final Album other = album(3L, "Nobel", true);
         final Album third = album(4L, "Fritiof", true);
 
-        published.getSpex().setCategoryId(1L);
+        published.getSpex().setCategoryId(uuid(1));
         published.getSpex().setCategoryName("Chalmersspexet");
-        other.getSpex().setCategoryId(1L);
+        other.getSpex().setCategoryId(uuid(1));
         other.getSpex().setCategoryName("Chalmersspexet");
-        third.getSpex().setCategoryId(2L);
+        third.getSpex().setCategoryId(uuid(2));
         third.getSpex().setCategoryName("Bobspexet");
         when(albumRepository.findByPublishedTrueAndTrashedAtIsNullOrderByYearDescTitleAsc()).thenReturn(List.of(published, other, third, unpublished));
 
@@ -252,28 +254,28 @@ class CatalogServiceTest {
     @Test
     void anUnlistedTrackIsNotFoundForListenersButPlayableForEditors() {
         as(TestCallers.listener());
-        assertThatThrownBy(() -> service.playableTrack(12L)).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.playableTrack(uuid(12))).isInstanceOf(ResourceNotFoundException.class);
 
         as(TestCallers.editor());
-        assertThat(service.playableTrack(12L).getTitle()).isEqualTo("Duetten");
+        assertThat(service.playableTrack(uuid(12)).getTitle()).isEqualTo("Duetten");
     }
 
     @Test
     void spexTracksAreForSpexflixAndEditorsOnly() {
         as(TestCallers.listener());
-        assertThatThrownBy(() -> service.spexTracks(7L)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.spexTracks(uuid(7))).isInstanceOf(AccessDeniedException.class);
 
         as(TestCallers.spexflixService());
-        when(trackRepository.findListedBySpex(7L)).thenReturn(List.of(published.getTracks().getFirst()));
-        assertThat(service.spexTracks(7L)).extracting(CatalogDtos.TrackRefDto::title).containsExactly("Ouvertyr");
+        when(trackRepository.findListedBySpex(uuid(7))).thenReturn(List.of(published.getTracks().getFirst()));
+        assertThat(service.spexTracks(uuid(7))).extracting(CatalogDtos.TrackRefDto::title).containsExactly("Ouvertyr");
     }
 
     @Test
     void tracksByIdsLeaveOutUnlistedTracks() {
         as(TestCallers.spexflixService());
-        when(trackRepository.findAllById(List.of(11L, 12L))).thenReturn(published.getTracks());
+        when(trackRepository.findByUuidIn(List.of(uuid(11), uuid(12)))).thenReturn(published.getTracks());
 
-        assertThat(service.tracksByIds(List.of(11L, 12L))).extracting(CatalogDtos.TrackRefDto::id).containsExactly(11L);
+        assertThat(service.tracksByIds(List.of(uuid(11), uuid(12)))).extracting(CatalogDtos.TrackRefDto::id).containsExactly(uuid(11));
     }
 
     @Test
@@ -313,9 +315,9 @@ class CatalogServiceTest {
     @Test
     void aNewAlbumTakesTitleAndYearFromItsSpexAndStartsUnpublished() {
         as(TestCallers.editor());
-        when(spexService.byId(7L)).thenReturn(CLEOPATRA);
+        when(spexService.byId(uuid(7))).thenReturn(CLEOPATRA);
 
-        final AlbumDto created = service.albumCreate(new AlbumInput(7L, " ", null, AlbumKind.SHOW, "  Inspelat live.  "));
+        final AlbumDto created = service.albumCreate(new AlbumInput(uuid(7), " ", null, AlbumKind.SHOW, "  Inspelat live.  "));
 
         assertThat(created.title()).isEqualTo("Cleopatra");
         assertThat(created.year()).isEqualTo(2024);
@@ -348,10 +350,10 @@ class CatalogServiceTest {
     @Test
     void anUpdateKeepsTheSpexWithoutAskingSpexregisterAgain() {
         as(TestCallers.editor());
-        published.getSpex().setId(7L);
+        published.getSpex().setId(uuid(7));
         published.getSpex().setTitle("Cleopatra");
 
-        service.albumUpdate(1L, new AlbumInput(7L, "Cleopatra – studio", 2025, AlbumKind.STUDIO, null));
+        service.albumUpdate(uuid(1), new AlbumInput(uuid(7), "Cleopatra – studio", 2025, AlbumKind.STUDIO, null));
 
         verify(spexService, never()).byId(any());
         assertThat(published.getTitle()).isEqualTo("Cleopatra – studio");
@@ -362,12 +364,12 @@ class CatalogServiceTest {
     @Test
     void listenersCannotEditAndTrashedAlbumsCannotBeEdited() {
         as(TestCallers.listener());
-        assertThatThrownBy(() -> service.albumPublish(1L, false)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.albumPublish(uuid(1), false)).isInstanceOf(AccessDeniedException.class);
 
         as(TestCallers.editor());
         published.setTrashedAt(NOW);
-        assertThatThrownBy(() -> service.albumPublish(1L, false)).isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> service.albumPublish(99L, true)).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.albumPublish(uuid(1), false)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.albumPublish(uuid(99), true)).isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
@@ -375,13 +377,13 @@ class CatalogServiceTest {
         as(TestCallers.editor());
         when(placer.place(unpublished)).thenReturn(true);
 
-        service.albumPublish(2L, true);
+        service.albumPublish(uuid(2), true);
         assertThat(unpublished.getPublishedAt()).isEqualTo(NOW);
         verify(scanner).requestScan();
 
         unpublished.setPublishedAt(Instant.parse("2020-01-01T00:00:00Z"));
-        service.albumPublish(2L, false);
-        service.albumPublish(2L, true);
+        service.albumPublish(uuid(2), false);
+        service.albumPublish(uuid(2), true);
         assertThat(unpublished.getPublishedAt()).isEqualTo(Instant.parse("2020-01-01T00:00:00Z"));
     }
 
@@ -389,25 +391,25 @@ class CatalogServiceTest {
     void trashingAndRestoringAnAlbumIsAudited() {
         as(TestCallers.editor());
 
-        service.albumTrash(1L, true);
+        service.albumTrash(uuid(1), true);
         assertThat(published.getTrashedAt()).isEqualTo(NOW);
-        service.albumTrash(1L, false);
+        service.albumTrash(uuid(1), false);
         assertThat(published.getTrashedAt()).isNull();
-        verify(auditService).record("TRASH", "ALBUM", 1L, "Lade albumet i papperskorgen: Cleopatra");
-        verify(auditService).record("RESTORE", "ALBUM", 1L, "Återställde albumet Cleopatra");
+        verify(auditService).record("TRASH", "ALBUM", uuid(1), "Lade albumet i papperskorgen: Cleopatra");
+        verify(auditService).record("RESTORE", "ALBUM", uuid(1), "Återställde albumet Cleopatra");
     }
 
     @Test
     void onlyAdminsDeleteAndOnlyFromTheTrash() throws Exception {
         as(TestCallers.editor());
-        assertThatThrownBy(() -> service.albumDelete(1L)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.albumDelete(uuid(1))).isInstanceOf(AccessDeniedException.class);
 
         as(TestCallers.admin());
-        assertThatThrownBy(() -> service.albumDelete(1L)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.albumDelete(uuid(1))).isInstanceOf(BadRequestException.class);
 
         published.setTrashedAt(NOW);
         published.getTracks().getFirst().setLocation(Location.MUSIC);
-        service.albumDelete(1L);
+        service.albumDelete(uuid(1));
         verify(storage).deleteAlbum(published);
         verify(albumRepository).delete(published);
         verify(scanner).requestScan();
@@ -437,10 +439,10 @@ class CatalogServiceTest {
         as(TestCallers.editor());
         when(storage.coverFile(published)).thenReturn(folder.resolve("cover"));
 
-        assertThat(service.albumCover(1L, new byte[]{1, 2, 3}, "png").hasCover()).isTrue();
+        assertThat(service.albumCover(uuid(1), new byte[]{1, 2, 3}, "png").hasCover()).isTrue();
         assertThat(folder.resolve("cover")).hasBinaryContent(new byte[]{1, 2, 3});
 
-        assertThat(service.albumCoverRemove(1L).hasCover()).isFalse();
+        assertThat(service.albumCoverRemove(uuid(1)).hasCover()).isFalse();
         assertThat(folder.resolve("cover")).doesNotExist();
     }
 
@@ -452,13 +454,13 @@ class CatalogServiceTest {
         final Track onDiscTwo = track(13L, published, 1, "Andra skivan");
 
         onDiscTwo.setDiscNumber(2);
-        service.tracksReorder(1L, List.of(13L, 12L, 11L));
+        service.tracksReorder(uuid(1), List.of(uuid(13), uuid(12), uuid(11)));
 
         assertThat(second.getTrackNumber()).isEqualTo(1);
         assertThat(published.getTracks().getFirst().getTitle()).isEqualTo("Duetten");
         assertThat(onDiscTwo.getTrackNumber()).isEqualTo(1);
-        assertThatThrownBy(() -> service.tracksReorder(1L, List.of(11L, 11L))).isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> service.tracksReorder(1L, List.of(99L))).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.tracksReorder(uuid(1), List.of(uuid(11), uuid(11)))).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.tracksReorder(uuid(1), List.of(uuid(99)))).isInstanceOf(BadRequestException.class);
     }
 
     // ---------------------------------------------------------------------------------------------------- tracks
@@ -477,7 +479,7 @@ class CatalogServiceTest {
         as(TestCallers.editor());
         upload("07 Något.flac", Map.of("title", "Finalen", "track", "7/12", "disc", "2", "artist", "Ensemblen", "lyricist", "Kalle"));
 
-        final TrackDto created = service.trackCreate(1L, "u-1");
+        final TrackDto created = service.trackCreate(uuid(1), "u-1");
 
         assertThat(created.title()).isEqualTo("Finalen");
         assertThat(created.trackNumber()).isEqualTo(7);
@@ -494,7 +496,7 @@ class CatalogServiceTest {
         as(TestCallers.editor());
         upload("03 - Hovets_klagan.mp3", Map.of());
 
-        final TrackDto created = service.trackCreate(2L, "u-1");
+        final TrackDto created = service.trackCreate(uuid(2), "u-1");
 
         assertThat(created.title()).isEqualTo("Hovets klagan");
         assertThat(created.trackNumber()).isEqualTo(1);
@@ -523,7 +525,7 @@ class CatalogServiceTest {
 
         track.setLocation(Location.MUSIC);
         track.setTagsHash("old");
-        service.trackReplaceAudio(11L, "u-1");
+        service.trackReplaceAudio(uuid(11), "u-1");
 
         verify(storage).delete(track);
         assertThat(track.getTagsHash()).isNull();
@@ -535,12 +537,12 @@ class CatalogServiceTest {
     void anUpdateValidatesAndClearsBlankFields() {
         as(TestCallers.editor());
 
-        assertThatThrownBy(() -> service.trackUpdate(11L, new TrackInput(1, 0, "Titel", null, null, null, null, null, false)))
+        assertThatThrownBy(() -> service.trackUpdate(uuid(11), new TrackInput(1, 0, "Titel", null, null, null, null, null, false)))
                 .isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> service.trackUpdate(11L, new TrackInput(1, 1, " ", null, null, null, null, null, false)))
+        assertThatThrownBy(() -> service.trackUpdate(uuid(11), new TrackInput(1, 1, " ", null, null, null, null, null, false)))
                 .isInstanceOf(BadRequestException.class);
 
-        final TrackDto updated = service.trackUpdate(11L, new TrackInput(1, 2, " Uvertyr ", " ", "Dancing Queen", null, null, "  ", true));
+        final TrackDto updated = service.trackUpdate(uuid(11), new TrackInput(1, 2, " Uvertyr ", " ", "Dancing Queen", null, null, "  ", true));
 
         assertThat(updated.title()).isEqualTo("Uvertyr");
         assertThat(updated.performers()).isNull();
@@ -554,19 +556,19 @@ class CatalogServiceTest {
         as(TestCallers.editor());
         published.getTracks().getFirst().setTrashedAt(NOW);
 
-        assertThatThrownBy(() -> service.trackPublish(11L, true)).isInstanceOf(BadRequestException.class);
-        assertThat(service.trackTrash(11L, false).trashedAt()).isNull();
-        assertThat(service.trackPublish(11L, false).published()).isFalse();
+        assertThatThrownBy(() -> service.trackPublish(uuid(11), true)).isInstanceOf(BadRequestException.class);
+        assertThat(service.trackTrash(uuid(11), false).trashedAt()).isNull();
+        assertThat(service.trackPublish(uuid(11), false).published()).isFalse();
     }
 
     @Test
     void onlyAdminsDeleteTracksAndOnlyFromTheTrash() throws Exception {
         as(TestCallers.admin());
-        assertThatThrownBy(() -> service.trackDelete(11L)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.trackDelete(uuid(11))).isInstanceOf(BadRequestException.class);
 
         published.getTracks().getFirst().setTrashedAt(NOW);
-        service.trackDelete(11L);
+        service.trackDelete(uuid(11));
         verify(storage).delete(any(Track.class));
-        assertThat(published.getTracks()).extracting(Track::getId).containsExactly(12L);
+        assertThat(published.getTracks()).extracting(Track::getUuid).containsExactly(uuid(12));
     }
 }

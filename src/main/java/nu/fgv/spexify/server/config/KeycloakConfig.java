@@ -37,6 +37,16 @@ public class KeycloakConfig {
 
     public static final String ADMIN = "keycloakAdmin";
 
+    private static Keycloak build(final String url, final String realm, final String clientId, final String clientSecret) {
+        return KeycloakBuilder.builder()
+                .grantType(OAuth2Constants.CLIENT_CREDENTIALS)
+                .serverUrl(url)
+                .realm(realm)
+                .clientId(clientId)
+                .clientSecret(clientSecret)
+                .build();
+    }
+
     @Bean(destroyMethod = "close")
     @Primary
     public Keycloak keycloakService(final SpexifyProperties properties) {
@@ -51,15 +61,5 @@ public class KeycloakConfig {
         final SpexifyProperties.Keycloak keycloak = properties.keycloak();
 
         return build(keycloak.url(), keycloak.realm(), keycloak.adminClientId(), keycloak.adminClientSecret());
-    }
-
-    private static Keycloak build(final String url, final String realm, final String clientId, final String clientSecret) {
-        return KeycloakBuilder.builder()
-                .grantType(OAuth2Constants.CLIENT_CREDENTIALS)
-                .serverUrl(url)
-                .realm(realm)
-                .clientId(clientId)
-                .clientSecret(clientSecret)
-                .build();
     }
 }

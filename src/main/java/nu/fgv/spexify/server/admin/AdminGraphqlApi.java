@@ -109,6 +109,6 @@ public class AdminGraphqlApi {
     }
 
     public record AuditLogEntryDto(Long id, Instant at, @Nullable String actorName, String action, String entityType,
-                                   @Nullable Long entityId, String summary) {
+                                   @Nullable String entityId, String summary) {
     }
 }

@@ -18,6 +18,8 @@ package nu.fgv.spexify.server.spex;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.UUID;
+
 /**
  * A spex as Spexregister knows it.
  *
@@ -31,6 +33,6 @@ import org.jspecify.annotations.Nullable;
  * @author Anders Jacobsson
  * @since 1.0
  */
-public record SpexDto(Long id, @Nullable String title, @Nullable Integer year, boolean revival,
-                      @Nullable Long parentId, @Nullable Long categoryId, @Nullable String categoryName) {
+public record SpexDto(UUID id, @Nullable String title, @Nullable Integer year, boolean revival,
+                      @Nullable UUID parentId, @Nullable UUID categoryId, @Nullable String categoryName) {
 }

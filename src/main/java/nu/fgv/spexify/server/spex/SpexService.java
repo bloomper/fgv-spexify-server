@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -85,7 +86,7 @@ public class SpexService {
         }
     }
 
-    public SpexDto byId(final Long id) {
+    public SpexDto byId(final UUID id) {
         try {
             return client.spexById(id).orElseThrow(() -> new nu.fgv.spexify.server.util.error.BadRequestException("error.spex.notFound", id));
         } catch (final SpexregisterClient.SpexregisterCallException e) {
@@ -94,7 +95,7 @@ public class SpexService {
     }
 
     @Cacheable(cacheNames = CacheConfig.SPEX_POSTERS)
-    public Optional<SpexregisterClient.Poster> poster(final Long spexId) {
+    public Optional<SpexregisterClient.Poster> poster(final UUID spexId) {
         try {
             return client.poster(spexId);
         } catch (final SpexregisterClient.SpexregisterCallException e) {
@@ -119,13 +120,13 @@ public class SpexService {
     @Scheduled(cron = "0 15 3 * * *", zone = "Europe/Stockholm")
     @Transactional
     public void refresh() {
-        final List<Long> ids = albumRepository.findSpexIds();
+        final List<UUID> ids = albumRepository.findSpexIds();
 
         if (ids.isEmpty()) {
             return;
         }
         try {
-            final Map<Long, SpexDto> spex = client.allSpex().stream().collect(Collectors.toMap(SpexDto::id, Function.identity(), (a, _) -> a));
+            final Map<UUID, SpexDto> spex = client.allSpex().stream().collect(Collectors.toMap(SpexDto::id, Function.identity(), (a, _) -> a));
 
             for (final Album album : albumRepository.findBySpexIdIn(ids)) {
                 final SpexDto current = spex.get(album.getSpex().getId());

@@ -23,6 +23,7 @@ import lombok.Setter;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * The spex an album is about, by its id in Spexregister, with its title, year and category copied so that the
@@ -36,8 +37,8 @@ import java.time.Instant;
 @Setter
 public class SpexRef {
 
-    @Column(name = "spex_id")
-    private @Nullable Long id;
+    @Column(name = "spex_id", length = 36)
+    private @Nullable UUID id;
 
     @Column(name = "spex_title")
     private @Nullable String title;
@@ -48,8 +49,8 @@ public class SpexRef {
     @Column(name = "spex_revival")
     private @Nullable Boolean revival;
 
-    @Column(name = "spex_category_id")
-    private @Nullable Long categoryId;
+    @Column(name = "spex_category_id", length = 36)
+    private @Nullable UUID categoryId;
 
     @Column(name = "spex_category_name")
     private @Nullable String categoryName;

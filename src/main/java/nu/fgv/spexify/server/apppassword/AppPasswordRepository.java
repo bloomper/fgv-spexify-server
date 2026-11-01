@@ -19,6 +19,8 @@ package nu.fgv.spexify.server.apppassword;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository for {@link AppPassword}.
@@ -27,6 +29,8 @@ import java.util.List;
  * @since 1.0
  */
 public interface AppPasswordRepository extends JpaRepository<AppPassword, Long> {
+
+    Optional<AppPassword> findByUuid(UUID uuid);
 
     List<AppPassword> findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(Long userId);
 

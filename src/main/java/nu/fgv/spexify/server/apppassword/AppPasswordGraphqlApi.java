@@ -28,6 +28,7 @@ import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * GraphQL for app passwords, API keys and the admin's view of users. A thin adapter over {@link AppPasswordService}.
@@ -65,7 +66,7 @@ public class AppPasswordGraphqlApi {
     }
 
     @MutationMapping
-    public @Nullable Void appPasswordRevoke(@Argument final Long id) {
+    public @Nullable Void appPasswordRevoke(@Argument final UUID id) {
         service.revoke(id);
         return null;
     }
@@ -76,19 +77,19 @@ public class AppPasswordGraphqlApi {
     }
 
     @MutationMapping
-    public @Nullable Void apiKeyRevoke(@Argument final Long id) {
+    public @Nullable Void apiKeyRevoke(@Argument final UUID id) {
         service.apiKeyRevoke(id);
         return null;
     }
 
     @MutationMapping
-    public @Nullable Void userCredentialsRevoke(@Argument final Long userId) {
+    public @Nullable Void userCredentialsRevoke(@Argument final UUID userId) {
         service.revokeAll(userId);
         return null;
     }
 
     @MutationMapping
-    public @Nullable Void userUnlock(@Argument final Long userId) {
+    public @Nullable Void userUnlock(@Argument final UUID userId) {
         service.unlock(userId);
         return null;
     }

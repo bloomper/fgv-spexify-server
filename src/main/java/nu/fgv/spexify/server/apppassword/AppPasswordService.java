@@ -36,6 +36,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * App passwords and API keys: creating, listing and revoking one's own, revoking anyone's as admin, and checking them
@@ -82,6 +83,20 @@ public class AppPasswordService {
 
     // ---------------------------------------------------------------------------------------------- own credentials
 
+    private static String name(final String name) {
+        if (!StringUtils.hasText(name)) {
+            throw new BadRequestException("error.appPassword.nameRequired");
+        }
+
+        final String stripped = name.strip();
+
+        return stripped.length() > MAX_NAME ? stripped.substring(0, MAX_NAME) : stripped;
+    }
+
+    private static ApiKeyDto toDto(final ApiKey apiKey) {
+        return new ApiKeyDto(apiKey.getUuid(), apiKey.getName(), apiKey.getCreatedAt(), apiKey.getLastUsedAt());
+    }
+
     @Transactional
     public List<AppPasswordDto> list() {
         final AppUser user = currentUser();
@@ -127,9 +142,9 @@ public class AppPasswordService {
     }
 
     @Transactional
-    public void revoke(final Long id) {
+    public void revoke(final UUID id) {
         final AppUser user = currentUser();
-        final AppPassword password = passwordRepository.findById(id)
+        final AppPassword password = passwordRepository.findByUuid(id)
                 .filter(candidate -> candidate.getUser().getId().equals(user.getId()) && candidate.getRevokedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("error.appPassword.notFound", id));
 
@@ -164,10 +179,12 @@ public class AppPasswordService {
         return new ApiKeyCreatedDto(toDto(apiKey), plain);
     }
 
+    // ---------------------------------------------------------------------------------------------------- admin
+
     @Transactional
-    public void apiKeyRevoke(final Long id) {
+    public void apiKeyRevoke(final UUID id) {
         final AppUser user = currentUser();
-        final ApiKey apiKey = apiKeyRepository.findById(id)
+        final ApiKey apiKey = apiKeyRepository.findByUuid(id)
                 .filter(candidate -> candidate.getUser().getId().equals(user.getId()) && candidate.getRevokedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("error.apiKey.notFound", id));
 
@@ -181,38 +198,38 @@ public class AppPasswordService {
         return callerService.record(caller);
     }
 
-    // ---------------------------------------------------------------------------------------------------- admin
-
     @Transactional(readOnly = true)
     public List<UserSummaryDto> users() {
         callerService.current().requireAdmin();
         return userRepository.findAllByOrderByLastSeenAtDesc().stream()
-                .map(user -> new UserSummaryDto(user.getId(), user.getUsername(), user.getDisplayName(), user.getLastSeenAt(),
+                .map(user -> new UserSummaryDto(user.getUuid(), user.getUsername(), user.getDisplayName(), user.getLastSeenAt(),
                         passwordRepository.countByUserIdAndRevokedAtIsNull(user.getId()),
                         apiKeyRepository.countByUserIdAndRevokedAtIsNull(user.getId()),
                         throttle.isUsernameLocked(user.getUsername())))
                 .toList();
     }
 
+    // ---------------------------------------------------------------------------------------------------- gateway
+
     @Transactional
-    public void revokeAll(final Long userId) {
+    public void revokeAll(final UUID userId) {
         callerService.current().requireAdmin();
 
-        final AppUser user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("error.user.notFound", userId));
+        final AppUser user = userRepository.findByUuid(userId).orElseThrow(() -> new ResourceNotFoundException("error.user.notFound", userId));
         final Instant now = clock.instant();
 
-        passwordRepository.findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(userId).forEach(password -> password.setRevokedAt(now));
-        apiKeyRepository.findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(userId).forEach(apiKey -> apiKey.setRevokedAt(now));
+        passwordRepository.findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(user.getId()).forEach(password -> password.setRevokedAt(now));
+        apiKeyRepository.findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(user.getId()).forEach(apiKey -> apiKey.setRevokedAt(now));
         auditService.record("REVOKE", "USER", userId, "Återkallade alla applösenord och nycklar för " + user.getUsername());
     }
 
     @Transactional(readOnly = true)
-    public void unlock(final Long userId) {
+    public void unlock(final UUID userId) {
         callerService.current().requireAdmin();
-        throttle.unlock(userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("error.user.notFound", userId)).getUsername());
+        throttle.unlock(userRepository.findByUuid(userId).orElseThrow(() -> new ResourceNotFoundException("error.user.notFound", userId)).getUsername());
     }
 
-    // ---------------------------------------------------------------------------------------------------- gateway
+    // ---------------------------------------------------------------------------------------------------- dtos
 
     /**
      * Checks a username with a password ({@code p}) or token and salt ({@code t}, {@code s}) against the user's app
@@ -268,43 +285,27 @@ public class AppPasswordService {
         });
     }
 
-    // ---------------------------------------------------------------------------------------------------- dtos
-
-    private static String name(final String name) {
-        if (!StringUtils.hasText(name)) {
-            throw new BadRequestException("error.appPassword.nameRequired");
-        }
-
-        final String stripped = name.strip();
-
-        return stripped.length() > MAX_NAME ? stripped.substring(0, MAX_NAME) : stripped;
-    }
-
     private AppPasswordDto toDto(final AppPassword password, final int months) {
         final Instant expiresAt = password.expiresAt(months);
 
-        return new AppPasswordDto(password.getId(), password.getName(), password.getCreatedAt(), password.getLastUsedAt(),
+        return new AppPasswordDto(password.getUuid(), password.getName(), password.getCreatedAt(), password.getLastUsedAt(),
                 expiresAt, expiresAt.isBefore(clock.instant()));
     }
 
-    private static ApiKeyDto toDto(final ApiKey apiKey) {
-        return new ApiKeyDto(apiKey.getId(), apiKey.getName(), apiKey.getCreatedAt(), apiKey.getLastUsedAt());
-    }
-
-    public record AppPasswordDto(Long id, String name, Instant createdAt, @Nullable Instant lastUsedAt,
+    public record AppPasswordDto(UUID id, String name, Instant createdAt, @Nullable Instant lastUsedAt,
                                  Instant expiresAt, boolean expired) {
     }
 
     public record AppPasswordCreatedDto(AppPasswordDto appPassword, String password, String username) {
     }
 
-    public record ApiKeyDto(Long id, String name, Instant createdAt, @Nullable Instant lastUsedAt) {
+    public record ApiKeyDto(UUID id, String name, Instant createdAt, @Nullable Instant lastUsedAt) {
     }
 
     public record ApiKeyCreatedDto(ApiKeyDto apiKey, String key) {
     }
 
-    public record UserSummaryDto(Long id, String username, @Nullable String displayName, Instant lastSeenAt,
+    public record UserSummaryDto(UUID id, String username, @Nullable String displayName, Instant lastSeenAt,
                                  long appPasswordCount, long apiKeyCount, boolean locked) {
     }
 }

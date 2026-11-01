@@ -59,8 +59,8 @@ public class AuditEntry {
     @Column(name = "entity_type", nullable = false)
     private String entityType;
 
-    @Column(name = "entity_id")
-    private @Nullable Long entityId;
+    @Column(name = "entity_id", length = 36)
+    private @Nullable String entityId;
 
     @Column(name = "summary", nullable = false)
     private String summary;

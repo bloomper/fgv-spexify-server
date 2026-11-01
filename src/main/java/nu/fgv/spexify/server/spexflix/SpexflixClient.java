@@ -33,6 +33,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 import static org.springframework.security.oauth2.client.web.client.RequestAttributeClientRegistrationIdResolver.clientRegistrationId;
 
@@ -73,7 +74,7 @@ public class SpexflixClient {
         }
     }
 
-    public List<ChapterLink> links(final Collection<Long> trackIds) {
+    public List<ChapterLink> links(final Collection<UUID> trackIds) {
         if (graphQlClient == null || trackIds.isEmpty()) {
             return List.of();
         }
@@ -99,6 +100,7 @@ public class SpexflixClient {
     /**
      * A chapter in a published video linked to a track.
      */
-    public record ChapterLink(String trackId, String videoId, String videoTitle, String chapterTitle, int startSeconds) {
+    public record ChapterLink(String trackId, String videoId, String videoTitle, String chapterTitle,
+                              int startSeconds) {
     }
 }

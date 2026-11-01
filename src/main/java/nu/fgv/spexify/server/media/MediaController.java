@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -75,113 +76,6 @@ public class MediaController {
         this.storage = storage;
         this.spexService = spexService;
         this.callerService = callerService;
-    }
-
-    @GetMapping("/api/tracks/{id}/audio")
-    public ResponseEntity<Resource> audio(@PathVariable final Long id) {
-        final Track track = catalogService.playableTrack(id);
-        final Path file = storage.trackFile(track);
-
-        if (!Files.isRegularFile(file)) {
-            throw new ResourceNotFoundException("error.track.fileMissing", id);
-        }
-        return ResponseEntity.ok()
-                .contentType(contentType(track))
-                .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
-                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                .body(new FileSystemResource(file));
-    }
-
-    @GetMapping("/api/tracks/{id}/download")
-    public ResponseEntity<Resource> download(@PathVariable final Long id) {
-        final Track track = catalogService.playableTrack(id);
-        final Path file = storage.trackFile(track);
-
-        if (!Files.isRegularFile(file)) {
-            throw new ResourceNotFoundException("error.track.fileMissing", id);
-        }
-        return ResponseEntity.ok()
-                .contentType(contentType(track))
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                        .filename(downloadName(track), StandardCharsets.UTF_8).build().toString())
-                .body(new FileSystemResource(file));
-    }
-
-    @GetMapping("/api/albums/{id}/download")
-    public ResponseEntity<StreamingResponseBody> downloadAlbum(@PathVariable final Long id) {
-        final Album album = catalogService.visibleAlbumWithTracks(id);
-        final boolean editor = callerService.current().isEditor();
-        final List<Track> tracks = album.getTracks().stream()
-                .filter(track -> editor ? !track.isTrashed() : track.isListed())
-                .filter(storage::exists)
-                .toList();
-        final List<Path> files = tracks.stream().map(storage::trackFile).toList();
-        final List<String> names = uniqueNames(tracks.stream().map(MediaController::downloadName).toList());
-        final String zipName = safe(album.getTitle() + (album.getYear() == null ? "" : " (" + album.getYear() + ")")) + ".zip";
-
-        final StreamingResponseBody body = out -> {
-            try (ZipOutputStream zip = new ZipOutputStream(out)) {
-                zip.setLevel(0);
-                for (int i = 0; i < files.size(); i++) {
-                    zip.putNextEntry(new ZipEntry(names.get(i)));
-                    Files.copy(files.get(i), zip);
-                    zip.closeEntry();
-                }
-            }
-        };
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("application/zip"))
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(zipName, StandardCharsets.UTF_8).build().toString())
-                .body(body);
-    }
-
-    /**
-     * The album's own cover, else the spex poster from Spexregister, else 404.
-     */
-    @GetMapping("/api/albums/{id}/cover")
-    public ResponseEntity<?> cover(@PathVariable final Long id) {
-        final Album album = catalogService.visibleAlbum(id);
-
-        if (album.getCoverExtension() != null) {
-            final Path file = storage.coverFile(album);
-
-            if (Files.isRegularFile(file)) {
-                return ResponseEntity.ok()
-                        .contentType(imageType(album.getCoverExtension()))
-                        .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
-                        .body(new FileSystemResource(file));
-            }
-        }
-        if (album.getSpex().getId() != null) {
-            return spexService.poster(album.getSpex().getId())
-                    .<ResponseEntity<?>>map(poster -> ResponseEntity.ok()
-                            .contentType(MediaType.parseMediaType(poster.contentType()))
-                            .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
-                            .body(poster.content()))
-                    .orElseGet(() -> ResponseEntity.notFound().build());
-        }
-        return ResponseEntity.notFound().build();
-    }
-
-    @PostMapping("/api/albums/{id}/cover")
-    public AlbumDto uploadCover(@PathVariable final Long id, @RequestParam("file") final MultipartFile file) throws IOException {
-        if (file.isEmpty() || file.getSize() > MAX_COVER) {
-            throw new BadRequestException("error.cover.invalid");
-        }
-
-        final byte[] content;
-
-        try (InputStream in = file.getInputStream()) {
-            content = in.readAllBytes();
-        }
-
-        final String extension = imageExtension(content);
-
-        if (extension == null) {
-            throw new BadRequestException("error.cover.invalid");
-        }
-        return catalogService.albumCover(id, content, extension);
     }
 
     static String downloadName(final Track track) {
@@ -242,5 +136,112 @@ public class MediaController {
             return "webp";
         }
         return null;
+    }
+
+    @GetMapping("/api/tracks/{id}/audio")
+    public ResponseEntity<Resource> audio(@PathVariable final UUID id) {
+        final Track track = catalogService.playableTrack(id);
+        final Path file = storage.trackFile(track);
+
+        if (!Files.isRegularFile(file)) {
+            throw new ResourceNotFoundException("error.track.fileMissing", id);
+        }
+        return ResponseEntity.ok()
+                .contentType(contentType(track))
+                .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
+                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                .body(new FileSystemResource(file));
+    }
+
+    @GetMapping("/api/tracks/{id}/download")
+    public ResponseEntity<Resource> download(@PathVariable final UUID id) {
+        final Track track = catalogService.playableTrack(id);
+        final Path file = storage.trackFile(track);
+
+        if (!Files.isRegularFile(file)) {
+            throw new ResourceNotFoundException("error.track.fileMissing", id);
+        }
+        return ResponseEntity.ok()
+                .contentType(contentType(track))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(downloadName(track), StandardCharsets.UTF_8).build().toString())
+                .body(new FileSystemResource(file));
+    }
+
+    @GetMapping("/api/albums/{id}/download")
+    public ResponseEntity<StreamingResponseBody> downloadAlbum(@PathVariable final UUID id) {
+        final Album album = catalogService.visibleAlbumWithTracks(id);
+        final boolean editor = callerService.current().isEditor();
+        final List<Track> tracks = album.getTracks().stream()
+                .filter(track -> editor ? !track.isTrashed() : track.isListed())
+                .filter(storage::exists)
+                .toList();
+        final List<Path> files = tracks.stream().map(storage::trackFile).toList();
+        final List<String> names = uniqueNames(tracks.stream().map(MediaController::downloadName).toList());
+        final String zipName = safe(album.getTitle() + (album.getYear() == null ? "" : " (" + album.getYear() + ")")) + ".zip";
+
+        final StreamingResponseBody body = out -> {
+            try (ZipOutputStream zip = new ZipOutputStream(out)) {
+                zip.setLevel(0);
+                for (int i = 0; i < files.size(); i++) {
+                    zip.putNextEntry(new ZipEntry(names.get(i)));
+                    Files.copy(files.get(i), zip);
+                    zip.closeEntry();
+                }
+            }
+        };
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(zipName, StandardCharsets.UTF_8).build().toString())
+                .body(body);
+    }
+
+    /**
+     * The album's own cover, else the spex poster from Spexregister, else 404.
+     */
+    @GetMapping("/api/albums/{id}/cover")
+    public ResponseEntity<?> cover(@PathVariable final UUID id) {
+        final Album album = catalogService.visibleAlbum(id);
+
+        if (album.getCoverExtension() != null) {
+            final Path file = storage.coverFile(album);
+
+            if (Files.isRegularFile(file)) {
+                return ResponseEntity.ok()
+                        .contentType(imageType(album.getCoverExtension()))
+                        .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
+                        .body(new FileSystemResource(file));
+            }
+        }
+        if (album.getSpex().getId() != null) {
+            return spexService.poster(album.getSpex().getId())
+                    .<ResponseEntity<?>>map(poster -> ResponseEntity.ok()
+                            .contentType(MediaType.parseMediaType(poster.contentType()))
+                            .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
+                            .body(poster.content()))
+                    .orElseGet(() -> ResponseEntity.notFound().build());
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @PostMapping("/api/albums/{id}/cover")
+    public AlbumDto uploadCover(@PathVariable final UUID id, @RequestParam("file") final MultipartFile file) throws IOException {
+        if (file.isEmpty() || file.getSize() > MAX_COVER) {
+            throw new BadRequestException("error.cover.invalid");
+        }
+
+        final byte[] content;
+
+        try (InputStream in = file.getInputStream()) {
+            content = in.readAllBytes();
+        }
+
+        final String extension = imageExtension(content);
+
+        if (extension == null) {
+            throw new BadRequestException("error.cover.invalid");
+        }
+        return catalogService.albumCover(id, content, extension);
     }
 }

@@ -43,6 +43,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 
+import static nu.fgv.spexify.server.util.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -97,6 +98,11 @@ class MediaHttpApiTest extends AbstractApiTest {
     private Album album;
     private Track track;
 
+    private static AlbumDto albumDto(final boolean hasCover) {
+        return new AlbumDto(uuid(1), "Cleopatra", 2024, AlbumKind.SHOW, null, null,
+                hasCover, true, Instant.parse("2026-10-01T10:00:00Z"), null, null, 12, 2_400_000, Instant.parse("2026-09-30T10:00:00Z"), null);
+    }
+
     @BeforeEach
     void setUpCatalog() throws IOException {
         album = new Album();
@@ -123,10 +129,10 @@ class MediaHttpApiTest extends AbstractApiTest {
 
     @Test
     void streamsATrack() throws Exception {
-        when(catalogService.playableTrack(2L)).thenReturn(track);
+        when(catalogService.playableTrack(uuid(2))).thenReturn(track);
 
         mockMvc
-                .perform(get("/api/tracks/{id}/audio", 2L).header(HttpHeaders.AUTHORIZATION, BEARER))
+                .perform(get("/api/tracks/{id}/audio", uuid(2)).header(HttpHeaders.AUTHORIZATION, BEARER))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "audio/flac"))
                 .andExpect(content().bytes(AUDIO))
@@ -145,10 +151,10 @@ class MediaHttpApiTest extends AbstractApiTest {
 
     @Test
     void downloadsATrack() throws Exception {
-        when(catalogService.playableTrack(2L)).thenReturn(track);
+        when(catalogService.playableTrack(uuid(2))).thenReturn(track);
 
         mockMvc
-                .perform(get("/api/tracks/{id}/download", 2L).header(HttpHeaders.AUTHORIZATION, BEARER))
+                .perform(get("/api/tracks/{id}/download", uuid(2)).header(HttpHeaders.AUTHORIZATION, BEARER))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(AUDIO))
                 .andDo(document(
@@ -165,10 +171,10 @@ class MediaHttpApiTest extends AbstractApiTest {
 
     @Test
     void downloadsAnAlbumAsZip() throws Exception {
-        when(catalogService.visibleAlbumWithTracks(1L)).thenReturn(album);
+        when(catalogService.visibleAlbumWithTracks(uuid(1))).thenReturn(album);
 
         final MvcResult started = mockMvc
-                .perform(get("/api/albums/{id}/download", 1L).header(HttpHeaders.AUTHORIZATION, BEARER))
+                .perform(get("/api/albums/{id}/download", uuid(1)).header(HttpHeaders.AUTHORIZATION, BEARER))
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
@@ -189,10 +195,10 @@ class MediaHttpApiTest extends AbstractApiTest {
 
     @Test
     void servesAnAlbumsCover() throws Exception {
-        when(catalogService.visibleAlbum(1L)).thenReturn(album);
+        when(catalogService.visibleAlbum(uuid(1))).thenReturn(album);
 
         mockMvc
-                .perform(get("/api/albums/{id}/cover", 1L).header(HttpHeaders.AUTHORIZATION, BEARER))
+                .perform(get("/api/albums/{id}/cover", uuid(1)).header(HttpHeaders.AUTHORIZATION, BEARER))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "image/png"))
                 .andDo(document(
@@ -209,10 +215,10 @@ class MediaHttpApiTest extends AbstractApiTest {
 
     @Test
     void uploadsAnAlbumsCover() throws Exception {
-        when(catalogService.albumCover(eq(1L), any(), eq("png"))).thenReturn(albumDto(true));
+        when(catalogService.albumCover(eq(uuid(1)), any(), eq("png"))).thenReturn(albumDto(true));
 
         mockMvc
-                .perform(multipart("/api/albums/{id}/cover", 1L)
+                .perform(multipart("/api/albums/{id}/cover", uuid(1))
                         .file(new MockMultipartFile("file", "cover.png", "image/png", PNG))
                         .header(HttpHeaders.AUTHORIZATION, BEARER))
                 .andExpect(status().isOk())
@@ -234,10 +240,10 @@ class MediaHttpApiTest extends AbstractApiTest {
 
     @Test
     void aTrackTheCallerMayNotPlayIsNotFound() throws Exception {
-        when(catalogService.playableTrack(3L)).thenThrow(new ResourceNotFoundException(Track.class, 3L));
+        when(catalogService.playableTrack(uuid(3))).thenThrow(new ResourceNotFoundException(Track.class, uuid(3)));
 
         mockMvc
-                .perform(get("/api/tracks/{id}/audio", 3L).header(HttpHeaders.AUTHORIZATION, BEARER))
+                .perform(get("/api/tracks/{id}/audio", uuid(3)).header(HttpHeaders.AUTHORIZATION, BEARER))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"))
                 .andDo(document(
@@ -247,50 +253,45 @@ class MediaHttpApiTest extends AbstractApiTest {
                 ));
     }
 
-    private static AlbumDto albumDto(final boolean hasCover) {
-        return new AlbumDto(1L, "4d6f0c9a-0b5e-3c1d-9a51-6f0f4e2b7c11", "Cleopatra", 2024, AlbumKind.SHOW, null, null,
-                hasCover, true, Instant.parse("2026-10-01T10:00:00Z"), null, null, 12, 2_400_000, Instant.parse("2026-09-30T10:00:00Z"), null);
-    }
-
     @Test
     void withoutItsOwnCoverAnAlbumShowsTheSpexPosterOrNothing() throws Exception {
         final Album withSpex = new Album();
 
         withSpex.setId(1L);
         withSpex.setTitle("Cleopatra");
-        withSpex.getSpex().setId(7L);
-        when(catalogService.visibleAlbum(1L)).thenReturn(withSpex);
-        when(spexService.poster(7L)).thenReturn(java.util.Optional.of(new nu.fgv.spexify.server.spex.SpexregisterClient.Poster(PNG, "image/png")));
-        mockMvc.perform(get("/api/albums/{id}/cover", 1L)).andExpect(status().isOk()).andExpect(content().bytes(PNG));
+        withSpex.getSpex().setId(uuid(7));
+        when(catalogService.visibleAlbum(uuid(1))).thenReturn(withSpex);
+        when(spexService.poster(uuid(7))).thenReturn(java.util.Optional.of(new nu.fgv.spexify.server.spex.SpexregisterClient.Poster(PNG, "image/png")));
+        mockMvc.perform(get("/api/albums/{id}/cover", uuid(1))).andExpect(status().isOk()).andExpect(content().bytes(PNG));
 
-        when(spexService.poster(7L)).thenReturn(java.util.Optional.empty());
-        mockMvc.perform(get("/api/albums/{id}/cover", 1L)).andExpect(status().isNotFound());
+        when(spexService.poster(uuid(7))).thenReturn(java.util.Optional.empty());
+        mockMvc.perform(get("/api/albums/{id}/cover", uuid(1))).andExpect(status().isNotFound());
 
         final Album withoutSpex = new Album();
 
         withoutSpex.setId(2L);
         withoutSpex.setTitle("Okänt");
-        when(catalogService.visibleAlbum(2L)).thenReturn(withoutSpex);
-        mockMvc.perform(get("/api/albums/{id}/cover", 2L)).andExpect(status().isNotFound());
-        when(catalogService.visibleAlbum(3L)).thenThrow(new ResourceNotFoundException("error.album.notFound", 3L));
-        mockMvc.perform(get("/api/albums/{id}/cover", 3L)).andExpect(status().isNotFound());
+        when(catalogService.visibleAlbum(uuid(2))).thenReturn(withoutSpex);
+        mockMvc.perform(get("/api/albums/{id}/cover", uuid(2))).andExpect(status().isNotFound());
+        when(catalogService.visibleAlbum(uuid(3))).thenThrow(new ResourceNotFoundException("error.album.notFound", uuid(3)));
+        mockMvc.perform(get("/api/albums/{id}/cover", uuid(3))).andExpect(status().isNotFound());
     }
 
     @Test
     void aCoverThatIsNotAnImageIsRefused() throws Exception {
-        mockMvc.perform(multipart("/api/albums/{id}/cover", 1L).file(new MockMultipartFile("file", "cover.png", "image/png", "<svg/>".getBytes())))
+        mockMvc.perform(multipart("/api/albums/{id}/cover", uuid(1)).file(new MockMultipartFile("file", "cover.png", "image/png", "<svg/>".getBytes())))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(multipart("/api/albums/{id}/cover", 1L).file(new MockMultipartFile("file", "cover.png", "image/png", new byte[0])))
+        mockMvc.perform(multipart("/api/albums/{id}/cover", uuid(1)).file(new MockMultipartFile("file", "cover.png", "image/png", new byte[0])))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void aTrackWhoseFileIsMissingIsNotFound() throws Exception {
-        when(catalogService.playableTrack(2L)).thenReturn(track);
+        when(catalogService.playableTrack(uuid(2))).thenReturn(track);
         when(storage.trackFile(track)).thenReturn(folder.resolve("missing.flac"));
 
-        mockMvc.perform(get("/api/tracks/{id}/audio", 2L)).andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/tracks/{id}/download", 2L)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/tracks/{id}/audio", uuid(2))).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/tracks/{id}/download", uuid(2))).andExpect(status().isNotFound());
     }
 
     @Test

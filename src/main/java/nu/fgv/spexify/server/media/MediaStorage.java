@@ -69,6 +69,12 @@ public class MediaStorage {
         }
     }
 
+    public static String extensionOf(final String fileName) {
+        final int dot = fileName.lastIndexOf('.');
+
+        return dot < 0 ? "" : fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
+    }
+
     public Path root() {
         return root;
     }
@@ -78,7 +84,7 @@ public class MediaStorage {
     }
 
     public Path albumFolder(final Album album, final Location location) {
-        return folder(location).resolve(album.getUuid());
+        return folder(location).resolve(album.getUuid().toString());
     }
 
     public Path trackFile(final Track track) {
@@ -198,11 +204,5 @@ public class MediaStorage {
                 }
             }
         }
-    }
-
-    public static String extensionOf(final String fileName) {
-        final int dot = fileName.lastIndexOf('.');
-
-        return dot < 0 ? "" : fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 }

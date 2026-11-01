@@ -60,6 +60,27 @@ public class TusController {
         this.callerService = callerService;
     }
 
+    /**
+     * A value from tus's {@code Upload-Metadata}: comma-separated {@code key base64value} pairs.
+     */
+    static @Nullable String metadataValue(final @Nullable String metadata, final String key) {
+        if (metadata == null) {
+            return null;
+        }
+        for (final String pair : metadata.split(",")) {
+            final String[] parts = pair.strip().split(" ", 2);
+
+            if (parts.length == 2 && parts[0].equals(key)) {
+                try {
+                    return new String(Base64.getDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+                } catch (final IllegalArgumentException e) {
+                    throw new BadRequestException("error.upload.metadata");
+                }
+            }
+        }
+        return null;
+    }
+
     @RequestMapping(method = RequestMethod.OPTIONS)
     public ResponseEntity<Void> options() {
         return ResponseEntity.noContent()
@@ -110,26 +131,5 @@ public class TusController {
     public ResponseEntity<Void> delete(@PathVariable final String id) throws IOException {
         uploadService.terminate(callerService.current(), id);
         return ResponseEntity.noContent().header(TUS_RESUMABLE, VERSION).build();
-    }
-
-    /**
-     * A value from tus's {@code Upload-Metadata}: comma-separated {@code key base64value} pairs.
-     */
-    static @Nullable String metadataValue(final @Nullable String metadata, final String key) {
-        if (metadata == null) {
-            return null;
-        }
-        for (final String pair : metadata.split(",")) {
-            final String[] parts = pair.strip().split(" ", 2);
-
-            if (parts.length == 2 && parts[0].equals(key)) {
-                try {
-                    return new String(Base64.getDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-                } catch (final IllegalArgumentException e) {
-                    throw new BadRequestException("error.upload.metadata");
-                }
-            }
-        }
-        return null;
     }
 }

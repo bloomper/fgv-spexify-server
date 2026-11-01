@@ -114,11 +114,13 @@ Click on each respective resource for more details.
 ``/rest/**`` is the http://www.subsonic.org/pages/api.jsp[Subsonic API] with the https://opensubsonic.netlify.app/[OpenSubsonic] extensions, for apps such as Symfonium, play:Sub or Feishin.
 Spexify Server is a gateway in front of https://www.navidrome.org/[Navidrome], which never faces the internet:
 
-* It authenticates the request itself: an app password (``u`` with ``p``, or ``t`` and ``s``), an OpenSubsonic API key (``apikey``) or a Keycloak access token from ``fgv-spexify``. App passwords and API keys are created by the user in Spexify Web, under _My apps_.
+* It authenticates the request itself: an app password (``u`` with ``p``, or ``t`` and ``s``), an OpenSubsonic API key (``apikey``) or a Keycloak access token from ``fgv-spexify``.
+App passwords and API keys are created by the user in Spexify Web, under _My apps_.
 * It checks again that the user still has ``USER`` on ``fgv-spexify`` in Keycloak, at most every ten minutes, so revoking access in Keycloak also stops the apps.
 * Failed logins lock the username, and the address after five times as many failures, for the minutes set by an admin.
 * It refuses what changes the library or users, e.g. ``startScan``, ``createUser``, ``createShare``, ``jukeboxControl`` and the podcast and radio operations: those are done in Spexify Web.
-* It forwards the rest to Navidrome with the user in the ``Remote-User`` header and the authentication parameters removed. Navidrome creates the user the first time.
+* It forwards the rest to Navidrome with the user in the ``Remote-User`` header and the authentication parameters removed.
+Navidrome creates the user the first time.
 
 Errors are answered in the Subsonic format (``f=json`` or XML), as apps expect.
 Stars, playlists and play counts live in Navidrome, per user.

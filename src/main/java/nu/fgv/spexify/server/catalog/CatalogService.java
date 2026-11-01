@@ -50,7 +50,6 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -60,6 +59,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -107,6 +107,51 @@ public class CatalogService {
 
     // ---------------------------------------------------------------------------------------------------- reading
 
+    private static void setAudio(final Track track, final PreparedAudio audio) {
+        track.setFileExtension(audio.format().extension());
+        track.setFileFormat(audio.format().name());
+        track.setFileSize(audio.size());
+        track.setFileChecksum(audio.checksum());
+        track.setDurationMs(audio.probe().durationMs());
+        track.setBitrate(audio.probe().bitrateKbps());
+    }
+
+    static int parseNumber(final @Nullable String value, final int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+
+        final String number = value.contains("/") ? value.substring(0, value.indexOf('/')) : value;
+
+        try {
+            final int parsed = Integer.parseInt(number.strip());
+
+            return parsed > 0 ? parsed : fallback;
+        } catch (final NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    static String titleFromFileName(final String fileName) {
+        final String base = fileName.contains(".") ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+        final String withoutNumber = base.replaceFirst("^\\d{1,3}\\s*[-._ ]\\s*", "").replace('_', ' ').strip();
+
+        return withoutNumber.isEmpty() ? base : withoutNumber;
+    }
+
+    private static @Nullable String blankToNull(final @Nullable String value) {
+        return StringUtils.hasText(value) ? value.strip() : null;
+    }
+
+    private static String limit(final String value) {
+        return value.length() > MAX_TITLE ? value.substring(0, MAX_TITLE) : value;
+    }
+
+    private static TrackRefDto toRef(final Track track) {
+        return new TrackRefDto(track.getUuid(), track.getTitle(), track.getDiscNumber(), track.getTrackNumber(),
+                track.getAlbum().getUuid(), track.getAlbum().getTitle(), track.getAlbum().getSpex().getId());
+    }
+
     @Transactional(readOnly = true)
     public List<AlbumDto> albums(final @Nullable AlbumFilter filter) {
         final Caller caller = callerService.current();
@@ -127,11 +172,11 @@ public class CatalogService {
     }
 
     @Transactional(readOnly = true)
-    public @Nullable AlbumDto album(final Long id) {
+    public @Nullable AlbumDto album(final UUID id) {
         final Caller caller = callerService.current();
 
         caller.requireUser();
-        return albumRepository.findById(id)
+        return albumRepository.findByUuid(id)
                 .filter(album -> album.isListed() || caller.isEditor())
                 .map(album -> toDto(album, caller))
                 .orElse(null);
@@ -150,11 +195,11 @@ public class CatalogService {
     public List<CategoryDto> categories() {
         callerService.current().requireUser();
 
-        final Map<Long, String> names = new HashMap<>();
-        final Map<Long, Integer> counts = new HashMap<>();
+        final Map<UUID, String> names = new HashMap<>();
+        final Map<UUID, Integer> counts = new HashMap<>();
 
         for (final Album album : albumRepository.findByPublishedTrueAndTrashedAtIsNullOrderByYearDescTitleAsc()) {
-            final Long categoryId = album.getSpex().getCategoryId();
+            final UUID categoryId = album.getSpex().getCategoryId();
 
             if (categoryId != null) {
                 names.put(categoryId, Objects.requireNonNullElse(album.getSpex().getCategoryName(), "?"));
@@ -201,7 +246,7 @@ public class CatalogService {
      * The tracks of an album the caller may see: listed ones for listeners, every one not in the trash for editors.
      */
     @Transactional(readOnly = true)
-    public List<TrackDto> tracks(final Long albumId) {
+    public List<TrackDto> tracks(final UUID albumId) {
         final Caller caller = callerService.current();
         final Album album = visibleAlbum(albumId, caller);
 
@@ -212,7 +257,7 @@ public class CatalogService {
     }
 
     @Transactional(readOnly = true)
-    public List<TrackRefDto> spexTracks(final Long spexId) {
+    public List<TrackRefDto> spexTracks(final UUID spexId) {
         final Caller caller = callerService.current();
 
         if (!caller.isSpexflixService() && !caller.isEditor()) {
@@ -221,14 +266,16 @@ public class CatalogService {
         return trackRepository.findListedBySpex(spexId).stream().map(CatalogService::toRef).toList();
     }
 
+    // ---------------------------------------------------------------------------------------------------- albums
+
     @Transactional(readOnly = true)
-    public List<TrackRefDto> tracksByIds(final Collection<Long> ids) {
+    public List<TrackRefDto> tracksByIds(final Collection<UUID> ids) {
         final Caller caller = callerService.current();
 
         if (!caller.isSpexflixService() && !caller.isUser()) {
             throw new AccessDeniedException("SPEXFLIX or USER required");
         }
-        return trackRepository.findAllById(ids).stream().filter(Track::isListed).map(CatalogService::toRef).toList();
+        return trackRepository.findByUuidIn(ids).stream().filter(Track::isListed).map(CatalogService::toRef).toList();
     }
 
     @Transactional(readOnly = true)
@@ -258,12 +305,12 @@ public class CatalogService {
      * A track the caller may play or download: listed for listeners, any for editors.
      */
     @Transactional(readOnly = true)
-    public Track playableTrack(final Long id) {
+    public Track playableTrack(final UUID id) {
         final Caller caller = callerService.current();
 
         caller.requireUser();
 
-        final Track track = trackRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("error.track.notFound", id));
+        final Track track = trackRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.track.notFound", id));
 
         if (!track.isListed() && !caller.isEditor()) {
             throw new ResourceNotFoundException("error.track.notFound", id);
@@ -276,7 +323,7 @@ public class CatalogService {
      * An album the caller may see, without its tracks.
      */
     @Transactional(readOnly = true)
-    public Album visibleAlbum(final Long id) {
+    public Album visibleAlbum(final UUID id) {
         return visibleAlbum(id, callerService.current());
     }
 
@@ -284,14 +331,12 @@ public class CatalogService {
      * An album the caller may see, with its tracks loaded.
      */
     @Transactional(readOnly = true)
-    public Album visibleAlbumWithTracks(final Long id) {
+    public Album visibleAlbumWithTracks(final UUID id) {
         final Album album = visibleAlbum(id, callerService.current());
 
         album.getTracks().size();
         return album;
     }
-
-    // ---------------------------------------------------------------------------------------------------- albums
 
     @Transactional
     public AlbumDto albumCreate(final AlbumInput input) {
@@ -303,12 +348,12 @@ public class CatalogService {
 
         apply(album, input);
         albumRepository.save(album);
-        auditService.record("CREATE", "ALBUM", album.getId(), "Skapade albumet " + album.getTitle());
+        auditService.record("CREATE", "ALBUM", album.getUuid(), "Skapade albumet " + album.getTitle());
         return toDto(album, caller);
     }
 
     @Transactional
-    public AlbumDto albumUpdate(final Long id, final AlbumInput input) {
+    public AlbumDto albumUpdate(final UUID id, final AlbumInput input) {
         final Caller caller = callerService.current();
 
         caller.requireEditor();
@@ -317,7 +362,7 @@ public class CatalogService {
 
         apply(album, input);
         place(album);
-        auditService.record("UPDATE", "ALBUM", album.getId(), "Ändrade albumet " + album.getTitle());
+        auditService.record("UPDATE", "ALBUM", album.getUuid(), "Ändrade albumet " + album.getTitle());
         return toDto(album, caller);
     }
 
@@ -348,7 +393,7 @@ public class CatalogService {
     }
 
     @Transactional
-    public AlbumDto albumPublish(final Long id, final boolean published) {
+    public AlbumDto albumPublish(final UUID id, final boolean published) {
         final Caller caller = callerService.current();
 
         caller.requireEditor();
@@ -360,31 +405,33 @@ public class CatalogService {
             album.setPublishedAt(clock.instant());
         }
         place(album);
-        auditService.record(published ? "PUBLISH" : "UNPUBLISH", "ALBUM", album.getId(),
+        auditService.record(published ? "PUBLISH" : "UNPUBLISH", "ALBUM", album.getUuid(),
                 (published ? "Publicerade albumet " : "Avpublicerade albumet ") + album.getTitle());
         return toDto(album, caller);
     }
 
+    // ---------------------------------------------------------------------------------------------------- tracks
+
     @Transactional
-    public AlbumDto albumTrash(final Long id, final boolean trashed) {
+    public AlbumDto albumTrash(final UUID id, final boolean trashed) {
         final Caller caller = callerService.current();
 
         caller.requireEditor();
 
-        final Album album = albumRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
+        final Album album = albumRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
 
         album.setTrashedAt(trashed ? clock.instant() : null);
         place(album);
-        auditService.record(trashed ? "TRASH" : "RESTORE", "ALBUM", album.getId(),
+        auditService.record(trashed ? "TRASH" : "RESTORE", "ALBUM", album.getUuid(),
                 (trashed ? "Lade albumet i papperskorgen: " : "Återställde albumet ") + album.getTitle());
         return toDto(album, caller);
     }
 
     @Transactional
-    public void albumDelete(final Long id) {
+    public void albumDelete(final UUID id) {
         callerService.current().requireAdmin();
 
-        final Album album = albumRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
+        final Album album = albumRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
 
         if (!album.isTrashed()) {
             throw new BadRequestException("error.album.notTrashed");
@@ -400,7 +447,7 @@ public class CatalogService {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
-        auditService.record("DELETE", "ALBUM", album.getId(), "Raderade albumet " + album.getTitle());
+        auditService.record("DELETE", "ALBUM", album.getUuid(), "Raderade albumet " + album.getTitle());
         albumRepository.delete(album);
         if (wasInMusic) {
             scanner.requestScan();
@@ -411,7 +458,7 @@ public class CatalogService {
      * Sets the album's own cover from an uploaded image.
      */
     @Transactional
-    public AlbumDto albumCover(final Long id, final byte[] content, final String extension) {
+    public AlbumDto albumCover(final UUID id, final byte[] content, final String extension) {
         final Caller caller = callerService.current();
 
         caller.requireEditor();
@@ -428,12 +475,12 @@ public class CatalogService {
             throw new UncheckedIOException(e);
         }
         place(album);
-        auditService.record("UPDATE", "ALBUM", album.getId(), "Bytte omslag på albumet " + album.getTitle());
+        auditService.record("UPDATE", "ALBUM", album.getUuid(), "Bytte omslag på albumet " + album.getTitle());
         return toDto(album, caller);
     }
 
     @Transactional
-    public AlbumDto albumCoverRemove(final Long id) {
+    public AlbumDto albumCoverRemove(final UUID id) {
         final Caller caller = callerService.current();
 
         caller.requireEditor();
@@ -448,39 +495,37 @@ public class CatalogService {
             }
             album.setCoverExtension(null);
             place(album);
-            auditService.record("UPDATE", "ALBUM", album.getId(), "Tog bort omslaget på albumet " + album.getTitle());
+            auditService.record("UPDATE", "ALBUM", album.getUuid(), "Tog bort omslaget på albumet " + album.getTitle());
         }
         return toDto(album, caller);
     }
 
     @Transactional
-    public AlbumDto tracksReorder(final Long albumId, final List<Long> trackIds) {
+    public AlbumDto tracksReorder(final UUID albumId, final List<UUID> trackIds) {
         final Caller caller = callerService.current();
 
         caller.requireEditor();
 
         final Album album = editableAlbum(albumId);
-        final Map<Long, Track> tracks = album.getTracks().stream().collect(Collectors.toMap(Track::getId, track -> track));
+        final Map<UUID, Track> tracks = album.getTracks().stream().collect(Collectors.toMap(Track::getUuid, track -> track));
         final Map<Integer, Integer> numbers = new LinkedHashMap<>();
 
         if (!tracks.keySet().containsAll(trackIds) || Set.copyOf(trackIds).size() != trackIds.size()) {
             throw new BadRequestException("error.album.reorder");
         }
-        for (final Long trackId : trackIds) {
+        for (final UUID trackId : trackIds) {
             final Track track = tracks.get(trackId);
 
             track.setTrackNumber(numbers.merge(track.getDiscNumber(), 1, Integer::sum));
         }
         album.getTracks().sort(Comparator.comparingInt(Track::getDiscNumber).thenComparingInt(Track::getTrackNumber));
         place(album);
-        auditService.record("UPDATE", "ALBUM", album.getId(), "Ändrade ordningen på albumet " + album.getTitle());
+        auditService.record("UPDATE", "ALBUM", album.getUuid(), "Ändrade ordningen på albumet " + album.getTitle());
         return toDto(album, caller);
     }
 
-    // ---------------------------------------------------------------------------------------------------- tracks
-
     @Transactional
-    public TrackDto trackCreate(final Long albumId, final String uploadId) {
+    public TrackDto trackCreate(final UUID albumId, final String uploadId) {
         final Caller caller = callerService.current();
 
         caller.requireEditor();
@@ -511,12 +556,12 @@ public class CatalogService {
         uploadService.release(uploadId);
         album.getTracks().add(track);
         place(album);
-        auditService.record("CREATE", "TRACK", track.getId(), "Laddade upp " + track.getTitle() + " till " + album.getTitle());
+        auditService.record("CREATE", "TRACK", track.getUuid(), "Laddade upp " + track.getTitle() + " till " + album.getTitle());
         return toDto(track);
     }
 
     @Transactional
-    public TrackDto trackReplaceAudio(final Long id, final String uploadId) {
+    public TrackDto trackReplaceAudio(final UUID id, final String uploadId) {
         final Caller caller = callerService.current();
 
         caller.requireEditor();
@@ -538,12 +583,14 @@ public class CatalogService {
         if (wasInMusic) {
             scanner.requestScan();
         }
-        auditService.record("UPDATE", "TRACK", track.getId(), "Bytte ljudfil för " + track.getTitle());
+        auditService.record("UPDATE", "TRACK", track.getUuid(), "Bytte ljudfil för " + track.getTitle());
         return toDto(track);
     }
 
+    // ---------------------------------------------------------------------------------------------------- helpers
+
     @Transactional
-    public TrackDto trackUpdate(final Long id, final TrackInput input) {
+    public TrackDto trackUpdate(final UUID id, final TrackInput input) {
         callerService.current().requireEditor();
 
         final Track track = track(id);
@@ -561,41 +608,41 @@ public class CatalogService {
         track.setLyrics(StringUtils.hasText(input.lyrics()) ? input.lyrics() : null);
         track.setLyricsSynced(StringUtils.hasText(input.lyrics()) && input.lyricsSynced());
         place(track.getAlbum());
-        auditService.record("UPDATE", "TRACK", track.getId(), "Ändrade " + track.getTitle());
+        auditService.record("UPDATE", "TRACK", track.getUuid(), "Ändrade " + track.getTitle());
         return toDto(track);
     }
 
     @Transactional
-    public TrackDto trackPublish(final Long id, final boolean published) {
+    public TrackDto trackPublish(final UUID id, final boolean published) {
         callerService.current().requireEditor();
 
         final Track track = track(id);
 
         track.setPublished(published);
         place(track.getAlbum());
-        auditService.record(published ? "PUBLISH" : "UNPUBLISH", "TRACK", track.getId(),
+        auditService.record(published ? "PUBLISH" : "UNPUBLISH", "TRACK", track.getUuid(),
                 (published ? "Publicerade " : "Avpublicerade ") + track.getTitle());
         return toDto(track);
     }
 
     @Transactional
-    public TrackDto trackTrash(final Long id, final boolean trashed) {
+    public TrackDto trackTrash(final UUID id, final boolean trashed) {
         callerService.current().requireEditor();
 
-        final Track track = trackRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("error.track.notFound", id));
+        final Track track = trackRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.track.notFound", id));
 
         track.setTrashedAt(trashed ? clock.instant() : null);
         place(track.getAlbum());
-        auditService.record(trashed ? "TRASH" : "RESTORE", "TRACK", track.getId(),
+        auditService.record(trashed ? "TRASH" : "RESTORE", "TRACK", track.getUuid(),
                 (trashed ? "Lade i papperskorgen: " : "Återställde ") + track.getTitle());
         return toDto(track);
     }
 
     @Transactional
-    public void trackDelete(final Long id) {
+    public void trackDelete(final UUID id) {
         callerService.current().requireAdmin();
 
-        final Track track = trackRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("error.track.notFound", id));
+        final Track track = trackRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.track.notFound", id));
 
         if (!track.isTrashed()) {
             throw new BadRequestException("error.track.notTrashed");
@@ -609,7 +656,7 @@ public class CatalogService {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
-        auditService.record("DELETE", "TRACK", track.getId(), "Raderade " + track.getTitle());
+        auditService.record("DELETE", "TRACK", track.getUuid(), "Raderade " + track.getTitle());
         track.getAlbum().getTracks().remove(track);
         trackRepository.delete(track);
     }
@@ -627,8 +674,6 @@ public class CatalogService {
         }
     }
 
-    // ---------------------------------------------------------------------------------------------------- helpers
-
     private PreparedAudio prepare(final String uploadId, final Caller caller) {
         try {
             return audioPreparer.prepare(uploadService.claim(uploadId, caller));
@@ -637,23 +682,14 @@ public class CatalogService {
         }
     }
 
-    private static void setAudio(final Track track, final PreparedAudio audio) {
-        track.setFileExtension(audio.format().extension());
-        track.setFileFormat(audio.format().name());
-        track.setFileSize(audio.size());
-        track.setFileChecksum(audio.checksum());
-        track.setDurationMs(audio.probe().durationMs());
-        track.setBitrate(audio.probe().bitrateKbps());
-    }
-
     private void place(final Album album) {
         if (placer.place(album)) {
             scanner.requestScan();
         }
     }
 
-    private Album editableAlbum(final Long id) {
-        final Album album = albumRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
+    private Album editableAlbum(final UUID id) {
+        final Album album = albumRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
 
         if (album.isTrashed()) {
             throw new BadRequestException("error.album.trashed");
@@ -661,51 +697,20 @@ public class CatalogService {
         return album;
     }
 
-    private Album visibleAlbum(final Long id, final Caller caller) {
+    private Album visibleAlbum(final UUID id, final Caller caller) {
         caller.requireUser();
-        return albumRepository.findById(id)
+        return albumRepository.findByUuid(id)
                 .filter(album -> album.isListed() || caller.isEditor())
                 .orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
     }
 
-    private Track track(final Long id) {
-        final Track track = trackRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("error.track.notFound", id));
+    private Track track(final UUID id) {
+        final Track track = trackRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.track.notFound", id));
 
         if (track.isTrashed() || track.getAlbum().isTrashed()) {
             throw new BadRequestException("error.track.trashed");
         }
         return track;
-    }
-
-    static int parseNumber(final @Nullable String value, final int fallback) {
-        if (value == null) {
-            return fallback;
-        }
-
-        final String number = value.contains("/") ? value.substring(0, value.indexOf('/')) : value;
-
-        try {
-            final int parsed = Integer.parseInt(number.strip());
-
-            return parsed > 0 ? parsed : fallback;
-        } catch (final NumberFormatException e) {
-            return fallback;
-        }
-    }
-
-    static String titleFromFileName(final String fileName) {
-        final String base = fileName.contains(".") ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
-        final String withoutNumber = base.replaceFirst("^\\d{1,3}\\s*[-._ ]\\s*", "").replace('_', ' ').strip();
-
-        return withoutNumber.isEmpty() ? base : withoutNumber;
-    }
-
-    private static @Nullable String blankToNull(final @Nullable String value) {
-        return StringUtils.hasText(value) ? value.strip() : null;
-    }
-
-    private static String limit(final String value) {
-        return value.length() > MAX_TITLE ? value.substring(0, MAX_TITLE) : value;
     }
 
     private AlbumDto toDto(final Album album, final Caller caller) {
@@ -714,7 +719,7 @@ public class CatalogService {
                 .toList();
         final SpexRef spex = album.getSpex();
 
-        return new AlbumDto(album.getId(), album.getUuid(), album.getTitle(), album.getYear(), album.getKind(),
+        return new AlbumDto(album.getUuid(), album.getTitle(), album.getYear(), album.getKind(),
                 album.getDescription(),
                 spex.getId() == null ? null : new AlbumSpexDto(spex.getId(), spex.getTitle(), spex.getYear(), spex.getRevival(), spex.getCategoryId(), spex.getCategoryName()),
                 album.getCoverExtension() != null, album.isPublished(), album.getPublishedAt(), album.getTrashedAt(),
@@ -723,16 +728,11 @@ public class CatalogService {
     }
 
     private TrackDto toDto(final Track track) {
-        return new TrackDto(track.getId(), track.getUuid(), track.getAlbum().getId(), track.getAlbum().getTitle(),
+        return new TrackDto(track.getUuid(), track.getAlbum().getUuid(), track.getAlbum().getTitle(),
                 track.getDiscNumber(), track.getTrackNumber(), track.getTitle(), track.getPerformers(), track.getMelody(),
                 track.getLyricsAuthor(), track.getArranger(), track.getLyrics(), track.isLyricsSynced(),
                 track.getFileFormat(), track.getFileSize(), track.getDurationMs(), track.getBitrate(), track.isPublished(),
                 track.isListed(), track.getTrashedAt(), track.getNavidromeId(), !storage.exists(track));
-    }
-
-    private static TrackRefDto toRef(final Track track) {
-        return new TrackRefDto(track.getId(), track.getTitle(), track.getDiscNumber(), track.getTrackNumber(),
-                track.getAlbum().getId(), track.getAlbum().getTitle(), track.getAlbum().getSpex().getId());
     }
 
 }

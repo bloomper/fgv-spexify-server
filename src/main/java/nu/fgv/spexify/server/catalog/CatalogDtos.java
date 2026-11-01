@@ -19,6 +19,7 @@ package nu.fgv.spexify.server.catalog;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * What the GraphQL API returns and takes for the catalogue.
@@ -31,18 +32,18 @@ public final class CatalogDtos {
     private CatalogDtos() {
     }
 
-    public record AlbumDto(Long id, String uuid, String title, @Nullable Integer year, AlbumKind kind,
+    public record AlbumDto(UUID id, String title, @Nullable Integer year, AlbumKind kind,
                            @Nullable String description, @Nullable AlbumSpexDto spex, boolean hasCover,
                            boolean published, @Nullable Instant publishedAt, @Nullable Instant trashedAt,
                            @Nullable String navidromeId, int trackCount, double durationMs, Instant createdAt,
                            @Nullable Instant lastModifiedAt) {
     }
 
-    public record AlbumSpexDto(Long id, @Nullable String title, @Nullable Integer year, @Nullable Boolean revival,
-                               @Nullable Long categoryId, @Nullable String categoryName) {
+    public record AlbumSpexDto(UUID id, @Nullable String title, @Nullable Integer year, @Nullable Boolean revival,
+                               @Nullable UUID categoryId, @Nullable String categoryName) {
     }
 
-    public record TrackDto(Long id, String uuid, Long albumId, String albumTitle, int discNumber, int trackNumber,
+    public record TrackDto(UUID id, UUID albumId, String albumTitle, int discNumber, int trackNumber,
                            String title, @Nullable String performers, @Nullable String melody,
                            @Nullable String lyricsAuthor, @Nullable String arranger, @Nullable String lyrics,
                            boolean lyricsSynced, String format, double fileSize, double durationMs,
@@ -50,11 +51,11 @@ public final class CatalogDtos {
                            @Nullable String navidromeId, boolean fileMissing) {
     }
 
-    public record TrackRefDto(Long id, String title, int discNumber, int trackNumber, Long albumId, String albumTitle,
-                              @Nullable Long spexId) {
+    public record TrackRefDto(UUID id, String title, int discNumber, int trackNumber, UUID albumId, String albumTitle,
+                              @Nullable UUID spexId) {
     }
 
-    public record CategoryDto(Long id, String name, int albumCount) {
+    public record CategoryDto(UUID id, String name, int albumCount) {
     }
 
     public record SearchResultDto(java.util.List<AlbumDto> albums, java.util.List<TrackDto> tracks) {
@@ -63,11 +64,11 @@ public final class CatalogDtos {
     public record TrashDto(java.util.List<AlbumDto> albums, java.util.List<TrackDto> tracks) {
     }
 
-    public record AlbumFilter(@Nullable Long categoryId, @Nullable Integer year, @Nullable Long spexId,
+    public record AlbumFilter(@Nullable UUID categoryId, @Nullable Integer year, @Nullable UUID spexId,
                               @Nullable Boolean includeUnpublished) {
     }
 
-    public record AlbumInput(@Nullable Long spexId, @Nullable String title, @Nullable Integer year, AlbumKind kind,
+    public record AlbumInput(@Nullable UUID spexId, @Nullable String title, @Nullable Integer year, AlbumKind kind,
                              @Nullable String description) {
     }
 

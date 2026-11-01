@@ -61,6 +61,30 @@ public class PasswordCrypto {
         this.key = new SecretKeySpec(sha256(bytes), "AES");
     }
 
+    public static String sha256Hex(final String value) {
+        return HexFormat.of().formatHex(sha256(value.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public static String md5Hex(final String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("MD5").digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (final NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    public static boolean constantTimeEquals(final String a, final String b) {
+        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static byte[] sha256(final byte[] value) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(value);
+        } catch (final NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     public byte[] encrypt(final String plain) {
         try {
             final byte[] iv = new byte[IV_LENGTH];
@@ -112,29 +136,5 @@ public class PasswordCrypto {
             apiKey.append(KEY_ALPHABET.charAt(random.nextInt(KEY_ALPHABET.length())));
         }
         return apiKey.toString();
-    }
-
-    public static String sha256Hex(final String value) {
-        return HexFormat.of().formatHex(sha256(value.getBytes(StandardCharsets.UTF_8)));
-    }
-
-    public static String md5Hex(final String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("MD5").digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    public static boolean constantTimeEquals(final String a, final String b) {
-        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static byte[] sha256(final byte[] value) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(value);
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
     }
 }

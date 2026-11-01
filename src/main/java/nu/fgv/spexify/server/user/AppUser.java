@@ -24,9 +24,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import nu.fgv.spexify.server.util.Uuids;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * Someone who has used Spexify, copied from their login: the Keycloak subject, the username they type into Subsonic
@@ -44,6 +46,9 @@ public class AppUser {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "uuid", nullable = false, updatable = false, length = 36)
+    private UUID uuid = Uuids.v7();
 
     @Column(name = "subject", nullable = false, updatable = false)
     private String subject;

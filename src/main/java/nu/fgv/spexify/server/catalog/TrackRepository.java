@@ -23,6 +23,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository for {@link Track}.
@@ -32,7 +33,9 @@ import java.util.Optional;
  */
 public interface TrackRepository extends JpaRepository<Track, Long> {
 
-    Optional<Track> findByUuid(String uuid);
+    Optional<Track> findByUuid(UUID uuid);
+
+    List<Track> findByUuidIn(Collection<UUID> uuids);
 
     List<Track> findByTrashedAtIsNotNullOrderByTrashedAtDesc();
 
@@ -54,5 +57,5 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
             WHERE a.spex.id = :spexId AND a.published = TRUE AND a.trashedAt IS NULL
               AND t.published = TRUE AND t.trashedAt IS NULL
             ORDER BY a.title ASC, t.discNumber ASC, t.trackNumber ASC""")
-    List<Track> findListedBySpex(@Param("spexId") Long spexId);
+    List<Track> findListedBySpex(@Param("spexId") UUID spexId);
 }

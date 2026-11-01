@@ -28,9 +28,11 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 import nu.fgv.spexify.server.user.AppUser;
+import nu.fgv.spexify.server.util.Uuids;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * A password for one app on one device. Stored encrypted, because Subsonic's token authentication sends
@@ -48,6 +50,9 @@ public class AppPassword {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "uuid", nullable = false, updatable = false, length = 36)
+    private UUID uuid = Uuids.v7();
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)

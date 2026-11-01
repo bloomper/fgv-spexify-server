@@ -179,7 +179,6 @@ type AlbumSpex {
 
 type Album {
     id: ID!
-    uuid: String!
     title: String!
     year: Int
     kind: AlbumKind!
@@ -201,7 +200,6 @@ type Album {
 
 type Track {
     id: ID!
-    uuid: String!
     albumId: ID!
     albumTitle: String!
     discNumber: Int!

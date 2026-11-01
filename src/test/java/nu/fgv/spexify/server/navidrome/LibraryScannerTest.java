@@ -70,7 +70,7 @@ class LibraryScannerTest {
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         scanner = new LibraryScanner(client, trackRepository, storage, new TransactionTemplate(transactionManager), clock);
         track = new Track();
-        track.setUuid(UUID);
+        track.setUuid(java.util.UUID.fromString(UUID));
         track.setAlbum(new Album());
         track.setLocation(Location.MUSIC);
         lenient().when(trackRepository.findByLocation(Location.MUSIC)).thenReturn(List.of(track));

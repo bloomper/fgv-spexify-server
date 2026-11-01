@@ -47,23 +47,6 @@ public class AudioProbe {
         this.jsonMapper = jsonMapper;
     }
 
-    /**
-     * The file's audio, or empty when ffprobe cannot read it or it has no audio stream.
-     */
-    public Optional<Result> probe(final Path file) {
-        final String json;
-
-        try {
-            final List<String> arguments = new ArrayList<>(Ffmpeg.AUDIO_INPUT);
-
-            arguments.addAll(List.of("-v", "error", "-print_format", "json", "-show_format", "-show_streams", file.toString()));
-            json = ffmpeg.probe(arguments);
-        } catch (final IOException e) {
-            return Optional.empty();
-        }
-        return parse(jsonMapper.readTree(json));
-    }
-
     static Optional<Result> parse(final JsonNode root) {
         JsonNode audio = null;
 
@@ -100,6 +83,23 @@ public class AudioProbe {
         } catch (final NumberFormatException e) {
             return 0;
         }
+    }
+
+    /**
+     * The file's audio, or empty when ffprobe cannot read it or it has no audio stream.
+     */
+    public Optional<Result> probe(final Path file) {
+        final String json;
+
+        try {
+            final List<String> arguments = new ArrayList<>(Ffmpeg.AUDIO_INPUT);
+
+            arguments.addAll(List.of("-v", "error", "-print_format", "json", "-show_format", "-show_streams", file.toString()));
+            json = ffmpeg.probe(arguments);
+        } catch (final IOException e) {
+            return Optional.empty();
+        }
+        return parse(jsonMapper.readTree(json));
     }
 
     /**
