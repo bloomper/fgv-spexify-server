@@ -1,0 +1,122 @@
+= Spexify Server GraphQL API Guide
+:doctype: book
+:icons: font
+:source-highlighter: highlightjs
+:toc: left
+:toclevels: 4
+
+xref:index.adoc[Back to start page]
+
+[[schema]]
+== Schema
+
+The endpoint is ``/api/graphql``.
+If running locally, the corresponding URL is https://api.spexify.fgv.local.nu:8443/api/graphql.
+
+Every operation requires an access token from the Keycloak client ``fgv-spexify``, or from Spexflix's service account ``fgv-spexflix-service``.
+What each operation requires is in its description in the schema.
+
+Introspection is enabled only with the Spring profile ``local``.
+The schema can otherwise be downloaded, with an access token, from ``/api/graphql/schema``.
+Its source is ``src/main/resources/graphql/schema.graphqls``.
+
+[[errors]]
+== Errors
+
+The GraphQL API provides the error code in ``extensions.classification`` and a message in the request's language in ``message``:
+
+|===
+|Classification|Meaning
+
+|``UNAUTHORIZED``|The request has no valid access token.
+|``FORBIDDEN``|The user lacks the role the operation requires.
+|``NOT_FOUND``|The resource does not exist. Also returned for an album or track the user may not see.
+|``BAD_REQUEST``|The input breaks a rule, e.g. an upload that is not audio.
+|``CONFLICT``|Someone else changed the resource since the user read it. Ask them to reload.
+|``SPEXREGISTER_UNAVAILABLE``|Spexregister cannot be reached. Everything that does not need it keeps working.
+|``DIRECTORY_UNAVAILABLE``|The FGV realm's users cannot be read in Keycloak.
+
+|===
+
+For example, publishing an album that does not exist produces an error:
+
+[source,json,options="nowrap"]
+----
+{
+    "errors": [
+        {
+            "message": "Albumet finns inte.",
+            "locations": [
+                {
+                    "line": 2,
+                    "column": 5
+                }
+            ],
+            "path": [
+                "albumPublish"
+            ],
+            "extensions": {
+                "classification": "NOT_FOUND"
+            }
+        }
+    ],
+    "data": null
+}
+----
+
+Note that invalid input according to the schema will be detected and reported as validation errors by the client which means that the structure is different from described above.
+
+[[roles]]
+== Roles
+
+Spexify Server uses the following roles, which are client roles on ``fgv-spexify`` in Keycloak:
+
+|===
+|Role|Description
+
+|USER|May use the application at all: listen, download, star, keep playlists and create app passwords; every operation requires it
+|EDITOR|Creates albums, uploads tracks, edits metadata, publishes and trashes
+|ADMIN|Everything an editor does, plus settings, users' credentials, the music server and permanent deletes
+|SPEXFLIX|Held only by Spexflix's service account, which reads published tracks to link Spexflix's chapters
+
+|===
+
+Every service method resolves the caller and checks the role before it acts; GraphQL operations hold no rules of their own.
+``me`` returns the caller's roles, so clients can show or hide controls; the server enforces every rule anyway.
+
+[[catalogue]]
+== The catalogue
+
+Albums belong to a spex in Spexregister (or none, for compilations) and hold tracks.
+New albums start unpublished.
+Listeners see published tracks of published albums; editors see everything that is not deleted.
+Trashing is undone from the trash; only an admin deletes for good.
+
+Publishing puts the files into the folder Navidrome reads, with tags written by ffmpeg, and asks Navidrome to scan; ``libraryStatus`` shows how it went.
+Stars and playlists are Navidrome's, per user, and reached through the <<api-guide.adoc#subsonic,Subsonic API>>; ``tracksByNavidromeIds`` maps Navidrome's songs back to tracks.
+
+[[audit]]
+== Audit
+
+Editors' changes are recorded in the audit log (``auditLog``): who, when, what and a summary.
+Editors see their own changes, admins everyone's.
+
+[[spexregister]]
+== Spexregister
+
+Spex, their categories and posters are read from Spexregister, which Spexify Server calls as the service account ``fgv-spexify-service`` with Spexregister's ``MEDIA`` role.
+An album keeps a copy of its spex's title and year, so the catalogue works while Spexregister is down; only ``spexSearch`` and posters fail, with ``SPEXREGISTER_UNAVAILABLE``.
+
+[[spexflix]]
+== Spexflix
+
+Tracks show where they are performed in Spexflix (``Track.videoLinks``), read from Spexflix's ``chapterLinks`` as ``fgv-spexify-service`` with Spexflix's ``SPEXIFY`` role, for users who also have ``USER`` on ``fgv-spexflix``.
+Spexflix in turn reads ``spexTracks`` and ``tracksByIds`` with the ``SPEXFLIX`` role.
+Without ``API_SPEXFLIX_GRAPHQL_URL`` there are no links.
+
+[[file_handling]]
+== File handling
+
+As GraphQL does not have any native support for uploading/downloading files, those operations are done via the xref:api-guide.adoc[HTTP API]: audio, downloads, covers and uploads.
+
+xref:index.adoc[Back to start page]

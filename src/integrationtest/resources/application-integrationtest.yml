@@ -1,0 +1,10 @@
+logging:
+  file:
+    path: ./build/integrationtest-data/log_data
+
+spexify:
+  crypto:
+    app-password-encryption-key: aW50ZWdyYXRpb24tdGVzdC1lbmNyeXB0aW9uLWtleS0x
+  security:
+    # Access in Keycloak is checked again on every Subsonic request, so revoking it shows at once
+    access-cache: 1ms

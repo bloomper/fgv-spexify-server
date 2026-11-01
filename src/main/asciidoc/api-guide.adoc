@@ -1,0 +1,126 @@
+= Spexify Server HTTP API Guide
+:doctype: book
+:icons: font
+:source-highlighter: highlightjs
+:toc: left
+:toclevels: 4
+
+xref:index.adoc[Back to start page]
+
+[[introduction]]
+== Introduction
+
+Spexify Server's API is xref:graphql-api-guide.adoc[GraphQL].
+A few endpoints are plain HTTP, for what GraphQL does not suit: audio, downloads, covers and resumable uploads.
+Like GraphQL, they are thin adapters over the services, which decide who may do what.
+Subsonic apps use the <<subsonic,Subsonic API>> instead.
+
+[[http_verbs]]
+== HTTP verbs
+
+|===
+| Verb | Usage
+
+| `GET`
+| Used to retrieve audio, a download or a cover
+
+| `HEAD`
+| Used to read an upload's offset
+
+| `POST`
+| Used to upload a cover or to create an upload
+
+| `PATCH`
+| Used to send a chunk of an upload
+
+| `DELETE`
+| Used to cancel an upload
+
+| `OPTIONS`
+| Used to read the upload endpoint's capabilities
+|===
+
+[[http_status_codes]]
+== HTTP status codes
+
+|===
+| Status code | Usage
+
+| `200 OK`
+| The request completed successfully.
+
+| `201 Created`
+| An upload has been created.
+
+| `204 No Content`
+| There is nothing to return, e.g. a chunk has been stored or an upload cancelled.
+
+| `206 Partial Content`
+| A `Range` request for audio completed successfully.
+
+| `400 Bad Request`
+| The request was malformed, e.g. a cover that is not an image.
+
+| `401 Unauthorized`
+| The request has no valid access token.
+
+| `403 Forbidden`
+| The user lacks the role the request requires.
+
+| `404 Not Found`
+| The requested resource does not exist, or the user may not reach it.
+
+| `409 Conflict`
+| A chunk does not start where the upload stands, or someone else changed the resource.
+
+| `413 Content Too Large`
+| A cover is larger than 10 MB.
+
+| `503 Service Unavailable`
+| A service the request depends on, such as Spexregister, cannot be reached.
+|===
+
+[[errors]]
+== Errors
+
+Whenever an error response (status code >= 400) is returned, the body is a JSON object with the same codes as the GraphQL API:
+
+include::{snippets}/error/response-fields.adoc[]
+
+For example, a request for a track that does not exist, or that the user may not play, produces a `404 Not Found` response:
+
+include::{snippets}/error/http-response.adoc[]
+
+[[roles]]
+== Roles
+
+Every endpoint requires an access token from the `fgv-spexify` client with the `USER` client role.
+Uploads and cover uploads also need `EDITOR` or `ADMIN`, exactly as in the xref:graphql-api-guide.adoc#roles[GraphQL API].
+
+[[resources]]
+== Resources
+
+Spexify Server uses the following resources:
+
+* xref:resources/track.adoc[Track]
+* xref:resources/album.adoc[Album]
+* xref:resources/upload.adoc[Upload]
+
+Click on each respective resource for more details.
+
+[[subsonic]]
+== Subsonic API
+
+``/rest/**`` is the http://www.subsonic.org/pages/api.jsp[Subsonic API] with the https://opensubsonic.netlify.app/[OpenSubsonic] extensions, for apps such as Symfonium, play:Sub or Feishin.
+Spexify Server is a gateway in front of https://www.navidrome.org/[Navidrome], which never faces the internet:
+
+* It authenticates the request itself: an app password (``u`` with ``p``, or ``t`` and ``s``), an OpenSubsonic API key (``apikey``) or a Keycloak access token from ``fgv-spexify``. App passwords and API keys are created by the user in Spexify Web, under _My apps_.
+* It checks again that the user still has ``USER`` on ``fgv-spexify`` in Keycloak, at most every ten minutes, so revoking access in Keycloak also stops the apps.
+* Failed logins lock the username, and the address after five times as many failures, for the minutes set by an admin.
+* It refuses what changes the library or users, e.g. ``startScan``, ``createUser``, ``createShare``, ``jukeboxControl`` and the podcast and radio operations: those are done in Spexify Web.
+* It forwards the rest to Navidrome with the user in the ``Remote-User`` header and the authentication parameters removed. Navidrome creates the user the first time.
+
+Errors are answered in the Subsonic format (``f=json`` or XML), as apps expect.
+Stars, playlists and play counts live in Navidrome, per user.
+
+xref:index.adoc[Back to start page]

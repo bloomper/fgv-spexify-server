@@ -1,0 +1,48 @@
+= Upload
+:doctype: book
+:icons: font
+:source-highlighter: highlightjs
+:toc: left
+:toclevels: 4
+:operation-http-request-title: Example request
+:operation-http-response-title: Example response
+
+xref:../api-guide.adoc[Back to API guide]
+
+Audio is uploaded with https://tus.io/protocols/resumable-upload[tus 1.0.0], with the extensions `creation` and
+`termination`, so a large file survives a broken connection. The upload's id is then given to the GraphQL mutation
+that makes it a track (`trackCreate`) or replaces a track's audio (`trackReplaceAudio`). An upload that is not used
+is deleted after 24 hours. Only its owner can reach an upload.
+
+Send chunks of at most 50 MB: Cloudflare, in front of the production server, refuses larger requests.
+
+[[options]]
+== Server capabilities
+
+operation::upload-options[snippets='security,http-request,response-headers']
+
+[[create]]
+== Creating an upload
+
+operation::upload-post[snippets='security,request-headers,http-request,response-headers']
+
+[[offset]]
+== Reading the offset
+
+Where to resume after a broken connection.
+
+operation::upload-head[snippets='security,path-parameters,request-headers,http-request,response-headers']
+
+[[append]]
+== Sending a chunk
+
+A chunk that does not start at the server's offset is `409 Conflict`.
+
+operation::upload-patch[snippets='security,path-parameters,request-headers,http-request,response-headers']
+
+[[terminate]]
+== Cancelling an upload
+
+operation::upload-delete[snippets='security,path-parameters,request-headers,http-request']
+
+xref:../api-guide.adoc[Back to API guide]
