@@ -23,6 +23,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository for {@link Album}.
@@ -32,7 +33,9 @@ import java.util.Optional;
  */
 public interface AlbumRepository extends JpaRepository<Album, Long> {
 
-    Optional<Album> findByUuid(String uuid);
+    Optional<Album> findByUuid(UUID uuid);
+
+    List<Album> findByUuidIn(Collection<UUID> uuids);
 
     List<Album> findByTrashedAtIsNullOrderByYearDescTitleAsc();
 
@@ -43,9 +46,9 @@ public interface AlbumRepository extends JpaRepository<Album, Long> {
     List<Album> findByPublishedTrueAndTrashedAtIsNullOrderByPublishedAtDesc(org.springframework.data.domain.Pageable pageable);
 
     @Query("SELECT DISTINCT a.spex.id FROM Album a WHERE a.spex.id IS NOT NULL")
-    List<Long> findSpexIds();
+    List<UUID> findSpexIds();
 
-    List<Album> findBySpexIdIn(Collection<Long> spexIds);
+    List<Album> findBySpexIdIn(Collection<UUID> spexIds);
 
     @Query("""
             SELECT DISTINCT a FROM Album a LEFT JOIN a.tracks t

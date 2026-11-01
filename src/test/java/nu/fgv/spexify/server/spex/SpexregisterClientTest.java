@@ -29,6 +29,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
+import static nu.fgv.spexify.server.util.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -64,28 +65,28 @@ class SpexregisterClientTest {
     void readsOriginalsAndRevivalsWithTheirCategoriesAndYears() {
         spexregister.stubFor(post(urlEqualTo("/api/graphql")).withRequestBody(containing("parent:NULL"))
                 .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("""
-                        {"data": {"spexPaged": {"edges": [{"node": {"id": "1", "year": "1975", "title": "Nobel", "revival": false,
-                            "parent": null, "category": {"id": "3", "name": "Chalmersspexet"}}}, null]}}}""")));
+                        {"data": {"spexPaged": {"edges": [{"node": {"id": "00000000-0000-7000-8000-000000000001", "year": "1975", "title": "Nobel", "revival": false,
+                            "parent": null, "category": {"id": "00000000-0000-7000-8000-000000000003", "name": "Chalmersspexet"}}}, null]}}}""")));
         spexregister.stubFor(post(urlEqualTo("/api/graphql")).withRequestBody(containing("parent!NULL"))
                 .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("""
-                        {"data": {"spexPaged": {"edges": [{"node": {"id": "2", "year": "okänt", "title": "Nobel", "revival": true,
-                            "parent": {"id": "1"}, "category": null}}]}}}""")));
+                        {"data": {"spexPaged": {"edges": [{"node": {"id": "00000000-0000-7000-8000-000000000002", "year": "okänt", "title": "Nobel", "revival": true,
+                            "parent": {"id": "00000000-0000-7000-8000-000000000001"}, "category": null}}]}}}""")));
 
         assertThat(client.allSpex()).containsExactly(
-                new SpexDto(1L, "Nobel", 1975, false, null, 3L, "Chalmersspexet"),
-                new SpexDto(2L, "Nobel", null, true, 1L, null, null));
+                new SpexDto(uuid(1), "Nobel", 1975, false, null, uuid(3), "Chalmersspexet"),
+                new SpexDto(uuid(2), "Nobel", null, true, uuid(1), null, null));
     }
 
     @Test
     void aSpexThatDoesNotExistIsEmptyButOtherErrorsFail() {
         graphql("SpexById", """
                 {"data": {"spex": null}, "errors": [{"message": "Not found", "extensions": {"classification": "NOT_FOUND"}}]}""");
-        assertThat(client.spexById(9L)).isEmpty();
+        assertThat(client.spexById(uuid(9))).isEmpty();
 
         spexregister.resetAll();
         graphql("SpexById", """
                 {"data": null, "errors": [{"message": "Forbidden", "extensions": {"classification": "FORBIDDEN"}}]}""");
-        assertThatThrownBy(() -> client.spexById(9L)).isInstanceOf(SpexregisterClient.SpexregisterCallException.class);
+        assertThatThrownBy(() -> client.spexById(uuid(9))).isInstanceOf(SpexregisterClient.SpexregisterCallException.class);
     }
 
     @Test
@@ -97,14 +98,14 @@ class SpexregisterClientTest {
 
     @Test
     void aPosterIsReadWithItsTypeAndAMissingOneIsEmpty() {
-        spexregister.stubFor(get(urlEqualTo("/api/spex/1/poster"))
+        spexregister.stubFor(get(urlEqualTo("/api/spex/00000000-0000-7000-8000-000000000001/poster"))
                 .willReturn(aResponse().withHeader("Content-Type", "image/png").withBody(new byte[]{1, 2})));
-        spexregister.stubFor(get(urlEqualTo("/api/spex/2/poster")).willReturn(aResponse().withStatus(404)));
+        spexregister.stubFor(get(urlEqualTo("/api/spex/00000000-0000-7000-8000-000000000002/poster")).willReturn(aResponse().withStatus(404)));
 
-        assertThat(client.poster(1L)).hasValueSatisfying(poster -> {
+        assertThat(client.poster(uuid(1))).hasValueSatisfying(poster -> {
             assertThat(poster.content()).containsExactly(1, 2);
             assertThat(poster.contentType()).isEqualTo("image/png");
         });
-        assertThat(client.poster(2L)).isEmpty();
+        assertThat(client.poster(uuid(2))).isEmpty();
     }
 }

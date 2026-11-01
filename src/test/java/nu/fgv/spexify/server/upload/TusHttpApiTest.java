@@ -64,6 +64,16 @@ class TusHttpApiTest extends AbstractApiTest {
 
     private Caller caller;
 
+    private static UploadSession session(final long offset) {
+        final UploadSession session = new UploadSession();
+
+        session.setId(ID);
+        session.setOwner("subject");
+        session.setLength(52_428_800L);
+        session.setOffset(offset);
+        return session;
+    }
+
     @BeforeEach
     void setUpCaller() {
         caller = new Caller("subject", "editor@fgv.nu", "Editor", Set.of(Role.USER, Role.EDITOR), false);
@@ -183,15 +193,5 @@ class TusHttpApiTest extends AbstractApiTest {
                         secureRequestHeaders,
                         security(List.of("USER", "EDITOR"))
                 ));
-    }
-
-    private static UploadSession session(final long offset) {
-        final UploadSession session = new UploadSession();
-
-        session.setId(ID);
-        session.setOwner("subject");
-        session.setLength(52_428_800L);
-        session.setOffset(offset);
-        return session;
     }
 }

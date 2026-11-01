@@ -53,15 +53,12 @@ import java.util.regex.Pattern;
 public class LibraryScanner {
 
     private static final Pattern UUID_FILE = Pattern.compile("([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\\.[a-z0-9]+$");
-
+    private static final int MAX_RETRIES = 3;
     private final NavidromeClient client;
     private final TrackRepository trackRepository;
     private final nu.fgv.spexify.server.media.MediaStorage storage;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
-
-    private static final int MAX_RETRIES = 3;
-
     private volatile boolean pending = true;
     private volatile boolean fullScan;
     private volatile int retries;
@@ -78,6 +75,15 @@ public class LibraryScanner {
         this.storage = storage;
         this.transactionTemplate = transactionTemplate;
         this.clock = clock;
+    }
+
+    static @Nullable String trackUuid(final NavidromeClient.Song song) {
+        final Matcher matcher = UUID_FILE.matcher(song.path());
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return song.musicBrainzId().isEmpty() ? null : song.musicBrainzId();
     }
 
     /**
@@ -146,7 +152,7 @@ public class LibraryScanner {
 
         transactionTemplate.executeWithoutResult(_ -> {
             for (final Track track : trackRepository.findByLocation(Location.MUSIC)) {
-                final NavidromeClient.Song song = byTrackUuid.get(track.getUuid());
+                final NavidromeClient.Song song = byTrackUuid.get(track.getUuid().toString());
                 final Album album = track.getAlbum();
 
                 track.setNavidromeId(song == null ? null : song.id());
@@ -166,15 +172,6 @@ public class LibraryScanner {
             fullScan = true;
             pending = true;
         }
-    }
-
-    static @Nullable String trackUuid(final NavidromeClient.Song song) {
-        final Matcher matcher = UUID_FILE.matcher(song.path());
-
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return song.musicBrainzId().isEmpty() ? null : song.musicBrainzId();
     }
 
     public record Status(boolean available, boolean scanning, boolean pending, @Nullable Instant lastScanAt,

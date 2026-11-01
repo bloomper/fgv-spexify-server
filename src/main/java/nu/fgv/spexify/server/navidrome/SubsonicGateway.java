@@ -100,6 +100,42 @@ public class SubsonicGateway {
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
     }
 
+    /**
+     * The endpoint name from a path such as {@code /rest/getAlbum.view}.
+     */
+    static String endpoint(final String uri) {
+        final int rest = uri.indexOf("/rest/");
+
+        if (rest < 0) {
+            return "";
+        }
+
+        final String name = uri.substring(rest + "/rest/".length());
+        final String endpoint = name.endsWith(".view") ? name.substring(0, name.length() - ".view".length()) : name;
+
+        return endpoint.matches("[A-Za-z0-9]+") ? endpoint : "";
+    }
+
+    /**
+     * A Subsonic password, given in clear or hex-encoded with an {@code enc:} prefix.
+     */
+    static @Nullable String decodePassword(final @Nullable String password) {
+        if (password != null && password.startsWith("enc:")) {
+            try {
+                return new String(HexFormat.of().parseHex(password.substring(4)), java.nio.charset.StandardCharsets.UTF_8);
+            } catch (final IllegalArgumentException e) {
+                return password;
+            }
+        }
+        return password;
+    }
+
+    private static @Nullable String first(final Map<String, String[]> parameters, final String name) {
+        final String[] values = parameters.get(name);
+
+        return values == null || values.length == 0 ? null : values[0];
+    }
+
     @RequestMapping(path = "/rest/**", method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.HEAD})
     public void handle(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
         final Map<String, String[]> parameters = request.getParameterMap();
@@ -276,42 +312,6 @@ public class SubsonicGateway {
             // The client went away while streaming, which apps do when skipping
             log.debug("Stream of {} ended early: {}", endpoint, e.getMessage());
         }
-    }
-
-    /**
-     * The endpoint name from a path such as {@code /rest/getAlbum.view}.
-     */
-    static String endpoint(final String uri) {
-        final int rest = uri.indexOf("/rest/");
-
-        if (rest < 0) {
-            return "";
-        }
-
-        final String name = uri.substring(rest + "/rest/".length());
-        final String endpoint = name.endsWith(".view") ? name.substring(0, name.length() - ".view".length()) : name;
-
-        return endpoint.matches("[A-Za-z0-9]+") ? endpoint : "";
-    }
-
-    /**
-     * A Subsonic password, given in clear or hex-encoded with an {@code enc:} prefix.
-     */
-    static @Nullable String decodePassword(final @Nullable String password) {
-        if (password != null && password.startsWith("enc:")) {
-            try {
-                return new String(HexFormat.of().parseHex(password.substring(4)), java.nio.charset.StandardCharsets.UTF_8);
-            } catch (final IllegalArgumentException e) {
-                return password;
-            }
-        }
-        return password;
-    }
-
-    private static @Nullable String first(final Map<String, String[]> parameters, final String name) {
-        final String[] values = parameters.get(name);
-
-        return values == null || values.length == 0 ? null : values[0];
     }
 
     private record Authenticated(String username) {

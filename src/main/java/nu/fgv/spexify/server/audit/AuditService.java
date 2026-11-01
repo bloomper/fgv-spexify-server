@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.UUID;
 
 /**
  * Writes and reads the audit log. Editors see their own changes, admins everyone's.
@@ -49,7 +50,7 @@ public class AuditService {
     }
 
     @Transactional
-    public void record(final String action, final String entityType, final @Nullable Long entityId, final String summary) {
+    public void record(final String action, final String entityType, final @Nullable UUID entityId, final String summary) {
         final AuditEntry entry = new AuditEntry();
         final Caller caller = callerService.currentIfAny().orElse(null);
 
@@ -58,7 +59,7 @@ public class AuditService {
         entry.setActorName(caller == null ? "Spexify" : caller.displayName());
         entry.setAction(action);
         entry.setEntityType(entityType);
-        entry.setEntityId(entityId);
+        entry.setEntityId(entityId == null ? null : entityId.toString());
         entry.setSummary(summary.length() > MAX_SUMMARY ? summary.substring(0, MAX_SUMMARY) : summary);
         repository.save(entry);
     }

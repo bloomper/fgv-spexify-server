@@ -49,8 +49,8 @@ class SampleDataImporterIntegrationTest extends AbstractIntegrationTest {
         SPEXREGISTER.stubFor(post(urlEqualTo("/api/graphql")).withRequestBody(containing("AllSpex"))
                 .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("""
                         {"data": {"spexPaged": {"edges": [
-                            {"node": {"id": "1", "year": "1975", "title": "Nobel", "revival": false, "parent": null, "category": {"id": "1", "name": "Chalmersspexet"}}},
-                            {"node": {"id": "2", "year": "2024", "title": "Cleopatra", "revival": false, "parent": null, "category": {"id": "1", "name": "Chalmersspexet"}}}
+                            {"node": {"id": "00000000-0000-7000-8000-000000000001", "year": "1975", "title": "Nobel", "revival": false, "parent": null, "category": {"id": "00000000-0000-7000-8000-000000000001", "name": "Chalmersspexet"}}},
+                            {"node": {"id": "00000000-0000-7000-8000-000000000002", "year": "2024", "title": "Cleopatra", "revival": false, "parent": null, "category": {"id": "00000000-0000-7000-8000-000000000001", "name": "Chalmersspexet"}}}
                         ]}}}""")));
     }
 
@@ -85,7 +85,7 @@ class SampleDataImporterIntegrationTest extends AbstractIntegrationTest {
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album WHERE trashed_at IS NOT NULL").query(Long.class).single()).isEqualTo(1);
         assertThat(jdbcClient.sql("SELECT COUNT(DISTINCT spex_id) FROM album WHERE spex_id IS NOT NULL").query(Long.class).single()).isEqualTo(2);
         assertThat(jdbcClient.sql("""
-                SELECT COUNT(*) FROM app_password p JOIN app_user u ON u.id = p.user_id WHERE u.username = ?""")
+                        SELECT COUNT(*) FROM app_password p JOIN app_user u ON u.id = p.user_id WHERE u.username = ?""")
                 .param(SampleDataImporter.USER).query(Long.class).single()).isEqualTo(2);
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM audit_entry").query(Long.class).single()).isEqualTo(8);
         try (var files = Files.walk(MEDIA.resolve("music"))) {

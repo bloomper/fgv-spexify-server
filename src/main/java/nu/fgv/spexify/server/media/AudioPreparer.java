@@ -47,6 +47,19 @@ public class AudioPreparer {
         this.ffmpeg = ffmpeg;
     }
 
+    public static String checksum(final Path file) throws IOException {
+        try {
+            final MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+            try (InputStream in = new DigestInputStream(Files.newInputStream(file), digest)) {
+                in.transferTo(java.io.OutputStream.nullOutputStream());
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (final NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     public PreparedAudio prepare(final Path upload) throws IOException {
         AudioProbe.Result result = probe.probe(upload).orElseThrow(() -> new BadRequestException("error.upload.notAudio"));
         Path file = upload;
@@ -69,18 +82,5 @@ public class AudioPreparer {
             throw new BadRequestException("error.upload.unsupportedFormat", result.codec());
         }
         return new PreparedAudio(file, format, Files.size(file), checksum(file), result);
-    }
-
-    public static String checksum(final Path file) throws IOException {
-        try {
-            final MessageDigest digest = MessageDigest.getInstance("SHA-256");
-
-            try (InputStream in = new DigestInputStream(Files.newInputStream(file), digest)) {
-                in.transferTo(java.io.OutputStream.nullOutputStream());
-            }
-            return HexFormat.of().formatHex(digest.digest());
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
     }
 }

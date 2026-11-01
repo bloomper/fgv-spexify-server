@@ -30,6 +30,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 import nu.fgv.spexify.server.util.AbstractAuditable;
+import nu.fgv.spexify.server.util.Uuids;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
@@ -53,7 +54,7 @@ public class Track extends AbstractAuditable {
     private Long id;
 
     @Column(name = "uuid", nullable = false, updatable = false, length = 36)
-    private String uuid = UUID.randomUUID().toString();
+    private UUID uuid = Uuids.v7();
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "album_id", nullable = false)

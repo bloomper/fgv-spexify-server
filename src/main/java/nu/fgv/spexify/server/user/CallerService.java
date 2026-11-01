@@ -61,19 +61,6 @@ public class CallerService {
         this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    /**
-     * The caller, or an exception when there is no valid token.
-     */
-    public Caller current() {
-        return currentIfAny().orElseThrow(() -> new AuthenticationCredentialsNotFoundException("No access token"));
-    }
-
-    public Optional<Caller> currentIfAny() {
-        return SecurityUtil.currentJwt().map(jwt -> fromJwt(jwt, SecurityUtil.currentAuthentication()
-                .map(authentication -> authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList())
-                .orElse(java.util.List.of())));
-    }
-
     public static Caller fromJwt(final Jwt jwt, final java.util.Collection<String> authorities) {
         final Set<Role> roles = EnumSet.noneOf(Role.class);
 
@@ -103,6 +90,19 @@ public class CallerService {
             }
         }
         return null;
+    }
+
+    /**
+     * The caller, or an exception when there is no valid token.
+     */
+    public Caller current() {
+        return currentIfAny().orElseThrow(() -> new AuthenticationCredentialsNotFoundException("No access token"));
+    }
+
+    public Optional<Caller> currentIfAny() {
+        return SecurityUtil.currentJwt().map(jwt -> fromJwt(jwt, SecurityUtil.currentAuthentication()
+                .map(authentication -> authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList())
+                .orElse(java.util.List.of())));
     }
 
     /**

@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
@@ -65,6 +66,25 @@ public class SpexregisterClient {
         this.restClient = spexregisterRestClient;
     }
 
+    private static void requireValid(final ClientGraphQlResponse response) {
+        if (!response.getErrors().isEmpty() || !response.isValid()) {
+            throw new SpexregisterCallException("Response has errors: " + response.getErrors());
+        }
+    }
+
+    private static <T> T call(final Supplier<T> action) {
+        try {
+            return action.get();
+        } catch (final SpexregisterCallException e) {
+            throw e;
+        } catch (final RuntimeException e) {
+            if (e instanceof RestClientException || e.getClass().getName().startsWith("org.springframework.graphql")) {
+                throw new SpexregisterCallException(e.getMessage() == null ? e.getClass().getName() : e.getMessage(), e);
+            }
+            throw e;
+        }
+    }
+
     /**
      * Every spex, originals and revivals, by year.
      */
@@ -92,7 +112,7 @@ public class SpexregisterClient {
         });
     }
 
-    public Optional<SpexDto> spexById(final Long id) {
+    public Optional<SpexDto> spexById(final UUID id) {
         return call(() -> {
             final ClientGraphQlResponse response = graphQlClient.document(SPEX_BY_ID).variable("id", id).executeSync();
 
@@ -111,7 +131,7 @@ public class SpexregisterClient {
     /**
      * A spex's poster, or empty when it has none.
      */
-    public Optional<Poster> poster(final Long id) {
+    public Optional<Poster> poster(final UUID id) {
         return call(() -> {
             final ResponseEntity<byte[]> response = restClient.get()
                     .uri(POSTER, id)
@@ -127,25 +147,6 @@ public class SpexregisterClient {
             }
             return Optional.of(new Poster(response.getBody(), contentType.toString()));
         });
-    }
-
-    private static void requireValid(final ClientGraphQlResponse response) {
-        if (!response.getErrors().isEmpty() || !response.isValid()) {
-            throw new SpexregisterCallException("Response has errors: " + response.getErrors());
-        }
-    }
-
-    private static <T> T call(final Supplier<T> action) {
-        try {
-            return action.get();
-        } catch (final SpexregisterCallException e) {
-            throw e;
-        } catch (final RuntimeException e) {
-            if (e instanceof RestClientException || e.getClass().getName().startsWith("org.springframework.graphql")) {
-                throw new SpexregisterCallException(e.getMessage() == null ? e.getClass().getName() : e.getMessage(), e);
-            }
-            throw e;
-        }
     }
 
     record SpexConnection(@Nullable List<@Nullable SpexEdge> edges) {
@@ -171,9 +172,9 @@ public class SpexregisterClient {
             } catch (final NumberFormatException _) {
                 // left out
             }
-            return new SpexDto(Long.valueOf(id), title, parsedYear, Boolean.TRUE.equals(revival),
-                    parent == null ? null : Long.valueOf(parent.id()),
-                    category == null ? null : Long.valueOf(category.id()),
+            return new SpexDto(UUID.fromString(id), title, parsedYear, Boolean.TRUE.equals(revival),
+                    parent == null ? null : UUID.fromString(parent.id()),
+                    category == null ? null : UUID.fromString(category.id()),
                     category == null ? null : category.name());
         }
     }

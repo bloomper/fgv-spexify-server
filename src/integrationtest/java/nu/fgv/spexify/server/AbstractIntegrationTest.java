@@ -95,7 +95,7 @@ public abstract class AbstractIntegrationTest {
     protected static final String PASSWORD = "s3cr3t-s3cr3t";
     protected static final String CLIENT_ID = "fgv-spexify";
     protected static final String SPEXFLIX_SERVICE_CLIENT_ID = "fgv-spexflix-service";
-    protected static final long SPEX_ID = 1L;
+    protected static final String SPEX_ID = "00000000-0000-7000-8000-000000000001";
     protected static final WireMockServer SPEXREGISTER = new WireMockServer(options().dynamicPort());
     protected static final WireMockServer SPEXFLIX = new WireMockServer(options().dynamicPort());
     protected static final Path MEDIA = Path.of("build/integrationtest-data/media").toAbsolutePath();
@@ -320,21 +320,6 @@ public abstract class AbstractIntegrationTest {
                 .anySatisfy(error -> assertThat(String.valueOf(error.getErrorType())).isEqualTo(code)));
     }
 
-    @BeforeEach
-    void resetState() throws IOException {
-        jdbcClient.sql("SET FOREIGN_KEY_CHECKS = 0").update();
-        for (final String table : List.of("audit_entry", "api_key", "app_password", "track", "album", "upload_session", "app_user")) {
-            jdbcClient.sql("TRUNCATE TABLE " + table).update();
-        }
-        jdbcClient.sql("SET FOREIGN_KEY_CHECKS = 1").update();
-        // Back to the defaults, which an admin test may have changed
-        jdbcClient.sql("DELETE FROM settings").update();
-        storage.wipe();
-        cacheManager.getCacheNames().forEach(name -> Objects.requireNonNull(cacheManager.getCache(name)).clear());
-        spexregisterUp();
-        spexflixUp();
-    }
-
     /**
      * Spexregister answering with spex {@value #SPEX_ID}, Cleopatra 2024.
      */
@@ -343,8 +328,8 @@ public abstract class AbstractIntegrationTest {
         SPEXREGISTER.stubFor(post(urlEqualTo("/api/graphql"))
                 .withRequestBody(containing("SpexById"))
                 .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("""
-                        {"data": {"spex": {"id": "1", "year": "2024", "title": "Cleopatra", "revival": false, "parent": null,
-                                           "category": {"id": "1", "name": "Chalmersspexet"}}}}""")));
+                        {"data": {"spex": {"id": "00000000-0000-7000-8000-000000000001", "year": "2024", "title": "Cleopatra", "revival": false, "parent": null,
+                                           "category": {"id": "00000000-0000-7000-8000-000000000001", "name": "Chalmersspexet"}}}}""")));
     }
 
     protected static void spexregisterDown() {
@@ -360,6 +345,21 @@ public abstract class AbstractIntegrationTest {
         SPEXFLIX.stubFor(post(urlEqualTo("/api/graphql"))
                 .withRequestBody(containing("ChapterLinks"))
                 .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("{\"data\": {\"chapterLinks\": []}}")));
+    }
+
+    @BeforeEach
+    void resetState() throws IOException {
+        jdbcClient.sql("SET FOREIGN_KEY_CHECKS = 0").update();
+        for (final String table : List.of("audit_entry", "api_key", "app_password", "track", "album", "upload_session", "app_user")) {
+            jdbcClient.sql("TRUNCATE TABLE " + table).update();
+        }
+        jdbcClient.sql("SET FOREIGN_KEY_CHECKS = 1").update();
+        // Back to the defaults, which an admin test may have changed
+        jdbcClient.sql("DELETE FROM settings").update();
+        storage.wipe();
+        cacheManager.getCacheNames().forEach(name -> Objects.requireNonNull(cacheManager.getCache(name)).clear());
+        spexregisterUp();
+        spexflixUp();
     }
 
     protected HttpGraphQlTester graphQl(final @Nullable String user) {

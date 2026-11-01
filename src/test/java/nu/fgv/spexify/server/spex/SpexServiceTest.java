@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
+import static nu.fgv.spexify.server.util.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
@@ -52,9 +53,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class SpexServiceTest {
 
-    private static final SpexDto NOBEL = new SpexDto(1L, "Nobel", 1975, false, null, 1L, "Chalmersspexet");
-    private static final SpexDto NOBEL_REVIVAL = new SpexDto(2L, "Nobel", 2026, true, 1L, 1L, "Chalmersspexet");
-    private static final SpexDto CLEOPATRA = new SpexDto(3L, "Cleopatra", 2024, false, null, 1L, "Chalmersspexet");
+    private static final SpexDto NOBEL = new SpexDto(uuid(1), "Nobel", 1975, false, null, uuid(1), "Chalmersspexet");
+    private static final SpexDto NOBEL_REVIVAL = new SpexDto(uuid(2), "Nobel", 2026, true, uuid(1), uuid(1), "Chalmersspexet");
+    private static final SpexDto CLEOPATRA = new SpexDto(uuid(3), "Cleopatra", 2024, false, null, uuid(1), "Chalmersspexet");
     @Mock
     private SpexregisterClient client;
     @Mock
@@ -91,16 +92,16 @@ class SpexServiceTest {
     @Test
     void searchShowsAtMostAPage() {
         when(client.allSpex()).thenReturn(IntStream.range(0, 200)
-                .mapToObj(i -> new SpexDto((long) i, "Spex " + i, 1900 + i, false, null, null, null)).toList());
+                .mapToObj(i -> new SpexDto(uuid(i), "Spex " + i, 1900 + i, false, null, null, null)).toList());
 
         assertThat(service.search("spex")).hasSizeLessThan(200);
     }
 
     @Test
     void anUnknownSpexIsABadRequest() {
-        when(client.spexById(9L)).thenReturn(Optional.empty());
+        when(client.spexById(uuid(9))).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.byId(9L)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.byId(uuid(9))).isInstanceOf(BadRequestException.class);
     }
 
     @Test
@@ -109,7 +110,7 @@ class SpexServiceTest {
 
         service.copy(NOBEL_REVIVAL, ref);
 
-        assertThat(ref.getId()).isEqualTo(2L);
+        assertThat(ref.getId()).isEqualTo(uuid(2));
         assertThat(ref.getTitle()).isEqualTo("Nobel");
         assertThat(ref.getYear()).isEqualTo(2026);
         assertThat(ref.getRevival()).isTrue();
@@ -121,10 +122,10 @@ class SpexServiceTest {
     void theNightlyRefreshUpdatesEveryAlbumsCopyOfItsSpex() {
         final Album album = new Album();
 
-        album.getSpex().setId(1L);
+        album.getSpex().setId(uuid(1));
         album.getSpex().setTitle("Nobel (gammal titel)");
-        when(albumRepository.findSpexIds()).thenReturn(List.of(1L, 99L));
-        when(albumRepository.findBySpexIdIn(List.of(1L, 99L))).thenReturn(List.of(album));
+        when(albumRepository.findSpexIds()).thenReturn(List.of(uuid(1), uuid(99)));
+        when(albumRepository.findBySpexIdIn(List.of(uuid(1), uuid(99)))).thenReturn(List.of(album));
         when(client.allSpex()).thenReturn(List.of(NOBEL));
 
         service.refresh();
@@ -138,15 +139,15 @@ class SpexServiceTest {
         service.refresh();
         verify(client, never()).allSpex();
 
-        when(albumRepository.findSpexIds()).thenReturn(List.of(1L));
+        when(albumRepository.findSpexIds()).thenReturn(List.of(uuid(1)));
         when(client.allSpex()).thenThrow(new SpexregisterClient.SpexregisterCallException("down"));
         service.refresh();
     }
 
     @Test
     void aPosterIsEmptyWhileSpexregisterIsDown() {
-        when(client.poster(1L)).thenThrow(new SpexregisterClient.SpexregisterCallException("down"));
+        when(client.poster(uuid(1))).thenThrow(new SpexregisterClient.SpexregisterCallException("down"));
 
-        assertThat(service.poster(1L)).isEmpty();
+        assertThat(service.poster(uuid(1))).isEmpty();
     }
 }

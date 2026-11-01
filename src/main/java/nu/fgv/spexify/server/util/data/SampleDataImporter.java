@@ -140,6 +140,12 @@ public class SampleDataImporter {
         this.clock = clock;
     }
 
+    private static UserRepresentation spexregisterUser(final RealmResource realm, final String email) {
+        return realm.users().searchByEmail(email, true).stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("Spexregister's sample user " + email
+                        + " is missing; start Spexregister with its sample data first"));
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     @Order(Ordered.LOWEST_PRECEDENCE)
     public void onReady() throws IOException {
@@ -193,6 +199,8 @@ public class SampleDataImporter {
         log.info("Imported sample data in {} s", Duration.ofNanos(System.nanoTime() - started).toSeconds());
     }
 
+    // ---------------------------------------------------------------------------------------------------- users
+
     private List<SpexDto> spexWithRetry() {
         for (int attempt = 1; ; attempt++) {
             try {
@@ -217,8 +225,6 @@ public class SampleDataImporter {
         }
     }
 
-    // ---------------------------------------------------------------------------------------------------- users
-
     /**
      * Gives Spexregister's sample users {@code admin@fgv.nu}, {@code editor@fgv.nu} and {@code user@fgv.nu} the roles
      * of the same name on this client, and creates {@code no-access@fgv.nu}, without roles, when it is missing. Refuses
@@ -234,12 +240,6 @@ public class SampleDataImporter {
         users.put(USER, grant(realm, client, clientUuid, spexregisterUser(realm, USER), "USER"));
         users.put(NO_ACCESS, recordUser(noAccessUser(realm)));
         return users;
-    }
-
-    private static UserRepresentation spexregisterUser(final RealmResource realm, final String email) {
-        return realm.users().searchByEmail(email, true).stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException("Spexregister's sample user " + email
-                        + " is missing; start Spexregister with its sample data first"));
     }
 
     private AppUser grant(final RealmResource realm, final ClientResource client, final String clientUuid,
@@ -318,7 +318,7 @@ public class SampleDataImporter {
             entry.setActorName(editor.getDisplayName());
             entry.setAction(album.isPublished() ? "PUBLISH" : "CREATE");
             entry.setEntityType("ALBUM");
-            entry.setEntityId(album.getId());
+            entry.setEntityId(album.getUuid().toString());
             entry.setSummary((album.isPublished() ? "Publicerade albumet " : "Skapade albumet ") + album.getTitle());
             auditRepository.save(entry);
         }
@@ -341,7 +341,7 @@ public class SampleDataImporter {
         final boolean compilation = index == 9;
         final SpexDto picked = spex.get(index % spex.size());
 
-        album.setUuid(UUID.nameUUIDFromBytes(("spexify-sample-album-" + index).getBytes(StandardCharsets.UTF_8)).toString());
+        album.setUuid(UUID.nameUUIDFromBytes(("spexify-sample-album-" + index).getBytes(StandardCharsets.UTF_8)));
         if (compilation) {
             album.setTitle(SampleCatalog.COMPILATION_TITLE);
             album.setYear(2023);
@@ -376,7 +376,7 @@ public class SampleDataImporter {
             final PreparedAudio clip = clips.get((index + number) % clips.size());
             final boolean secondDisc = index == 1 && number > trackCount / 2;
 
-            track.setUuid(UUID.nameUUIDFromBytes(("spexify-sample-track-" + index + "-" + number).getBytes(StandardCharsets.UTF_8)).toString());
+            track.setUuid(UUID.nameUUIDFromBytes(("spexify-sample-track-" + index + "-" + number).getBytes(StandardCharsets.UTF_8)));
             track.setAlbum(album);
             track.setDiscNumber(secondDisc ? 2 : 1);
             track.setTrackNumber(secondDisc ? number - trackCount / 2 : number);

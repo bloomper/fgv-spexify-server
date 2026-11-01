@@ -25,7 +25,6 @@ import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 import graphql.schema.GraphQLScalarType;
-import org.jspecify.annotations.Nullable;
 
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;

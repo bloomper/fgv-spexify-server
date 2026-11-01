@@ -17,14 +17,13 @@
 package nu.fgv.spexify.server.util.data;
 
 import nu.fgv.spexify.server.media.Ffmpeg;
+import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.jspecify.annotations.Nullable;
 
 /**
  * Generates audio with ffmpeg, never real recordings: tones and noise in every format the upload accepts.
@@ -33,12 +32,6 @@ import org.jspecify.annotations.Nullable;
  * @since 1.0
  */
 final class SampleAudio {
-
-    /**
-     * A generated file and the name an editor would have uploaded it as.
-     */
-    record Clip(Path file, String uploadName) {
-    }
 
     private SampleAudio() {
     }
@@ -94,5 +87,11 @@ final class SampleAudio {
         arguments.addAll(codec);
         arguments.add(file.toString());
         ffmpeg.ffmpeg(arguments);
+    }
+
+    /**
+     * A generated file and the name an editor would have uploaded it as.
+     */
+    record Clip(Path file, String uploadName) {
     }
 }

@@ -28,9 +28,11 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 import nu.fgv.spexify.server.user.AppUser;
+import nu.fgv.spexify.server.util.Uuids;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * An OpenSubsonic API key. Only its SHA-256 is stored.
@@ -47,6 +49,9 @@ public class ApiKey {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "uuid", nullable = false, updatable = false, length = 36)
+    private UUID uuid = Uuids.v7();
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)

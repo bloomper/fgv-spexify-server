@@ -169,9 +169,13 @@ Audio files and covers live in the media folder (``./data/media``, ``API_MEDIA_R
 
 |===
 
-* *Tags.* When a track enters ``music/``, or its metadata changes there, ffmpeg writes the tags, with the track's and album's uuids as MusicBrainz release track id and album id. Navidrome derives its persistent ids from those, so editing a title keeps stars and playlists. MP4 files cannot carry them through ffmpeg; Navidrome then falls back to album, disc, number and title. Lyrics are written beside the file as ``.lrc`` or ``.txt``.
+* *Tags.* When a track enters ``music/``, or its metadata changes there, ffmpeg writes the tags, with the track's and album's uuids as MusicBrainz release track id and album id.
+Navidrome derives its persistent ids from those, so editing a title keeps stars and playlists.
+MP4 files cannot carry them through ffmpeg; Navidrome then falls back to album, disc, number and title.
+Lyrics are written beside the file as ``.lrc`` or ``.txt``.
 * *Scans.* After a change the server asks Navidrome to scan, then matches Navidrome's song ids to tracks by the uuid in the path (``ND_SUBSONIC_DEFAULTREPORTREALPATH=true``).
-* *Navidrome* trusts the ``Remote-User`` header only from its trusted sources (``ND_EXTAUTH_TRUSTEDSOURCES``). Locally that is every address, with the port bound to localhost; fgv-spexify-deploy trusts only the API's fixed address on a network of their own.
+* *Navidrome* trusts the ``Remote-User`` header only from its trusted sources (``ND_EXTAUTH_TRUSTEDSOURCES``).
+Locally that is every address, with the port bound to localhost; fgv-spexify-deploy trusts only the API's fixed address on a network of their own.
 
 [[sample_data]]
 == Sample data
@@ -182,8 +186,10 @@ The import needs the secret of ``fgv-admin``.
 
 The sample data is built on Spexregister's, so Spexregister must run with ``API_IMPORT_SAMPLE_DATA=true``:
 
-* The albums belong to Spexregister's sample spex, read from its API. The import waits up to 5 minutes for Spexregister.
-* Spexregister's sample users get roles on ``fgv-spexify`` (see <<test_credentials>>). The import refuses to run without them, which keeps it away from real environments.
+* The albums belong to Spexregister's sample spex, read from its API.
+The import waits up to 5 minutes for Spexregister.
+* Spexregister's sample users get roles on ``fgv-spexify`` (see <<test_credentials>>).
+The import refuses to run without them, which keeps it away from real environments.
 
 [sidebar]
 .NOTE

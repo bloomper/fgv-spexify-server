@@ -50,6 +50,14 @@ class MediaTest {
         return track;
     }
 
+    private static boolean hasFfmpeg() {
+        try {
+            return new ProcessBuilder("ffmpeg", "-version").start().waitFor() == 0;
+        } catch (final IOException | InterruptedException e) {
+            return false;
+        }
+    }
+
     @Test
     void tagsCarryTheCatalogue() {
         final Track track = track();
@@ -98,8 +106,8 @@ class MediaTest {
         assertThat(result.codec()).isEqualTo("flac");
         assertThat(result.durationMs()).isBetween(900L, 1100L);
         assertThat(result.tag("title")).isEqualTo("Kärleksduetten");
-        assertThat(result.tag("musicbrainz_releasetrackid")).isEqualTo(track.getUuid());
-        assertThat(result.tag("musicbrainz_albumid")).isEqualTo(track.getAlbum().getUuid());
+        assertThat(result.tag("musicbrainz_releasetrackid")).isEqualTo(track.getUuid().toString());
+        assertThat(result.tag("musicbrainz_albumid")).isEqualTo(track.getAlbum().getUuid().toString());
     }
 
     @Test
@@ -109,13 +117,5 @@ class MediaTest {
         final Path file = Files.writeString(folder.resolve("notes.txt"), "not audio");
 
         assertThat(probe.probe(file)).isEmpty();
-    }
-
-    private static boolean hasFfmpeg() {
-        try {
-            return new ProcessBuilder("ffmpeg", "-version").start().waitFor() == 0;
-        } catch (final IOException | InterruptedException e) {
-            return false;
-        }
     }
 }

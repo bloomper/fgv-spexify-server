@@ -30,7 +30,8 @@ tests. It is built using [Gradle][6]:
 ## Published images
 
 CI builds the image with Jib and publishes `bloomper/fgv-spexify-server` for `linux/amd64` and `linux/arm64`.
-Since the API needs ffmpeg, Jib builds on `bloomper/fgv-spexify-server-base:25` (`eclipse-temurin:25-jre` plus ffmpeg, from
+Since the API needs ffmpeg, Jib builds on `bloomper/fgv-spexify-server-base:25` (`eclipse-temurin:25-jre` plus ffmpeg,
+from
 `base/Dockerfile`), which CI rebuilds and publishes first:
 
 | Trigger              | Tags                              |
@@ -38,7 +39,8 @@ Since the API needs ffmpeg, Jib builds on `bloomper/fgv-spexify-server-base:25` 
 | push to `develop`    | `develop`, `sha-<commit>`         |
 | push of tag `vX.Y.Z` | `X.Y.Z`, `latest`, `sha-<commit>` |
 
-To release, set `version` in `build.gradle` to `X.Y.Z`, merge to `main`, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
+To release, set `version` in `build.gradle` to `X.Y.Z`, merge to `main`, then
+`git tag vX.Y.Z && git push origin vX.Y.Z`.
 The build fails if the tag doesn't match the version or if `X.Y.Z` is already on Docker Hub.
 
 ## Contributing

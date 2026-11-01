@@ -42,17 +42,6 @@ public enum AudioFormat {
         this.muxer = muxer;
     }
 
-    public String extension() {
-        return extension;
-    }
-
-    /**
-     * ffmpeg's name for the container, for {@code -f}.
-     */
-    public String muxer() {
-        return muxer;
-    }
-
     /**
      * The format for a codec, or null when it is not accepted. PCM is not a format: it is converted to FLAC first.
      */
@@ -84,5 +73,16 @@ public enum AudioFormat {
             }
         }
         throw new IllegalArgumentException("Unknown audio format " + format + "/" + extension);
+    }
+
+    public String extension() {
+        return extension;
+    }
+
+    /**
+     * ffmpeg's name for the container, for {@code -f}.
+     */
+    public String muxer() {
+        return muxer;
     }
 }

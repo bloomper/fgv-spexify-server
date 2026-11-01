@@ -41,11 +41,12 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
+import static nu.fgv.spexify.server.util.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -101,10 +102,10 @@ class AppPasswordServiceTest {
             passwords.add(password);
             return password;
         });
-        lenient().when(passwordRepository.findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(anyLong()))
+        lenient().when(passwordRepository.findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(any(Long.class)))
                 .thenAnswer(_ -> passwords.stream().filter(password -> password.getRevokedAt() == null).toList());
-        lenient().when(passwordRepository.findById(anyLong())).thenAnswer(invocation ->
-                passwords.stream().filter(password -> password.getId().equals(invocation.getArgument(0))).findFirst());
+        lenient().when(passwordRepository.findByUuid(any(UUID.class))).thenAnswer(invocation ->
+                passwords.stream().filter(password -> password.getUuid().equals(invocation.getArgument(0))).findFirst());
         lenient().when(apiKeyRepository.save(any())).thenAnswer(invocation -> {
             final ApiKey apiKey = invocation.getArgument(0);
 
@@ -203,19 +204,19 @@ class AppPasswordServiceTest {
     void adminsRevokeEveryCredentialOfAUserAndLiftLockOuts() {
         service.create("Telefon");
         when(callerService.current()).thenReturn(TestCallers.admin());
-        when(userRepository.findById(1L)).thenReturn(Optional.of(lisa));
+        when(userRepository.findByUuid(uuid(1))).thenReturn(Optional.of(lisa));
 
-        service.revokeAll(1L);
-        service.unlock(1L);
+        service.revokeAll(uuid(1));
+        service.unlock(uuid(1));
 
         assertThat(passwords).allSatisfy(password -> assertThat(password.getRevokedAt()).isNotNull());
         verify(throttle).unlock("lisa@spexify.test");
-        verify(auditService).record("REVOKE", "USER", 1L, "Återkallade alla applösenord och nycklar för lisa@spexify.test");
+        verify(auditService).record("REVOKE", "USER", uuid(1), "Återkallade alla applösenord och nycklar för lisa@spexify.test");
     }
 
     @Test
     void onlyAdminsSeeTheUsers() {
         assertThatThrownBy(() -> service.users()).isInstanceOf(AccessDeniedException.class);
-        assertThatThrownBy(() -> service.revokeAll(1L)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.revokeAll(uuid(1))).isInstanceOf(AccessDeniedException.class);
     }
 }

@@ -12,8 +12,7 @@ xref:../api-guide.adoc[Back to API guide]
 [[download]]
 == Download
 
-Every track of the album the caller may reach, as a zip streamed while it is read, without compression (audio does
-not compress).
+Every track of the album the caller may reach, as a zip streamed while it is read, without compression (audio does not compress).
 
 operation::album-download-get[snippets='security,request-headers,http-request,response-headers']
 
@@ -27,8 +26,9 @@ operation::album-cover-get[snippets='security,path-parameters,request-headers,ht
 [[cover_upload]]
 == Cover upload
 
-Replaces the album's cover. The image type is read from the file, not from its name; anything but JPEG, PNG and
-WebP is `400 Bad Request`. The answer is the album, as in GraphQL.
+Replaces the album's cover.
+The image type is read from the file, not from its name; anything but JPEG, PNG and WebP is `400 Bad Request`.
+The answer is the album, as in GraphQL.
 
 operation::album-cover-post[snippets='security,path-parameters,request-parts,request-headers,http-request,response-fields,http-response']
 

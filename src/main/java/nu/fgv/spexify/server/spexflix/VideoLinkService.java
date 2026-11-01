@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * The Spexflix videos linked to tracks, cached for a few minutes, shown only to users who also have access to Spexflix.
@@ -49,18 +50,18 @@ public class VideoLinkService {
         this.cache = Objects.requireNonNull(cacheManager.getCache(CacheConfig.VIDEO_LINKS));
     }
 
-    public Map<Long, List<VideoLinkDto>> links(final Collection<Long> trackIds) {
+    public Map<UUID, List<VideoLinkDto>> links(final Collection<UUID> trackIds) {
         final Caller caller = callerService.currentIfAny().orElse(null);
-        final Map<Long, List<VideoLinkDto>> result = new HashMap<>();
+        final Map<UUID, List<VideoLinkDto>> result = new HashMap<>();
 
         if (caller == null || !caller.spexflixUser()) {
             trackIds.forEach(id -> result.put(id, List.of()));
             return result;
         }
 
-        final List<Long> missing = new ArrayList<>();
+        final List<UUID> missing = new ArrayList<>();
 
-        for (final Long id : trackIds) {
+        for (final UUID id : trackIds) {
             final Cache.ValueWrapper cached = cache.get(id);
 
             if (cached != null && cached.get() instanceof List<?> list) {
@@ -70,11 +71,11 @@ public class VideoLinkService {
             }
         }
         if (!missing.isEmpty()) {
-            final Map<Long, List<VideoLinkDto>> fetched = new HashMap<>();
+            final Map<UUID, List<VideoLinkDto>> fetched = new HashMap<>();
 
             missing.forEach(id -> fetched.put(id, new ArrayList<>()));
             for (final SpexflixClient.ChapterLink link : client.links(missing)) {
-                final List<VideoLinkDto> list = fetched.get(Long.valueOf(link.trackId()));
+                final List<VideoLinkDto> list = fetched.get(UUID.fromString(link.trackId()));
 
                 if (list != null) {
                     list.add(new VideoLinkDto(link.videoId(), link.videoTitle(), link.chapterTitle(), link.startSeconds()));

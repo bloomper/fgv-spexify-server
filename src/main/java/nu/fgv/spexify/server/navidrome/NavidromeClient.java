@@ -72,6 +72,13 @@ public class NavidromeClient {
         this.systemUser = properties.navidrome().systemUser();
     }
 
+    public static String encode(final Map<String, List<String>> parameters) {
+        return parameters.entrySet().stream()
+                .flatMap(entry -> entry.getValue().stream().map(value ->
+                        URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8) + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8)))
+                .collect(Collectors.joining("&"));
+    }
+
     public String systemUser() {
         return systemUser;
     }
@@ -82,13 +89,6 @@ public class NavidromeClient {
 
     public URI uri(final String endpoint, final Map<String, List<String>> parameters) {
         return URI.create(baseUrl + "/rest/" + endpoint + (parameters.isEmpty() ? "" : "?" + encode(parameters)));
-    }
-
-    public static String encode(final Map<String, List<String>> parameters) {
-        return parameters.entrySet().stream()
-                .flatMap(entry -> entry.getValue().stream().map(value ->
-                        URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8) + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8)))
-                .collect(Collectors.joining("&"));
     }
 
     /**

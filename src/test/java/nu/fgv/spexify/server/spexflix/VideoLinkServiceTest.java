@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static nu.fgv.spexify.server.util.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -63,7 +64,7 @@ class VideoLinkServiceTest {
     void usersWithoutSpexflixGetNoLinksAndSpexflixIsNotAsked() {
         when(callerService.currentIfAny()).thenReturn(Optional.of(TestCallers.listener()));
 
-        assertThat(service.links(List.of(1L, 2L))).containsOnlyKeys(1L, 2L).allSatisfy((id, links) -> assertThat(links).isEmpty());
+        assertThat(service.links(List.of(uuid(1), uuid(2)))).containsOnlyKeys(uuid(1), uuid(2)).allSatisfy((id, links) -> assertThat(links).isEmpty());
         verify(client, never()).links(any());
     }
 
@@ -72,15 +73,15 @@ class VideoLinkServiceTest {
         final Caller both = new Caller("s-both", "bodil", "Bodil", Set.of(Role.USER), true);
 
         when(callerService.currentIfAny()).thenReturn(Optional.of(both));
-        when(client.links(List.of(1L, 2L))).thenReturn(List.of(
-                new SpexflixClient.ChapterLink("1", "7", "Cleopatra", "Ouvertyr", 0),
-                new SpexflixClient.ChapterLink("1", "8", "Cleopatra – trailer", "Ouvertyr", 12)));
+        when(client.links(List.of(uuid(1), uuid(2)))).thenReturn(List.of(
+                new SpexflixClient.ChapterLink(uuid(1).toString(), "7", "Cleopatra", "Ouvertyr", 0),
+                new SpexflixClient.ChapterLink(uuid(1).toString(), "8", "Cleopatra – trailer", "Ouvertyr", 12)));
 
-        final var links = service.links(List.of(1L, 2L));
+        final var links = service.links(List.of(uuid(1), uuid(2)));
 
-        assertThat(links.get(1L)).extracting(VideoLinkService.VideoLinkDto::videoId).containsExactly("7", "8");
-        assertThat(links.get(2L)).isEmpty();
-        assertThat(service.links(List.of(1L, 2L)).get(1L)).hasSize(2);
+        assertThat(links.get(uuid(1))).extracting(VideoLinkService.VideoLinkDto::videoId).containsExactly("7", "8");
+        assertThat(links.get(uuid(2))).isEmpty();
+        assertThat(service.links(List.of(uuid(1), uuid(2))).get(uuid(1))).hasSize(2);
         verify(client, times(1)).links(any());
     }
 }

@@ -20,6 +20,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository for {@link ApiKey}.
@@ -28,6 +29,8 @@ import java.util.Optional;
  * @since 1.0
  */
 public interface ApiKeyRepository extends JpaRepository<ApiKey, Long> {
+
+    Optional<ApiKey> findByUuid(UUID uuid);
 
     Optional<ApiKey> findByKeyHashAndRevokedAtIsNull(String keyHash);
 

@@ -45,7 +45,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -79,6 +78,15 @@ class SubsonicGatewayAuthenticationTest {
     private SubsonicGateway gateway;
     private AppUser lisa;
 
+    private static MockHttpServletRequest request(final String endpoint, final Map<String, String> parameters) {
+        final MockHttpServletRequest request = new MockHttpServletRequest("GET", "/rest/" + endpoint + ".view");
+
+        request.setRemoteAddr("10.0.0.1");
+        request.addParameter("f", "json");
+        parameters.forEach(request::addParameter);
+        return request;
+    }
+
     @BeforeEach
     void setUp() throws IOException {
         gateway = new SubsonicGateway(navidrome, appPasswordService, accessChecker, throttle, callerService, jwtDecoder, jwtAuthenticationConverter);
@@ -87,15 +95,6 @@ class SubsonicGatewayAuthenticationTest {
         lisa.setUsername("lisa");
         lenient().doThrow(new IOException("down")).when(navidrome).ensureUser(anyString());
         lenient().when(accessChecker.hasAccess("s-lisa")).thenReturn(true);
-    }
-
-    private static MockHttpServletRequest request(final String endpoint, final Map<String, String> parameters) {
-        final MockHttpServletRequest request = new MockHttpServletRequest("GET", "/rest/" + endpoint + ".view");
-
-        request.setRemoteAddr("10.0.0.1");
-        request.addParameter("f", "json");
-        parameters.forEach(request::addParameter);
-        return request;
     }
 
     private String call(final MockHttpServletRequest request) throws IOException {
