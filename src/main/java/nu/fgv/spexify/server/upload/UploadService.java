@@ -24,7 +24,6 @@ import nu.fgv.spexify.server.util.error.BadRequestException;
 import nu.fgv.spexify.server.util.error.ConflictException;
 import nu.fgv.spexify.server.util.error.ResourceNotFoundException;
 import org.jspecify.annotations.Nullable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -185,7 +184,6 @@ public class UploadService {
         }
     }
 
-    @Scheduled(fixedDelay = 60, initialDelay = 5, timeUnit = java.util.concurrent.TimeUnit.MINUTES)
     @Transactional
     public void cleanUp() {
         for (final UploadSession session : repository.findByCreatedAtBefore(clock.instant().minus(KEEP))) {
