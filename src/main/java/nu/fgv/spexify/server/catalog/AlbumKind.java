@@ -13,18 +13,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package nu.fgv.spexify.server.catalog;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
+import nu.fgv.spexify.server.util.AbstractAuditable;
+import nu.fgv.spexify.server.util.Uuids;
+
+import java.util.UUID;
+
 /**
- * What an album is a recording of. A revival is a spex of its own, so it has no kind.
+ * What an album is a recording of, e.g. a show or a studio recording. Admins configure the kinds; the first by
+ * position is the default for new albums and is not shown as a badge.
  *
  * @author Anders Jacobsson
  * @since 1.0
  */
-public enum AlbumKind {
-    SHOW,
-    STUDIO,
-    COMPILATION,
-    OTHER
+@Entity
+@Table(name = "album_kind")
+@Getter
+@Setter
+public class AlbumKind extends AbstractAuditable {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "uuid", nullable = false, updatable = false, length = 36)
+    private UUID uuid = Uuids.v7();
+
+    @Column(name = "name_sv", nullable = false)
+    private String nameSv;
+
+    @Column(name = "name_en", nullable = false)
+    private String nameEn;
+
+    @Column(name = "position", nullable = false)
+    private int position;
 }

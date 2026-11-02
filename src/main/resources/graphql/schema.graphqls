@@ -12,6 +12,10 @@ type Query {
     album(id: ID!): Album
     "USER. The most recently published albums."
     recentAlbums(limit: Int = 12): [Album!]!
+    "USER. The album kinds, in order; the first is the default."
+    albumKinds: [AlbumKind!]!
+    "USER. Published albums by Navidrome's ids, in the given order, for what the caller played; unknown ones are left out."
+    albumsByNavidromeIds(ids: [String!]!): [Album!]!
     "USER. The categories of the published albums."
     categories: [Category!]!
     "USER. The years of the published albums, newest first."
@@ -89,6 +93,14 @@ type Mutation {
     userUnlock(userId: ID!): Void
     "ADMIN. Asks Navidrome to scan the music folder."
     libraryRescan: Void
+    "ADMIN. Added last."
+    albumKindCreate(input: AlbumKindInput!): AlbumKind!
+    "ADMIN."
+    albumKindUpdate(id: ID!, input: AlbumKindInput!): AlbumKind!
+    "ADMIN. Every kind, in the new order; the first becomes the default."
+    albumKindsReorder(ids: [ID!]!): [AlbumKind!]!
+    "ADMIN. Only a kind no album uses, trashed ones included, and not the last one."
+    albumKindDelete(id: ID!): Void
     "ADMIN."
     settingsUpdate(input: SettingsInput!): Settings!
     "ADMIN. Starts the job in the background, as its schedule would. False when it is already running."
@@ -119,11 +131,21 @@ input SettingsInput {
     lockoutMinutes: Int!
 }
 
-enum AlbumKind {
-    SHOW
-    STUDIO
-    COMPILATION
-    OTHER
+"What an album is a recording of, e.g. a show or a studio recording. Configured by admins."
+type AlbumKind {
+    id: ID!
+    nameSv: String!
+    nameEn: String!
+    position: Int!
+    "The first by position: used for new albums and not shown as a badge."
+    isDefault: Boolean!
+    "Albums of this kind, trashed ones included."
+    albumCount: Int!
+}
+
+input AlbumKindInput {
+    nameSv: String!
+    nameEn: String!
 }
 
 input AlbumFilter {
@@ -141,7 +163,8 @@ input AlbumInput {
     title: String
     "Defaults to the spex year."
     year: Int
-    kind: AlbumKind!
+    "An album kind; defaults to the first one for a new album and to the current one for an existing album."
+    kindId: ID
     description: String
 }
 

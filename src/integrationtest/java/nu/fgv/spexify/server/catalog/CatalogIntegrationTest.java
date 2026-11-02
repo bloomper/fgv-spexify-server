@@ -143,7 +143,7 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
                 .path("album.spex.title").entity(String.class).isEqualTo("Cleopatra");
         // A spex that is not cached yet
         expectError(graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000002\", kind: SHOW}) { id } }")
+                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000002\"}) { id } }")
                 .execute(), "SPEXREGISTER_UNAVAILABLE");
     }
 
@@ -162,7 +162,7 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
 
     private String createAlbum() {
         return graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\", kind: SHOW}) { id published } }")
+                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\"}) { id published } }")
                 .execute()
                 .path("albumCreate.published").entity(Boolean.class).isEqualTo(false)
                 .path("albumCreate.id").entity(String.class).get();

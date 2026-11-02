@@ -77,6 +77,7 @@ public class CatalogService {
     private static final int MAX_TITLE = 255;
 
     private final AlbumRepository albumRepository;
+    private final AlbumKindService kindService;
     private final TrackRepository trackRepository;
     private final CallerService callerService;
     private final SpexService spexService;
@@ -88,11 +89,13 @@ public class CatalogService {
     private final AuditService auditService;
     private final Clock clock;
 
-    public CatalogService(final AlbumRepository albumRepository, final TrackRepository trackRepository,
+    public CatalogService(final AlbumRepository albumRepository, final AlbumKindService kindService,
+                          final TrackRepository trackRepository,
                           final CallerService callerService, final SpexService spexService, final LibraryPlacer placer,
                           final MediaStorage storage, final AudioPreparer audioPreparer, final UploadService uploadService,
                           final LibraryScanner scanner, final AuditService auditService, final Clock clock) {
         this.albumRepository = albumRepository;
+        this.kindService = kindService;
         this.trackRepository = trackRepository;
         this.callerService = callerService;
         this.spexService = spexService;
@@ -289,6 +292,22 @@ public class CatalogService {
         return ids.stream().map(byId::get).filter(Objects::nonNull).map(this::toDto).toList();
     }
 
+    /**
+     * Listed albums by Navidrome's ids, in the given order, for what the caller played.
+     */
+    @Transactional(readOnly = true)
+    public List<AlbumDto> albumsByNavidromeIds(final List<String> ids) {
+        final Caller caller = callerService.current();
+
+        caller.requireUser();
+
+        final Map<String, Album> byId = albumRepository.findByNavidromeIdIn(ids).stream()
+                .filter(Album::isListed)
+                .collect(Collectors.toMap(Album::getNavidromeId, album -> album, (a, _) -> a));
+
+        return ids.stream().distinct().map(byId::get).filter(Objects::nonNull).map(album -> toDto(album, caller)).toList();
+    }
+
     @Transactional(readOnly = true)
     public TrashDto trash() {
         final Caller caller = callerService.current();
@@ -388,7 +407,7 @@ public class CatalogService {
         }
         album.setTitle(limit(title));
         album.setYear(input.year() != null ? input.year() : album.getSpex().getYear());
-        album.setKind(input.kind());
+        album.setKind(input.kindId() == null && album.getKind() != null ? album.getKind() : kindService.kindOrDefault(input.kindId()));
         album.setDescription(StringUtils.hasText(input.description()) ? input.description().strip() : null);
     }
 
@@ -719,7 +738,7 @@ public class CatalogService {
                 .toList();
         final SpexRef spex = album.getSpex();
 
-        return new AlbumDto(album.getUuid(), album.getTitle(), album.getYear(), album.getKind(),
+        return new AlbumDto(album.getUuid(), album.getTitle(), album.getYear(), AlbumKindService.toDto(album.getKind()),
                 album.getDescription(),
                 spex.getId() == null ? null : new AlbumSpexDto(spex.getId(), spex.getTitle(), spex.getYear(), spex.getRevival(), spex.getCategoryId(), spex.getCategoryName()),
                 album.getCoverExtension() != null, album.isPublished(), album.getPublishedAt(), album.getTrashedAt(),

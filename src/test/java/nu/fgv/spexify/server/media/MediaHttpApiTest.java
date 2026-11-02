@@ -17,7 +17,7 @@
 package nu.fgv.spexify.server.media;
 
 import nu.fgv.spexify.server.catalog.Album;
-import nu.fgv.spexify.server.catalog.AlbumKind;
+import nu.fgv.spexify.server.catalog.AlbumKindService;
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumDto;
 import nu.fgv.spexify.server.catalog.CatalogService;
 import nu.fgv.spexify.server.catalog.Track;
@@ -99,7 +99,7 @@ class MediaHttpApiTest extends AbstractApiTest {
     private Track track;
 
     private static AlbumDto albumDto(final boolean hasCover) {
-        return new AlbumDto(uuid(1), "Cleopatra", 2024, AlbumKind.SHOW, null, null,
+        return new AlbumDto(uuid(1), "Cleopatra", 2024, new AlbumKindService.AlbumKindDto(uuid(101), "Föreställning", "Show", 1), null, null,
                 hasCover, true, Instant.parse("2026-10-01T10:00:00Z"), null, null, 12, 2_400_000, Instant.parse("2026-09-30T10:00:00Z"), null);
     }
 

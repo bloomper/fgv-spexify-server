@@ -37,6 +37,8 @@ public interface AlbumRepository extends JpaRepository<Album, Long> {
 
     List<Album> findByUuidIn(Collection<UUID> uuids);
 
+    List<Album> findByNavidromeIdIn(Collection<String> navidromeIds);
+
     List<Album> findByTrashedAtIsNullOrderByYearDescTitleAsc();
 
     List<Album> findByPublishedTrueAndTrashedAtIsNullOrderByYearDescTitleAsc();
