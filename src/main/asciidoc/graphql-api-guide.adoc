@@ -97,7 +97,7 @@ Admins add, rename, reorder and delete kinds; the first is the default for new a
 
 Publishing puts the files into the folder Navidrome reads, with tags written by ffmpeg, and asks Navidrome to scan; ``libraryStatus`` shows how it went.
 Stars and playlists are Navidrome's, per user, and reached through the <<api-guide.adoc#subsonic,Subsonic API>>; ``tracksByNavidromeIds`` and ``albumsByNavidromeIds`` map Navidrome's songs and albums back to tracks and albums.
-So do play counts, when a user last played a song or album, and Navidrome's lists of recently and most played albums: Spexify's web reports plays with ``scrobble`` and reads them with ``getAlbum`` and ``getAlbumList2``.
+So do play counts, when a user last played a song or album, ratings (``setRating``), starred albums, Navidrome's lists of recently played, most played and highest rated albums, and the play queue the user's apps share (``savePlayQueue``, ``getPlayQueue``): Spexify's web reports plays with ``scrobble`` and reads them with ``getAlbum`` and ``getAlbumList2``.
 
 [[audit]]
 == Audit
