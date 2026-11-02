@@ -52,6 +52,7 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -62,6 +63,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -77,6 +79,7 @@ public class CatalogService {
 
     private static final int MAX_SEARCH = 50;
     private static final int MAX_TITLE = 255;
+    private static final int MAX_SPEX = 20;
 
     private final AlbumRepository albumRepository;
     private final AlbumKindService kindService;
@@ -155,7 +158,8 @@ public class CatalogService {
 
     private static TrackRefDto toRef(final Track track) {
         return new TrackRefDto(track.getUuid(), track.getTitle(), track.getDiscNumber(), track.getTrackNumber(),
-                track.getAlbum().getUuid(), track.getAlbum().getTitle(), track.getAlbum().getSpex().getId());
+                track.getAlbum().getUuid(), track.getAlbum().getTitle(),
+                track.getAlbum().mainSpex() == null ? null : track.getAlbum().mainSpex().getId());
     }
 
     @Transactional(readOnly = true)
@@ -170,9 +174,9 @@ public class CatalogService {
                 : albumRepository.findByPublishedTrueAndTrashedAtIsNullOrderByYearDescTitleAsc();
 
         return albums.stream()
-                .filter(album -> filter == null || filter.categoryId() == null || filter.categoryId().equals(album.getSpex().getCategoryId()))
+                .filter(album -> filter == null || filter.categoryId() == null || filter.categoryId().equals(categoryId(album)))
                 .filter(album -> filter == null || filter.year() == null || filter.year().equals(album.getYear()))
-                .filter(album -> filter == null || filter.spexId() == null || filter.spexId().equals(album.getSpex().getId()))
+                .filter(album -> filter == null || filter.spexId() == null || album.isAbout(filter.spexId()))
                 .map(album -> toDto(album, caller))
                 .toList();
     }
@@ -205,10 +209,10 @@ public class CatalogService {
         final Map<UUID, Integer> counts = new HashMap<>();
 
         for (final Album album : albumRepository.findByPublishedTrueAndTrashedAtIsNullOrderByYearDescTitleAsc()) {
-            final UUID categoryId = album.getSpex().getCategoryId();
+            final UUID categoryId = categoryId(album);
 
             if (categoryId != null) {
-                names.put(categoryId, Objects.requireNonNullElse(album.getSpex().getCategoryName(), "?"));
+                names.put(categoryId, Objects.requireNonNullElse(album.mainSpex().getCategoryName(), "?"));
                 counts.merge(categoryId, 1, Integer::sum);
             }
         }
@@ -263,13 +267,14 @@ public class CatalogService {
     }
 
     @Transactional(readOnly = true)
-    public List<TrackRefDto> spexTracks(final UUID spexId) {
+    public List<TrackRefDto> spexTracks(final List<UUID> spexIds) {
         final Caller caller = callerService.current();
 
         if (!caller.isSpexflixService() && !caller.isEditor()) {
             throw new AccessDeniedException("SPEXFLIX or EDITOR required");
         }
-        return trackRepository.findListedBySpex(spexId).stream().map(CatalogService::toRef).toList();
+        return spexIds.isEmpty() ? List.of()
+                : trackRepository.findListedBySpex(Set.copyOf(spexIds)).stream().map(CatalogService::toRef).toList();
     }
 
     // ---------------------------------------------------------------------------------------------------- albums
@@ -389,27 +394,36 @@ public class CatalogService {
     }
 
     private void apply(final Album album, final AlbumInput input) {
-        SpexDto spex = null;
+        final List<UUID> ids = input.spexIds() == null ? List.of() : input.spexIds().stream().distinct().toList();
+        final Map<UUID, SpexRef> current = album.getSpex().stream()
+                .filter(ref -> ref.getTitle() != null)
+                .collect(Collectors.toMap(SpexRef::getId, Function.identity(), (a, _) -> a));
+        final List<SpexRef> refs = new ArrayList<>();
 
-        if (input.spexId() != null) {
-            spex = Objects.equals(input.spexId(), album.getSpex().getId()) && album.getSpex().getTitle() != null
-                    ? null
-                    : spexService.byId(input.spexId());
-            if (spex != null) {
-                spexService.copy(spex, album.getSpex());
-            }
-        } else {
-            album.setSpex(new SpexRef());
+        if (ids.size() > MAX_SPEX) {
+            throw new BadRequestException("error.album.tooManySpex", MAX_SPEX);
         }
+        for (final UUID id : ids) {
+            SpexRef ref = current.get(id);
 
+            if (ref == null) {
+                ref = new SpexRef();
+                spexService.copy(spexService.byId(id), ref);
+            }
+            refs.add(ref);
+        }
+        album.getSpex().clear();
+        album.getSpex().addAll(refs);
+
+        final SpexRef main = album.mainSpex();
         final String title = StringUtils.hasText(input.title()) ? input.title().strip()
-                : album.getSpex().getTitle() != null ? album.getSpex().getTitle() : null;
+                : main != null && main.getTitle() != null ? main.getTitle() : null;
 
         if (title == null) {
             throw new BadRequestException("error.album.titleRequired");
         }
         album.setTitle(limit(title));
-        album.setYear(input.year() != null ? input.year() : album.getSpex().getYear());
+        album.setYear(input.year() != null ? input.year() : main != null ? main.getYear() : null);
         album.setKind(input.kindId() == null && album.getKind() != null ? album.getKind() : kindService.kindOrDefault(input.kindId()));
         album.setDescription(StringUtils.hasText(input.description()) ? input.description().strip() : null);
     }
@@ -739,14 +753,17 @@ public class CatalogService {
         final List<Track> tracks = album.getTracks().stream()
                 .filter(track -> caller.isEditor() ? !track.isTrashed() : track.isListed())
                 .toList();
-        final SpexRef spex = album.getSpex();
-
         return new AlbumDto(album.getUuid(), album.getTitle(), album.getYear(), AlbumKindService.toDto(album.getKind()),
                 album.getDescription(),
-                spex.getId() == null ? null : new AlbumSpexDto(spex.getId(), spex.getTitle(), spex.getYear(), spex.getRevival(), spex.getCategoryId(), spex.getCategoryName()),
+                album.getSpex().stream().map(spex -> new AlbumSpexDto(spex.getId(), spex.getTitle(), spex.getYear(),
+                        spex.getRevival(), spex.getParentId(), spex.familyId(), spex.getCategoryId(), spex.getCategoryName())).toList(),
                 album.getCoverExtension() != null, album.isPublished(), album.getPublishedAt(), album.getTrashedAt(),
                 album.getNavidromeId(), tracks.size(), tracks.stream().mapToLong(Track::getDurationMs).sum(),
                 album.getCreatedAt(), album.getLastModifiedAt());
+    }
+
+    private static @Nullable UUID categoryId(final Album album) {
+        return album.mainSpex() == null ? null : album.mainSpex().getCategoryId();
     }
 
     TrackDto toDto(final Track track) {

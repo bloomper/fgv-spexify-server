@@ -80,10 +80,11 @@ class SampleDataImporterIntegrationTest extends AbstractIntegrationTest {
                 .isEqualTo(1);
 
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album").query(Long.class).single()).isEqualTo(20);
-        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album a JOIN album_kind k ON k.id = a.kind_id WHERE k.name_en = 'Compilation' AND a.spex_id IS NULL").query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album a JOIN album_kind k ON k.id = a.kind_id WHERE k.name_en = 'Compilation' AND NOT EXISTS (SELECT 1 FROM album_spex s WHERE s.album_id = a.id)").query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM (SELECT album_id FROM album_spex GROUP BY album_id HAVING COUNT(*) > 1) multiple").query(Long.class).single()).isEqualTo(1);
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album WHERE published = FALSE").query(Long.class).single()).isEqualTo(2);
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album WHERE trashed_at IS NOT NULL").query(Long.class).single()).isEqualTo(1);
-        assertThat(jdbcClient.sql("SELECT COUNT(DISTINCT spex_id) FROM album WHERE spex_id IS NOT NULL").query(Long.class).single()).isEqualTo(2);
+        assertThat(jdbcClient.sql("SELECT COUNT(DISTINCT spex_id) FROM album_spex").query(Long.class).single()).isEqualTo(2);
         assertThat(jdbcClient.sql("""
                         SELECT COUNT(*) FROM app_password p JOIN app_user u ON u.id = p.user_id WHERE u.username = ?""")
                 .param(SampleDataImporter.USER).query(Long.class).single()).isEqualTo(2);

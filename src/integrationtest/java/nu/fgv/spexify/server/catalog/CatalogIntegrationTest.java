@@ -59,7 +59,7 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
                 .execute()
                 .path("album.title").entity(String.class).isEqualTo("Cleopatra")
                 .path("album.year").entity(Integer.class).isEqualTo(2024)
-                .path("album.spex.title").entity(String.class).isEqualTo("Cleopatra")
+                .path("album.spex[0].title").entity(String.class).isEqualTo("Cleopatra")
                 .path("album.tracks[0].id").entity(String.class).isEqualTo(trackId)
                 .path("album.tracks[0].title").entity(String.class).isEqualTo("Ouvertyr")
                 .path("album.tracks[0].listed").entity(Boolean.class).isEqualTo(true)
@@ -177,10 +177,10 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
                 .document("query($id: ID!) { album(id: $id) { title spex { title } } }")
                 .variable("id", albumId)
                 .execute()
-                .path("album.spex.title").entity(String.class).isEqualTo("Cleopatra");
+                .path("album.spex[0].title").entity(String.class).isEqualTo("Cleopatra");
         // A spex that is not cached yet
         expectError(graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000002\"}) { id } }")
+                .document("mutation { albumCreate(input: {spexIds: [\"00000000-0000-7000-8000-000000000002\"]}) { id } }")
                 .execute(), "SPEXREGISTER_UNAVAILABLE");
     }
 
@@ -217,7 +217,7 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
 
     private String createAlbum() {
         return graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\"}) { id published } }")
+                .document("mutation { albumCreate(input: {spexIds: [\"00000000-0000-7000-8000-000000000001\"]}) { id published } }")
                 .execute()
                 .path("albumCreate.published").entity(Boolean.class).isEqualTo(false)
                 .path("albumCreate.id").entity(String.class).get();

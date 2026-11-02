@@ -173,10 +173,17 @@ public class BrowseService {
         if (shares(seed, track, CreditKind.LYRICS_AUTHOR) || shares(seed, track, CreditKind.ARRANGER)) {
             score += 2;
         }
-        if (seed.getAlbum().getSpex().getId() != null && seed.getAlbum().getSpex().getId().equals(track.getAlbum().getSpex().getId())) {
+        if (sameSpex(seed.getAlbum(), track.getAlbum())) {
             score += 2;
         }
         return score;
+    }
+
+    /**
+     * Whether the albums share a spex, counting revivals as their original.
+     */
+    private static boolean sameSpex(final Album a, final Album b) {
+        return a.getSpex().stream().anyMatch(ref -> b.isAbout(ref.familyId()));
     }
 
     private static boolean shares(final Track a, final Track b, final CreditKind kind) {

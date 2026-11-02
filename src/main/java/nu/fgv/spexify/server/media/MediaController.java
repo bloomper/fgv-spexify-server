@@ -198,7 +198,7 @@ public class MediaController {
     }
 
     /**
-     * The album's own cover, else the spex poster from Spexregister, else 404.
+     * The album's own cover, else the main spex's poster from Spexregister, else 404.
      */
     @GetMapping("/api/albums/{id}/cover")
     public ResponseEntity<?> cover(@PathVariable final UUID id) {
@@ -214,8 +214,8 @@ public class MediaController {
                         .body(new FileSystemResource(file));
             }
         }
-        if (album.getSpex().getId() != null) {
-            return spexService.poster(album.getSpex().getId())
+        if (album.mainSpex() != null) {
+            return spexService.poster(album.mainSpex().getId())
                     .<ResponseEntity<?>>map(poster -> ResponseEntity.ok()
                             .contentType(MediaType.parseMediaType(poster.contentType()))
                             .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())

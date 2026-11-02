@@ -72,7 +72,7 @@ class SubsonicGatewayIntegrationTest extends AbstractIntegrationTest {
     @Test
     void publishedTracksReachNavidrome() throws Exception {
         final String albumId = graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\"}) { id } }")
+                .document("mutation { albumCreate(input: {spexIds: [\"00000000-0000-7000-8000-000000000001\"]}) { id } }")
                 .execute()
                 .path("albumCreate.id").entity(String.class).get();
         final String uploadId = upload(EDITOR, flac(folder, 2));

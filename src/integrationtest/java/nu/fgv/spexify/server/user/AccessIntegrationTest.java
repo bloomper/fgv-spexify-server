@@ -60,7 +60,7 @@ class AccessIntegrationTest extends AbstractIntegrationTest {
     @Test
     void listenersCannotCreateAlbums() {
         expectError(graphQl(LISTENER)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\"}) { id } }")
+                .document("mutation { albumCreate(input: {spexIds: [\"00000000-0000-7000-8000-000000000001\"]}) { id } }")
                 .execute(), "FORBIDDEN");
     }
 

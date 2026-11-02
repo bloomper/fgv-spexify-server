@@ -47,15 +47,13 @@ public interface AlbumRepository extends JpaRepository<Album, Long> {
 
     List<Album> findByPublishedTrueAndTrashedAtIsNullOrderByPublishedAtDesc(org.springframework.data.domain.Pageable pageable);
 
-    @Query("SELECT DISTINCT a.spex.id FROM Album a WHERE a.spex.id IS NOT NULL")
-    List<UUID> findSpexIds();
-
-    List<Album> findBySpexIdIn(Collection<UUID> spexIds);
+    @Query("SELECT DISTINCT a FROM Album a JOIN a.spex s")
+    List<Album> findWithSpex();
 
     @Query("""
-            SELECT DISTINCT a FROM Album a LEFT JOIN a.tracks t
+            SELECT DISTINCT a FROM Album a LEFT JOIN a.tracks t LEFT JOIN a.spex s
             WHERE a.trashedAt IS NULL AND (:editor = TRUE OR a.published = TRUE)
-              AND (LOWER(a.title) LIKE :q OR LOWER(a.spex.title) LIKE :q OR LOWER(a.description) LIKE :q
+              AND (LOWER(a.title) LIKE :q OR LOWER(s.title) LIKE :q OR LOWER(a.description) LIKE :q
                    OR (t.trashedAt IS NULL AND (:editor = TRUE OR t.published = TRUE)
                        AND (LOWER(t.title) LIKE :q OR LOWER(t.performers) LIKE :q OR LOWER(t.melody) LIKE :q
                             OR LOWER(t.lyrics) LIKE :q)))

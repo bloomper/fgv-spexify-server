@@ -47,7 +47,7 @@ class SpexflixLinksIntegrationTest extends AbstractIntegrationTest {
     @BeforeEach
     void publishATrack() throws Exception {
         final String albumId = graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\"}) { id } }")
+                .document("mutation { albumCreate(input: {spexIds: [\"00000000-0000-7000-8000-000000000001\"]}) { id } }")
                 .execute()
                 .path("albumCreate.id").entity(String.class).get();
 
@@ -62,7 +62,7 @@ class SpexflixLinksIntegrationTest extends AbstractIntegrationTest {
     @Test
     void spexflixReadsTheTracksOfASpex() {
         graphQlWithToken(spexflixServiceToken())
-                .document("{ spexTracks(spexId: \"00000000-0000-7000-8000-000000000001\") { id title spexId } }")
+                .document("{ spexTracks(spexIds: [\"00000000-0000-7000-8000-000000000001\"]) { id title spexId } }")
                 .execute()
                 .path("spexTracks[0].id").entity(String.class).isEqualTo(trackId)
                 .path("spexTracks[0].spexId").entity(String.class).isEqualTo(SPEX_ID);
@@ -75,7 +75,7 @@ class SpexflixLinksIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void listenersCannotListTheTracksOfASpex() {
-        expectError(graphQl(LISTENER).document("{ spexTracks(spexId: \"00000000-0000-7000-8000-000000000001\") { id } }").execute(), "FORBIDDEN");
+        expectError(graphQl(LISTENER).document("{ spexTracks(spexIds: [\"00000000-0000-7000-8000-000000000001\"]) { id } }").execute(), "FORBIDDEN");
     }
 
     @Test

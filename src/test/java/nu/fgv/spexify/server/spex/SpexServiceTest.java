@@ -71,12 +71,19 @@ class SpexServiceTest {
     }
 
     @Test
-    void searchMatchesTitleOrYearNewestFirst() {
+    void searchMatchesTitleOrYearWithRevivalsRightAfterTheirOriginal() {
         when(client.allSpex()).thenReturn(List.of(NOBEL, CLEOPATRA, NOBEL_REVIVAL));
 
-        assertThat(service.search(" NOB ")).containsExactly(NOBEL_REVIVAL, NOBEL);
+        assertThat(service.search(" NOB ")).containsExactly(NOBEL, NOBEL_REVIVAL);
         assertThat(service.search("2024")).containsExactly(CLEOPATRA);
-        assertThat(service.search("")).hasSize(3);
+        assertThat(service.search("")).containsExactly(CLEOPATRA, NOBEL, NOBEL_REVIVAL);
+    }
+
+    @Test
+    void aRevivalMatchingAloneBringsItsOriginal() {
+        when(client.allSpex()).thenReturn(List.of(NOBEL, CLEOPATRA, NOBEL_REVIVAL));
+
+        assertThat(service.search("2026")).containsExactly(NOBEL, NOBEL_REVIVAL);
     }
 
     @Test
@@ -111,6 +118,8 @@ class SpexServiceTest {
         service.copy(NOBEL_REVIVAL, ref);
 
         assertThat(ref.getId()).isEqualTo(uuid(2));
+        assertThat(ref.getParentId()).isEqualTo(uuid(1));
+        assertThat(ref.familyId()).isEqualTo(uuid(1));
         assertThat(ref.getTitle()).isEqualTo("Nobel");
         assertThat(ref.getYear()).isEqualTo(2026);
         assertThat(ref.getRevival()).isTrue();
@@ -121,25 +130,33 @@ class SpexServiceTest {
     @Test
     void theNightlyRefreshUpdatesEveryAlbumsCopyOfItsSpex() {
         final Album album = new Album();
+        final SpexRef nobel = new SpexRef();
+        final SpexRef revival = new SpexRef();
+        final SpexRef gone = new SpexRef();
 
-        album.getSpex().setId(uuid(1));
-        album.getSpex().setTitle("Nobel (gammal titel)");
-        when(albumRepository.findSpexIds()).thenReturn(List.of(uuid(1), uuid(99)));
-        when(albumRepository.findBySpexIdIn(List.of(uuid(1), uuid(99)))).thenReturn(List.of(album));
-        when(client.allSpex()).thenReturn(List.of(NOBEL));
+        nobel.setId(uuid(1));
+        nobel.setTitle("Nobel (gammal titel)");
+        revival.setId(uuid(2));
+        gone.setId(uuid(99));
+        gone.setTitle("Borttaget");
+        album.getSpex().addAll(List.of(nobel, revival, gone));
+        when(albumRepository.findWithSpex()).thenReturn(List.of(album));
+        when(client.allSpex()).thenReturn(List.of(NOBEL, NOBEL_REVIVAL));
 
         service.refresh();
 
-        assertThat(album.getSpex().getTitle()).isEqualTo("Nobel");
+        assertThat(nobel.getTitle()).isEqualTo("Nobel");
+        assertThat(revival.getParentId()).as("filled in for spex linked before the original was kept").isEqualTo(uuid(1));
+        assertThat(gone.getTitle()).isEqualTo("Borttaget");
     }
 
     @Test
     void theRefreshDoesNothingWithoutAlbumsAndSurvivesSpexregisterBeingDown() {
-        when(albumRepository.findSpexIds()).thenReturn(List.of());
+        when(albumRepository.findWithSpex()).thenReturn(List.of());
         service.refresh();
         verify(client, never()).allSpex();
 
-        when(albumRepository.findSpexIds()).thenReturn(List.of(uuid(1)));
+        when(albumRepository.findWithSpex()).thenReturn(List.of(new Album()));
         when(client.allSpex()).thenThrow(new SpexregisterClient.SpexregisterCallException("down"));
         service.refresh();
     }

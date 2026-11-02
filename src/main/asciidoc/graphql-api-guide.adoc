@@ -117,6 +117,8 @@ Editors see their own changes, admins everyone's.
 
 Spex, their categories and posters are read from Spexregister, which Spexify Server calls as the service account ``fgv-spexify-service`` with Spexregister's ``MEDIA`` role.
 An album keeps a copy of its spex's title and year, so the catalogue works while Spexregister is down; only ``spexSearch`` and posters fail, with ``SPEXREGISTER_UNAVAILABLE``.
+An album can be about several spex, e.g. a compilation, or none, e.g. a jubilee recording (``Album.spex`` is a list, the main spex first: the poster, the default title and year, and the category come from it).
+A revival is a spex of its own in Spexregister; each linked spex keeps its original (``AlbumSpex.familyId``), so asking for the albums or tracks of an original (``AlbumFilter.spexId``, ``spexTracks``) also gives those of its revivals, and ``spexSearch`` lists revivals right after their original.
 
 [[spexflix]]
 == Spexflix

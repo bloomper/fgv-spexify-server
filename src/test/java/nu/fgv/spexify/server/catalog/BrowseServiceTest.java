@@ -74,7 +74,12 @@ class BrowseServiceTest {
         final Track track = new Track();
 
         album.setUuid(uuid(1000 + id));
-        album.getSpex().setId(spex);
+        if (spex != null) {
+            final SpexRef ref = new SpexRef();
+
+            ref.setId(spex);
+            album.getSpex().add(ref);
+        }
         track.setId((long) id);
         track.setUuid(uuid(id));
         track.setAlbum(album);

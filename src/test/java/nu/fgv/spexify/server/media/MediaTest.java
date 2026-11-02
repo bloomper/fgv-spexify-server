@@ -41,7 +41,10 @@ class MediaTest {
 
         album.setTitle("Nobel");
         album.setYear(2026);
-        album.getSpex().setCategoryName("Chalmersspexet");
+        final nu.fgv.spexify.server.catalog.SpexRef spex = new nu.fgv.spexify.server.catalog.SpexRef();
+
+        spex.setCategoryName("Chalmersspexet");
+        album.getSpex().add(spex);
         track.setAlbum(album);
         track.setTitle("Kärleksduetten");
         track.setTrackNumber(3);

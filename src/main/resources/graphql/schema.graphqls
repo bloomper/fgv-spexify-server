@@ -28,7 +28,7 @@ type Query {
     creditTracks(kind: CreditKind!, name: String!): [Track!]!
     "USER. Listed tracks to play like a radio station. From a track: the track first, then tracks sharing its melody, original artist, performers, authors or spex. From an album: such tracks from other albums. Without either: listed tracks at random."
     radio(trackId: ID, albumId: ID, limit: Int = 50): [Track!]!
-    "EDITOR. Spex in Spexregister matching a title or year, for linking an album."
+    "EDITOR. Spex in Spexregister matching a title or year, for linking an album: each original, then its revivals, newest original first. An original is included when only a revival matches."
     spexSearch(q: String!): [Spex!]!
     "USER. The caller's app passwords that are not revoked."
     appPasswords: [AppPassword!]!
@@ -44,8 +44,8 @@ type Query {
     auditLog(page: Int = 0, size: Int = 50, filter: AuditFilter): AuditPage!
     "EDITOR. Who made the changes in the audit log the caller sees, with their latest names; only the caller unless ADMIN."
     auditActors: [AuditActor!]!
-    "SPEXFLIX or EDITOR. The published tracks of the published albums of a spex, for linking chapters."
-    spexTracks(spexId: ID!): [TrackRef!]!
+    "SPEXFLIX or EDITOR. The published tracks of the published albums of the spex and, for originals, their revivals, for linking chapters."
+    spexTracks(spexIds: [ID!]!): [TrackRef!]!
     "USER. Published tracks by Navidrome's ids, in the given order, for stars and playlists; unknown ones are left out."
     tracksByNavidromeIds(ids: [String!]!): [Track!]!
     "SPEXFLIX or USER. Published tracks by id; unknown and unpublished ones are left out."
@@ -157,19 +157,21 @@ input AlbumKindInput {
 }
 
 input AlbumFilter {
+    "The main spex's category."
     categoryId: ID
     year: Int
+    "Albums about the spex or, when it is an original, one of its revivals."
     spexId: ID
     "EDITOR only."
     includeUnpublished: Boolean
 }
 
 input AlbumInput {
-    "A spex in Spexregister. Without it the album is not about one spex, e.g. a jubilee compilation."
-    spexId: ID
-    "Defaults to the spex title."
+    "Spex in Spexregister, the main one first, e.g. several for a compilation. Empty when the album is not about any spex, e.g. a jubilee recording."
+    spexIds: [ID!]! = []
+    "Defaults to the main spex's title; required without a spex."
     title: String
-    "Defaults to the spex year."
+    "Defaults to the main spex's year."
     year: Int
     "An album kind; defaults to the first one for a new album and to the current one for an existing album."
     kindId: ID
@@ -200,6 +202,8 @@ type Spex {
     title: String
     year: Int
     revival: Boolean!
+    "The original, for a revival."
+    parentId: ID
     categoryName: String
 }
 
@@ -208,6 +212,10 @@ type AlbumSpex {
     title: String
     year: Int
     revival: Boolean
+    "The original, for a revival; null until the nightly refresh for spex linked before Spexify kept it."
+    parentId: ID
+    "The original spex: the parent of a revival, else the spex itself. Revivals share it with their original."
+    familyId: ID!
     categoryId: ID
     categoryName: String
 }
@@ -218,8 +226,9 @@ type Album {
     year: Int
     kind: AlbumKind!
     description: String
-    spex: AlbumSpex
-    "Whether the album has its own cover; otherwise the spex poster is used."
+    "The spex the album is about, the main one first; empty when it is not about any spex."
+    spex: [AlbumSpex!]!
+    "Whether the album has its own cover; otherwise the main spex's poster is used."
     hasCover: Boolean!
     published: Boolean!
     publishedAt: Instant
@@ -301,6 +310,7 @@ type TrackRef {
     trackNumber: Int!
     albumId: ID!
     albumTitle: String!
+    "The album's main spex."
     spexId: ID
 }
 

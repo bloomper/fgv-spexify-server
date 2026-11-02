@@ -119,8 +119,8 @@ public class CatalogGraphqlApi {
     }
 
     @QueryMapping
-    public List<TrackRefDto> spexTracks(@Argument final UUID spexId) {
-        return service.spexTracks(spexId);
+    public List<TrackRefDto> spexTracks(@Argument final List<UUID> spexIds) {
+        return service.spexTracks(spexIds);
     }
 
     @QueryMapping

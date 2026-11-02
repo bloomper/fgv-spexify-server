@@ -122,7 +122,7 @@ public class TagWriter {
     }
 
     private static String albumArtist(final Album album) {
-        final String category = album.getSpex().getCategoryName();
+        final String category = album.mainSpex() == null ? null : album.mainSpex().getCategoryName();
 
         return StringUtils.hasText(category) ? category : "Spex";
     }

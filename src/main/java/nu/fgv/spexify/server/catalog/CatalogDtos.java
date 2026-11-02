@@ -19,6 +19,7 @@ package nu.fgv.spexify.server.catalog;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -33,14 +34,15 @@ public final class CatalogDtos {
     }
 
     public record AlbumDto(UUID id, String title, @Nullable Integer year, AlbumKindService.AlbumKindDto kind,
-                           @Nullable String description, @Nullable AlbumSpexDto spex, boolean hasCover,
+                           @Nullable String description, List<AlbumSpexDto> spex, boolean hasCover,
                            boolean published, @Nullable Instant publishedAt, @Nullable Instant trashedAt,
                            @Nullable String navidromeId, int trackCount, double durationMs, Instant createdAt,
                            @Nullable Instant lastModifiedAt) {
     }
 
     public record AlbumSpexDto(UUID id, @Nullable String title, @Nullable Integer year, @Nullable Boolean revival,
-                               @Nullable UUID categoryId, @Nullable String categoryName) {
+                               @Nullable UUID parentId, UUID familyId, @Nullable UUID categoryId,
+                               @Nullable String categoryName) {
     }
 
     public record TrackDto(UUID id, UUID albumId, String albumTitle, int discNumber, int trackNumber,
@@ -67,17 +69,17 @@ public final class CatalogDtos {
     public record CategoryDto(UUID id, String name, int albumCount) {
     }
 
-    public record SearchResultDto(java.util.List<AlbumDto> albums, java.util.List<TrackDto> tracks) {
+    public record SearchResultDto(List<AlbumDto> albums, List<TrackDto> tracks) {
     }
 
-    public record TrashDto(java.util.List<AlbumDto> albums, java.util.List<TrackDto> tracks) {
+    public record TrashDto(List<AlbumDto> albums, List<TrackDto> tracks) {
     }
 
     public record AlbumFilter(@Nullable UUID categoryId, @Nullable Integer year, @Nullable UUID spexId,
                               @Nullable Boolean includeUnpublished) {
     }
 
-    public record AlbumInput(@Nullable UUID spexId, @Nullable String title, @Nullable Integer year, @Nullable UUID kindId,
+    public record AlbumInput(@Nullable List<UUID> spexIds, @Nullable String title, @Nullable Integer year, @Nullable UUID kindId,
                              @Nullable String description) {
     }
 
