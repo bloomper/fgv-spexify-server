@@ -29,11 +29,13 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import nu.fgv.spexify.server.media.Loudness;
 import nu.fgv.spexify.server.util.AbstractAuditable;
 import nu.fgv.spexify.server.util.Uuids;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -105,6 +107,12 @@ public class Track extends AbstractAuditable {
     @Column(name = "bitrate")
     private @Nullable Integer bitrate;
 
+    @Column(name = "loudness_lufs")
+    private @Nullable Double loudnessLufs;
+
+    @Column(name = "true_peak_dbfs")
+    private @Nullable Double truePeakDbfs;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "location", nullable = false)
     private Location location = Location.UNPUBLISHED;
@@ -141,6 +149,29 @@ public class Track extends AbstractAuditable {
      */
     public boolean isListed() {
         return desiredLocation() == Location.MUSIC;
+    }
+
+    /**
+     * The measured loudness, or null before it is measured.
+     */
+    public @Nullable Loudness loudness() {
+        return loudnessLufs == null || truePeakDbfs == null ? null : new Loudness(loudnessLufs, truePeakDbfs);
+    }
+
+    public void setLoudness(final @Nullable Loudness loudness) {
+        this.loudnessLufs = loudness == null ? null : loudness.integratedLufs();
+        this.truePeakDbfs = loudness == null ? null : loudness.truePeakDbfs();
+    }
+
+    /**
+     * The loudness of the album's listed and measured tracks together, for album gain; null when there are none.
+     */
+    public @Nullable Loudness albumLoudness() {
+        return Loudness.album(album.getTracks().stream()
+                .filter(Track::isListed)
+                .filter(track -> track.loudness() != null)
+                .map(track -> new Loudness.Measured(Objects.requireNonNull(track.loudness()), track.getDurationMs()))
+                .toList());
     }
 
     public String fileName() {

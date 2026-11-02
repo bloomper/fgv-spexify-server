@@ -41,7 +41,10 @@ class MediaTest {
 
         album.setTitle("Nobel");
         album.setYear(2026);
-        album.getSpex().setCategoryName("Chalmersspexet");
+        final nu.fgv.spexify.server.catalog.SpexRef spex = new nu.fgv.spexify.server.catalog.SpexRef();
+
+        spex.setCategoryName("Chalmersspexet");
+        album.getSpex().add(spex);
         track.setAlbum(album);
         track.setTitle("Kärleksduetten");
         track.setTrackNumber(3);
@@ -117,5 +120,66 @@ class MediaTest {
         final Path file = Files.writeString(folder.resolve("notes.txt"), "not audio");
 
         assertThat(probe.probe(file)).isEmpty();
+    }
+
+    @Test
+    void measuresLoudnessAndWritesReplayGainThatFfprobeReadsBack(@TempDir final Path folder) throws IOException {
+        Assumptions.assumeTrue(hasFfmpeg(), "ffmpeg is not installed");
+
+        final Path file = folder.resolve("track.flac");
+        final Track track = track();
+
+        ffmpeg.ffmpeg(List.of("-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-c:a", "flac", file.toString()));
+
+        final Loudness loudness = new LoudnessMeter(ffmpeg).measure(file).orElseThrow();
+
+        // ffmpeg's sine is at 1/8 of full scale: about -21 LUFS, peaking at about -18 dBFS
+        assertThat(loudness.integratedLufs()).isBetween(-23.0, -20.0);
+        assertThat(loudness.truePeakDbfs()).isBetween(-19.0, -17.0);
+
+        track.setFileExtension("flac");
+        track.setFileFormat("FLAC");
+        track.setDurationMs(3000);
+        track.setLoudness(loudness);
+        track.getAlbum().setPublished(true);
+        track.getAlbum().getTracks().add(track);
+        new TagWriter(ffmpeg).write(track, file);
+
+        final AudioProbe.Result result = probe.probe(file).orElseThrow();
+
+        assertThat(result.tag("replaygain_track_gain")).matches("[0-9]+\\.[0-9]{2} dB");
+        assertThat(result.tag("replaygain_album_gain")).isEqualTo(result.tag("replaygain_track_gain"));
+        assertThat(result.tag("replaygain_track_peak")).startsWith("0.1");
+    }
+
+    @Test
+    void readsTheSummaryOfEbur128() {
+        final String log = """
+                [Parsed_ebur128_0 @ 0x1] Summary:
+
+                  Integrated loudness:
+                    I:         -14.3 LUFS
+                    Threshold: -24.3 LUFS
+
+                  True peak:
+                    Peak:       -0.4 dBFS
+                """;
+
+        assertThat(LoudnessMeter.parse(log)).contains(new Loudness(-14.3, -0.4));
+        assertThat(LoudnessMeter.parse("    I:         -inf LUFS\n    Peak:      -inf dBFS")).isEmpty();
+        assertThat(new Loudness(-14.3, -0.4).gainDb()).isCloseTo(-3.7, org.assertj.core.data.Offset.offset(1e-9));
+    }
+
+    @Test
+    void anAlbumsLoudnessAveragesItsTracksEnergyOverTime() {
+        final Loudness album = Loudness.album(List.of(
+                new Loudness.Measured(new Loudness(-10.0, -1.0), 60_000),
+                new Loudness.Measured(new Loudness(-20.0, -3.0), 60_000)));
+
+        // Mostly the loud track: 10*log10((10^-1 + 10^-2) / 2)
+        assertThat(album).isNotNull();
+        assertThat(album.integratedLufs()).isCloseTo(-12.6, org.assertj.core.data.Offset.offset(0.05));
+        assertThat(album.truePeakDbfs()).isEqualTo(-1.0);
+        assertThat(Loudness.album(List.of())).isNull();
     }
 }

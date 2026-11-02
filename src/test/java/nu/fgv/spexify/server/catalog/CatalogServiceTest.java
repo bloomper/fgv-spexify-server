@@ -26,6 +26,7 @@ import nu.fgv.spexify.server.catalog.CatalogDtos.TrackInput;
 import nu.fgv.spexify.server.media.AudioFormat;
 import nu.fgv.spexify.server.media.AudioPreparer;
 import nu.fgv.spexify.server.media.AudioProbe;
+import nu.fgv.spexify.server.media.Loudness;
 import nu.fgv.spexify.server.media.LibraryPlacer;
 import nu.fgv.spexify.server.media.MediaStorage;
 import nu.fgv.spexify.server.media.PreparedAudio;
@@ -52,6 +53,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static nu.fgv.spexify.server.util.TestUuids.uuid;
@@ -131,6 +133,17 @@ class CatalogServiceTest {
         return album;
     }
 
+    private static SpexRef spex(final Album album, final UUID id, final UUID parentId, final UUID categoryId, final String categoryName) {
+        final SpexRef ref = new SpexRef();
+
+        ref.setId(id);
+        ref.setParentId(parentId);
+        ref.setCategoryId(categoryId);
+        ref.setCategoryName(categoryName);
+        album.getSpex().add(ref);
+        return ref;
+    }
+
     private static Track track(final long id, final Album album, final int number, final String title) {
         final Track track = new Track();
 
@@ -171,6 +184,7 @@ class CatalogServiceTest {
             final SpexRef ref = invocation.getArgument(1);
 
             ref.setId(spex.id());
+            ref.setParentId(spex.parentId());
             ref.setTitle(spex.title());
             ref.setYear(spex.year());
             ref.setCategoryId(spex.categoryId());
@@ -207,14 +221,38 @@ class CatalogServiceTest {
     @Test
     void albumsAreFilteredByCategoryYearAndSpex() {
         as(TestCallers.listener());
-        published.getSpex().setId(uuid(7));
-        published.getSpex().setCategoryId(uuid(1));
+        spex(published, uuid(7), null, uuid(1), null);
         when(albumRepository.findByPublishedTrueAndTrashedAtIsNullOrderByYearDescTitleAsc()).thenReturn(List.of(published));
 
         assertThat(service.albums(new AlbumFilter(uuid(1), 2024, uuid(7), null))).hasSize(1);
         assertThat(service.albums(new AlbumFilter(uuid(2), null, null, null))).isEmpty();
         assertThat(service.albums(new AlbumFilter(null, 1999, null, null))).isEmpty();
         assertThat(service.albums(new AlbumFilter(null, null, uuid(8), null))).isEmpty();
+    }
+
+    @Test
+    void albumsOfAnOriginalIncludeThoseOfItsRevivalsAndCompilations() {
+        as(TestCallers.listener());
+
+        final Album revival = album(3L, "Cleopatra 2028", true);
+        final Album compilation = album(4L, "Det bästa", true);
+        final Album other = album(5L, "Nobel", true);
+
+        spex(published, uuid(7), null, uuid(1), "Chalmersspexet");
+        spex(revival, uuid(70), uuid(7), uuid(1), "Chalmersspexet");
+        spex(compilation, uuid(8), null, uuid(2), "Bobspexet");
+        spex(compilation, uuid(70), uuid(7), uuid(1), "Chalmersspexet");
+        spex(other, uuid(8), null, uuid(2), "Bobspexet");
+        when(albumRepository.findByPublishedTrueAndTrashedAtIsNullOrderByYearDescTitleAsc()).thenReturn(List.of(published, revival, compilation, other));
+
+        assertThat(service.albums(new AlbumFilter(null, null, uuid(7), null))).extracting(AlbumDto::title)
+                .containsExactly("Cleopatra", "Cleopatra 2028", "Det bästa");
+        assertThat(service.albums(new AlbumFilter(null, null, uuid(70), null))).extracting(AlbumDto::title)
+                .containsExactly("Cleopatra 2028", "Det bästa");
+        assertThat(service.albums(new AlbumFilter(uuid(2), null, null, null))).extracting(AlbumDto::title)
+                .as("by the main spex's category").containsExactly("Det bästa", "Nobel");
+        albums.add(compilation);
+        assertThat(service.album(uuid(4)).spex()).extracting(CatalogDtos.AlbumSpexDto::familyId).containsExactly(uuid(8), uuid(7));
     }
 
     @Test
@@ -244,12 +282,9 @@ class CatalogServiceTest {
         final Album other = album(3L, "Nobel", true);
         final Album third = album(4L, "Fritiof", true);
 
-        published.getSpex().setCategoryId(uuid(1));
-        published.getSpex().setCategoryName("Chalmersspexet");
-        other.getSpex().setCategoryId(uuid(1));
-        other.getSpex().setCategoryName("Chalmersspexet");
-        third.getSpex().setCategoryId(uuid(2));
-        third.getSpex().setCategoryName("Bobspexet");
+        spex(published, uuid(7), null, uuid(1), "Chalmersspexet");
+        spex(other, uuid(8), null, uuid(1), "Chalmersspexet");
+        spex(third, uuid(9), null, uuid(2), "Bobspexet");
         when(albumRepository.findByPublishedTrueAndTrashedAtIsNullOrderByYearDescTitleAsc()).thenReturn(List.of(published, other, third, unpublished));
 
         assertThat(service.categories()).extracting(category -> category.name() + ":" + category.albumCount())
@@ -281,11 +316,12 @@ class CatalogServiceTest {
     @Test
     void spexTracksAreForSpexflixAndEditorsOnly() {
         as(TestCallers.listener());
-        assertThatThrownBy(() -> service.spexTracks(uuid(7))).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.spexTracks(List.of(uuid(7)))).isInstanceOf(AccessDeniedException.class);
 
         as(TestCallers.spexflixService());
-        when(trackRepository.findListedBySpex(uuid(7))).thenReturn(List.of(published.getTracks().getFirst()));
-        assertThat(service.spexTracks(uuid(7))).extracting(CatalogDtos.TrackRefDto::title).containsExactly("Ouvertyr");
+        when(trackRepository.findListedBySpex(Set.of(uuid(7), uuid(8)))).thenReturn(List.of(published.getTracks().getFirst()));
+        assertThat(service.spexTracks(List.of(uuid(7), uuid(8), uuid(7)))).extracting(CatalogDtos.TrackRefDto::title).containsExactly("Ouvertyr");
+        assertThat(service.spexTracks(List.of())).isEmpty();
     }
 
     @Test
@@ -335,14 +371,14 @@ class CatalogServiceTest {
         as(TestCallers.editor());
         when(spexService.byId(uuid(7))).thenReturn(CLEOPATRA);
 
-        final AlbumDto created = service.albumCreate(new AlbumInput(uuid(7), " ", null, null, "  Inspelat live.  "));
+        final AlbumDto created = service.albumCreate(new AlbumInput(List.of(uuid(7)), " ", null, null, "  Inspelat live.  "));
 
         assertThat(created.title()).isEqualTo("Cleopatra");
         assertThat(created.year()).isEqualTo(2024);
         assertThat(created.published()).isFalse();
         assertThat(created.description()).isEqualTo("Inspelat live.");
         assertThat(created.kind().nameEn()).isEqualTo("Show");
-        assertThat(created.spex()).isNotNull();
+        assertThat(created.spex()).extracting(CatalogDtos.AlbumSpexDto::id).containsExactly(uuid(7));
         verify(auditService).record(eq("CREATE"), eq("ALBUM"), any(), eq("Skapade albumet Cleopatra"));
     }
 
@@ -350,13 +386,13 @@ class CatalogServiceTest {
     void aCompilationWithoutSpexNeedsATitle() {
         as(TestCallers.editor());
 
-        assertThatThrownBy(() -> service.albumCreate(new AlbumInput(null, null, 2023, null, null)))
+        assertThatThrownBy(() -> service.albumCreate(new AlbumInput(List.of(), null, 2023, null, null)))
                 .isInstanceOf(BadRequestException.class);
 
         final AlbumDto created = service.albumCreate(new AlbumInput(null, " Jubileum ", 2023, null, null));
 
         assertThat(created.title()).isEqualTo("Jubileum");
-        assertThat(created.spex()).isNull();
+        assertThat(created.spex()).isEmpty();
     }
 
     @Test
@@ -369,10 +405,9 @@ class CatalogServiceTest {
     @Test
     void anUpdateKeepsTheSpexWithoutAskingSpexregisterAgain() {
         as(TestCallers.editor());
-        published.getSpex().setId(uuid(7));
-        published.getSpex().setTitle("Cleopatra");
+        spex(published, uuid(7), null, null, null).setTitle("Cleopatra");
 
-        service.albumUpdate(uuid(1), new AlbumInput(uuid(7), "Cleopatra – studio", 2025, STUDIO.getUuid(), null));
+        service.albumUpdate(uuid(1), new AlbumInput(List.of(uuid(7)), "Cleopatra – studio", 2025, STUDIO.getUuid(), null));
 
         verify(spexService, never()).byId(any());
         assertThat(published.getTitle()).isEqualTo("Cleopatra – studio");
@@ -491,7 +526,7 @@ class CatalogServiceTest {
         when(uploadService.claim("u-1", TestCallers.editor())).thenReturn(file);
         lenient().when(uploadService.fileName("u-1")).thenReturn(fileName);
         when(audioPreparer.prepare(file)).thenReturn(new PreparedAudio(file, AudioFormat.FLAC, 2048, "sha",
-                new AudioProbe.Result("flac", "flac", 61_000, 900, tags)));
+                new AudioProbe.Result("flac", "flac", 61_000, 900, tags), new Loudness(-20.0, -1.0)));
     }
 
     @Test

@@ -40,7 +40,7 @@ class AlbumKindIntegrationTest extends AbstractIntegrationTest {
                 .path("albumKinds[1].isDefault").entity(Boolean.class).isEqualTo(false);
 
         graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\"}) { kind { id } } }")
+                .document("mutation { albumCreate(input: {spexIds: [\"00000000-0000-7000-8000-000000000001\"]}) { kind { id } } }")
                 .execute()
                 .path("albumCreate.kind.id").entity(String.class).isEqualTo(SHOW);
     }

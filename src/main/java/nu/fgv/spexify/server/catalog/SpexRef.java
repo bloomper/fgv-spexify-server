@@ -26,8 +26,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * The spex an album is about, by its id in Spexregister, with its title, year and category copied so that the
- * catalogue works while Spexregister is unavailable. Refreshed daily.
+ * A spex an album is about, by its id in Spexregister, with its title, year and category copied so that the
+ * catalogue works while Spexregister is unavailable. Refreshed daily. A revival keeps the id of its original.
  *
  * @author Anders Jacobsson
  * @since 1.0
@@ -37,24 +37,34 @@ import java.util.UUID;
 @Setter
 public class SpexRef {
 
-    @Column(name = "spex_id", length = 36)
-    private @Nullable UUID id;
+    @Column(name = "spex_id", nullable = false, length = 36)
+    private UUID id;
 
-    @Column(name = "spex_title")
+    @Column(name = "parent_id", length = 36)
+    private @Nullable UUID parentId;
+
+    @Column(name = "title")
     private @Nullable String title;
 
-    @Column(name = "spex_year")
+    @Column(name = "year")
     private @Nullable Integer year;
 
-    @Column(name = "spex_revival")
+    @Column(name = "revival")
     private @Nullable Boolean revival;
 
-    @Column(name = "spex_category_id", length = 36)
+    @Column(name = "category_id", length = 36)
     private @Nullable UUID categoryId;
 
-    @Column(name = "spex_category_name")
+    @Column(name = "category_name")
     private @Nullable String categoryName;
 
-    @Column(name = "spex_refreshed_at")
+    @Column(name = "refreshed_at")
     private @Nullable Instant refreshedAt;
+
+    /**
+     * The original spex: the parent of a revival, else the spex itself. Revivals share it with their original.
+     */
+    public UUID familyId() {
+        return parentId != null ? parentId : id;
+    }
 }

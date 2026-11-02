@@ -26,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,7 +59,7 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
                 .execute()
                 .path("album.title").entity(String.class).isEqualTo("Cleopatra")
                 .path("album.year").entity(Integer.class).isEqualTo(2024)
-                .path("album.spex.title").entity(String.class).isEqualTo("Cleopatra")
+                .path("album.spex[0].title").entity(String.class).isEqualTo("Cleopatra")
                 .path("album.tracks[0].id").entity(String.class).isEqualTo(trackId)
                 .path("album.tracks[0].title").entity(String.class).isEqualTo("Ouvertyr")
                 .path("album.tracks[0].listed").entity(Boolean.class).isEqualTo(true)
@@ -86,6 +87,42 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(zip.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(zip.getBody()).startsWith('P', 'K');
+    }
+
+    @Test
+    void listenersGetReplayGainCreditsAndRadio() throws Exception {
+        final String albumId = createAlbum();
+        final String first = createTrack(albumId);
+        final String second = createTrack(albumId);
+
+        graphQl(EDITOR)
+                .document("mutation($id: ID!) { trackUpdate(id: $id, input: {discNumber: 1, trackNumber: 1, title: \"Ouvertyr\", performers: \"Kören, Kungen\", melody: \"Dancing Queen (ABBA)\", lyricsSynced: false}) { id } }")
+                .variable("id", first)
+                .execute().errors().verify();
+        publish(albumId);
+
+        graphQl(LISTENER)
+                .document("query($id: ID!) { album(id: $id) { tracks { replayGain { trackGain trackPeak albumGain albumPeak } } } }")
+                .variable("id", albumId)
+                .execute()
+                .path("album.tracks[0].replayGain.trackGain").entity(Double.class).satisfies(gain -> assertThat(gain).isBetween(0.0, 6.0))
+                .path("album.tracks[0].replayGain.trackPeak").entity(Double.class).satisfies(peak -> assertThat(peak).isBetween(0.05, 0.2))
+                .path("album.tracks[0].replayGain.albumGain").hasValue();
+        try (var files = Files.walk(MEDIA.resolve("music"))) {
+            final Path file = files.filter(path -> path.toString().endsWith(".flac")).findFirst().orElseThrow();
+
+            assertThat(ffmpeg.probe(List.of("-v", "error", "-show_entries", "format_tags", "-of", "json", file.toString())))
+                    .containsIgnoringCase("replaygain_track_gain");
+        }
+
+        graphQl(LISTENER)
+                .document("query($id: ID!) { credits(kind: PERFORMER) { name trackCount } artist: credits(kind: ORIGINAL_ARTIST) { name } creditTracks(kind: ORIGINAL_ARTIST, name: \"abba\") { id } radio(trackId: $id) { id } }")
+                .variable("id", first)
+                .execute()
+                .path("credits[*].name").entityList(String.class).containsExactly("Kungen", "Kören")
+                .path("artist[*].name").entityList(String.class).containsExactly("ABBA")
+                .path("creditTracks[*].id").entityList(String.class).containsExactly(first)
+                .path("radio[*].id").entityList(String.class).containsExactly(first, second);
     }
 
     @Test
@@ -140,10 +177,10 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
                 .document("query($id: ID!) { album(id: $id) { title spex { title } } }")
                 .variable("id", albumId)
                 .execute()
-                .path("album.spex.title").entity(String.class).isEqualTo("Cleopatra");
+                .path("album.spex[0].title").entity(String.class).isEqualTo("Cleopatra");
         // A spex that is not cached yet
         expectError(graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000002\"}) { id } }")
+                .document("mutation { albumCreate(input: {spexIds: [\"00000000-0000-7000-8000-000000000002\"]}) { id } }")
                 .execute(), "SPEXREGISTER_UNAVAILABLE");
     }
 
@@ -158,11 +195,29 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
                 .path("auditLog.entries[*].action").entityList(String.class).contains("CREATE", "PUBLISH");
         graphQl(LISTENER).document("{ auditLog { totalCount } }").execute().errors()
                 .satisfy(errors -> assertThat(errors).isNotEmpty());
+
+        // Narrowed by action, record, text and period; the editor sees only their own changes and only themselves as actor
+        graphQl(EDITOR)
+                .document("query($id: ID!) { published: auditLog(filter: {action: \"PUBLISH\"}) { totalCount entries { entityId actorId } } "
+                        + "album: auditLog(filter: {entityType: \"ALBUM\", entityId: $id}) { totalCount } "
+                        + "text: auditLog(filter: {q: \"PUBLICERADE\"}) { totalCount } "
+                        + "future: auditLog(filter: {from: \"2999-01-01T00:00:00Z\"}) { totalCount } "
+                        + "auditActors { id name } }")
+                .variable("id", albumId)
+                .execute()
+                .path("published.totalCount").entity(Integer.class).isEqualTo(1)
+                .path("published.entries[0].entityId").entity(String.class).isEqualTo(albumId)
+                .path("album.totalCount").entity(Integer.class).isEqualTo(2)
+                .path("text.totalCount").entity(Integer.class).isEqualTo(1)
+                .path("future.totalCount").entity(Integer.class).isEqualTo(0)
+                .path("auditActors").entityList(Object.class).hasSize(1);
+        graphQl(ADMIN).document("{ auditLog(filter: {actorId: \"nobody\"}) { totalCount } }").execute()
+                .path("auditLog.totalCount").entity(Integer.class).isEqualTo(0);
     }
 
     private String createAlbum() {
         return graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\"}) { id published } }")
+                .document("mutation { albumCreate(input: {spexIds: [\"00000000-0000-7000-8000-000000000001\"]}) { id published } }")
                 .execute()
                 .path("albumCreate.published").entity(Boolean.class).isEqualTo(false)
                 .path("albumCreate.id").entity(String.class).get();

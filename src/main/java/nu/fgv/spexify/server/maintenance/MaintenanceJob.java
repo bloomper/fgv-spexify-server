@@ -26,7 +26,8 @@ package nu.fgv.spexify.server.maintenance;
 public enum MaintenanceJob {
 
     SPEX_REFRESH("spexify.jobs.spex-refresh.cron-expression"),
-    UPLOAD_CLEANUP("spexify.jobs.upload-cleanup.cron-expression");
+    UPLOAD_CLEANUP("spexify.jobs.upload-cleanup.cron-expression"),
+    LOUDNESS_SCAN("spexify.jobs.loudness-scan.cron-expression");
 
     private final String cronProperty;
 

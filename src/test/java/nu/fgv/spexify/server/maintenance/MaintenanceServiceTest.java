@@ -45,12 +45,14 @@ class MaintenanceServiceTest {
     void readsTheSchedulesFromTheProperties() {
         final MockEnvironment environment = new MockEnvironment()
                 .withProperty(MaintenanceJob.SPEX_REFRESH.cronProperty(), " 0 15 3 * * * ")
-                .withProperty(MaintenanceJob.UPLOAD_CLEANUP.cronProperty(), "-");
+                .withProperty(MaintenanceJob.UPLOAD_CLEANUP.cronProperty(), "-")
+                .withProperty(MaintenanceJob.LOUDNESS_SCAN.cronProperty(), "0 45 3 * * *");
 
         assertThat(service(environment).statuses())
                 .extracting(MaintenanceService.MaintenanceJobStatus::job, MaintenanceService.MaintenanceJobStatus::schedule)
                 .containsExactly(
                         tuple(MaintenanceJob.SPEX_REFRESH, "0 15 3 * * *"),
-                        tuple(MaintenanceJob.UPLOAD_CLEANUP, null));
+                        tuple(MaintenanceJob.UPLOAD_CLEANUP, null),
+                        tuple(MaintenanceJob.LOUDNESS_SCAN, "0 45 3 * * *"));
     }
 }

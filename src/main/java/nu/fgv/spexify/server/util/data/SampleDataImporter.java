@@ -26,6 +26,7 @@ import nu.fgv.spexify.server.catalog.AlbumKind;
 import nu.fgv.spexify.server.catalog.AlbumKindRepository;
 import nu.fgv.spexify.server.catalog.AlbumRepository;
 import nu.fgv.spexify.server.catalog.Location;
+import nu.fgv.spexify.server.catalog.SpexRef;
 import nu.fgv.spexify.server.catalog.Track;
 import nu.fgv.spexify.server.config.KeycloakConfig;
 import nu.fgv.spexify.server.config.SpexifyProperties;
@@ -95,7 +96,7 @@ public class SampleDataImporter {
     static final String NO_ACCESS = "no-access@fgv.nu";
     private static final int SPEXREGISTER_ATTEMPTS = 30;
     private static final Duration SPEXREGISTER_RETRY_INTERVAL = Duration.ofSeconds(10);
-    private static final List<String> TABLES = List.of("audit_entry", "api_key", "app_password", "track", "album", "album_kind", "upload_session", "app_user");
+    private static final List<String> TABLES = List.of("audit_entry", "api_key", "app_password", "track", "album_spex", "album", "album_kind", "upload_session", "app_user");
 
     private final SpexifyProperties properties;
     private final Environment environment;
@@ -366,6 +367,7 @@ public class SampleDataImporter {
         final Random random = new Random(2028L + index);
         final Album album = new Album();
         final boolean compilation = index == 9;
+        final boolean medley = index == 15 && spex.size() >= 2;
         final SpexDto picked = spex.get(index % spex.size());
 
         album.setUuid(UUID.nameUUIDFromBytes(("spexify-sample-album-" + index).getBytes(StandardCharsets.UTF_8)));
@@ -373,8 +375,22 @@ public class SampleDataImporter {
             album.setTitle(SampleCatalog.COMPILATION_TITLE);
             album.setYear(2023);
             album.setKind(kinds.get(2));
+        } else if (medley) {
+            for (final SpexDto each : spex.subList(Math.max(0, spex.size() - 3), spex.size()).reversed()) {
+                final SpexRef ref = new SpexRef();
+
+                spexService.copy(each, ref);
+                album.getSpex().add(ref);
+            }
+            album.setTitle("Det bästa från " + spex.getLast().year());
+            album.setYear(spex.getLast().year());
+            album.setKind(kinds.get(2));
+            album.setDescription("Sånger ur flera spex. Exempeldata.");
         } else {
-            spexService.copy(picked, album.getSpex());
+            final SpexRef ref = new SpexRef();
+
+            spexService.copy(picked, ref);
+            album.getSpex().add(ref);
             album.setTitle(index >= spex.size() ? picked.title() + " – studioinspelning" : String.valueOf(picked.title()));
             album.setYear(picked.year());
             album.setKind(kinds.get(index >= spex.size() ? 1 : index % 7 == 6 ? 3 : 0));

@@ -43,6 +43,14 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
 
     long countByLocation(Location location);
 
+    List<Track> findByLoudnessLufsIsNullAndTrashedAtIsNull();
+
+    @Query("""
+            SELECT t FROM Track t JOIN FETCH t.album a
+            WHERE a.published = TRUE AND a.trashedAt IS NULL AND t.published = TRUE AND t.trashedAt IS NULL
+            ORDER BY a.year DESC, a.title ASC, t.discNumber ASC, t.trackNumber ASC""")
+    List<Track> findListed();
+
     List<Track> findByNavidromeIdIn(Collection<String> navidromeIds);
 
     @Query("""
@@ -54,8 +62,8 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
 
     @Query("""
             SELECT t FROM Track t JOIN t.album a
-            WHERE a.spex.id = :spexId AND a.published = TRUE AND a.trashedAt IS NULL
-              AND t.published = TRUE AND t.trashedAt IS NULL
-            ORDER BY a.title ASC, t.discNumber ASC, t.trackNumber ASC""")
-    List<Track> findListedBySpex(@Param("spexId") UUID spexId);
+            WHERE a.published = TRUE AND a.trashedAt IS NULL AND t.published = TRUE AND t.trashedAt IS NULL
+              AND EXISTS (SELECT 1 FROM Album x JOIN x.spex s WHERE x = a AND (s.id IN :spexIds OR s.parentId IN :spexIds))
+            ORDER BY a.year ASC, a.title ASC, t.discNumber ASC, t.trackNumber ASC""")
+    List<Track> findListedBySpex(@Param("spexIds") Collection<UUID> spexIds);
 }

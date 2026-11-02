@@ -18,7 +18,8 @@ package nu.fgv.spexify.server.catalog;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
-import jakarta.persistence.Embedded;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -28,6 +29,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -41,7 +43,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The songs of one spex, usually one recording of it. Its uuid names its folders and is written into the tags as
+ * The songs of a recording, usually of one spex but possibly of several or none. Its uuid names its folders and is written into the tags as
  * MusicBrainz album id, which Navidrome derives its persistent album id from.
  *
  * @author Anders Jacobsson
@@ -60,8 +62,13 @@ public class Album extends AbstractAuditable {
     @Column(name = "uuid", nullable = false, updatable = false, length = 36)
     private UUID uuid = Uuids.v7();
 
-    @Embedded
-    private SpexRef spex = new SpexRef();
+    /**
+     * The spex the album is about, the main one first; empty when it is not about any spex.
+     */
+    @ElementCollection
+    @CollectionTable(name = "album_spex", joinColumns = @JoinColumn(name = "album_id"))
+    @OrderColumn(name = "position")
+    private List<SpexRef> spex = new ArrayList<>();
 
     @Column(name = "title", nullable = false)
     private String title;
@@ -96,13 +103,17 @@ public class Album extends AbstractAuditable {
     private List<Track> tracks = new ArrayList<>();
 
     /**
-     * The spex, never null: Hibernate loads an embedded value whose columns are all null as null.
+     * The main spex, which the poster, the default title and year and the category come from.
      */
-    public SpexRef getSpex() {
-        if (spex == null) {
-            spex = new SpexRef();
-        }
-        return spex;
+    public @Nullable SpexRef mainSpex() {
+        return spex.isEmpty() ? null : spex.getFirst();
+    }
+
+    /**
+     * Whether the album is about the spex or, when it is an original, one of its revivals.
+     */
+    public boolean isAbout(final UUID spexId) {
+        return spex.stream().anyMatch(ref -> spexId.equals(ref.getId()) || spexId.equals(ref.getParentId()));
     }
 
     public boolean isTrashed() {

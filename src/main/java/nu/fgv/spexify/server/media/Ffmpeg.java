@@ -47,6 +47,10 @@ public class Ffmpeg {
     private static final Duration TIMEOUT = Duration.ofMinutes(10);
 
     private static String run(final List<String> command) throws IOException {
+        return run(command, false);
+    }
+
+    private static String run(final List<String> command, final boolean returnStderr) throws IOException {
         final Process process = new ProcessBuilder(command).redirectErrorStream(false).start();
         final CompletableFuture<String> stdout = read(process.getInputStream());
         final CompletableFuture<String> stderr = read(process.getErrorStream());
@@ -59,7 +63,7 @@ public class Ffmpeg {
             if (process.exitValue() != 0) {
                 throw new IOException(command.getFirst() + " failed: " + stderr.join().strip());
             }
-            return stdout.join();
+            return returnStderr ? stderr.join() : stdout.join();
         } catch (final InterruptedException e) {
             process.destroyForcibly();
             Thread.currentThread().interrupt();
@@ -83,6 +87,16 @@ public class Ffmpeg {
         command.add("ffprobe");
         command.addAll(arguments);
         return run(command);
+    }
+
+    /**
+     * Runs ffmpeg for what it logs rather than what it writes, e.g. a filter's measurements, and returns its log.
+     */
+    public String analyse(final List<String> arguments) throws IOException {
+        final List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-hide_banner", "-nostats", "-loglevel", "info"));
+
+        command.addAll(arguments);
+        return run(command, true);
     }
 
     public void ffmpeg(final List<String> arguments) throws IOException {

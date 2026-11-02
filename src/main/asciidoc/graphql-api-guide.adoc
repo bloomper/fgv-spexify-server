@@ -99,17 +99,26 @@ Publishing puts the files into the folder Navidrome reads, with tags written by 
 Stars and playlists are Navidrome's, per user, and reached through the <<api-guide.adoc#subsonic,Subsonic API>>; ``tracksByNavidromeIds`` and ``albumsByNavidromeIds`` map Navidrome's songs and albums back to tracks and albums.
 So do play counts, when a user last played a song or album, ratings (``setRating``), starred albums, Navidrome's lists of recently played, most played and highest rated albums, and the play queue the user's apps share (``savePlayQueue``, ``getPlayQueue``): Spexify's web reports plays with ``scrobble`` and reads them with ``getAlbum`` and ``getAlbumList2``.
 
+Every uploaded track's loudness is measured with ffmpeg's EBU R 128 filter, and ReplayGain 2.0 track and album values (aiming at -18 LUFS) are written into the tags of FLAC, MP3, Ogg and Opus files and returned as ``Track.replayGain``.
+Tracks uploaded before that are measured by the ``LOUDNESS_SCAN`` maintenance job.
+
+``credits(kind)`` lists the performers, melodies, original artists (the parentheses after a melody), lyricists and arrangers of listed tracks, and ``creditTracks(kind, name)`` their tracks.
+``radio`` returns tracks to play like a radio station: from a track, the track first and then tracks sharing its melody, original artist, performers, authors or spex; from an album, such tracks of other albums; without either, tracks at random.
+
 [[audit]]
 == Audit
 
 Editors' changes are recorded in the audit log (``auditLog``): who, when, what and a summary.
 Editors see their own changes, admins everyone's.
+``AuditFilter`` narrows the log by kind of record, action, person (admins only), period, text in the summary or one record (``entityId``); ``auditActors`` lists the people in the log the caller may see.
 
 [[spexregister]]
 == Spexregister
 
 Spex, their categories and posters are read from Spexregister, which Spexify Server calls as the service account ``fgv-spexify-service`` with Spexregister's ``MEDIA`` role.
 An album keeps a copy of its spex's title and year, so the catalogue works while Spexregister is down; only ``spexSearch`` and posters fail, with ``SPEXREGISTER_UNAVAILABLE``.
+An album can be about several spex, e.g. a compilation, or none, e.g. a jubilee recording (``Album.spex`` is a list, the main spex first: the poster, the default title and year, and the category come from it).
+A revival is a spex of its own in Spexregister; each linked spex keeps its original (``AlbumSpex.familyId``), so asking for the albums or tracks of an original (``AlbumFilter.spexId``, ``spexTracks``) also gives those of its revivals, and ``spexSearch`` lists revivals right after their original.
 
 [[spexflix]]
 == Spexflix
