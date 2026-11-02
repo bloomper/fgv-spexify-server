@@ -31,7 +31,7 @@ class MaintenanceIntegrationTest extends AbstractIntegrationTest {
     @Test
     void adminsSeeAndRunTheJobs() {
         graphQl(ADMIN).document(JOBS).execute()
-                .path("maintenanceJobs[*].job").entityList(String.class).containsExactly("SPEX_REFRESH", "UPLOAD_CLEANUP")
+                .path("maintenanceJobs[*].job").entityList(String.class).containsExactly("SPEX_REFRESH", "UPLOAD_CLEANUP", "LOUDNESS_SCAN")
                 .path("maintenanceJobs[0].schedule").entity(String.class).isEqualTo("0 15 3 * * *");
         graphQl(ADMIN).document(RUN).variable("job", "UPLOAD_CLEANUP").execute()
                 .path("maintenanceJobRun").entity(Boolean.class).isEqualTo(true);

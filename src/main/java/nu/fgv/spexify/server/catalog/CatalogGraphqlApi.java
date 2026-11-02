@@ -50,13 +50,32 @@ import java.util.UUID;
 public class CatalogGraphqlApi {
 
     private final CatalogService service;
+    private final BrowseService browseService;
     private final SpexService spexService;
     private final VideoLinkService videoLinkService;
 
-    public CatalogGraphqlApi(final CatalogService service, final SpexService spexService, final VideoLinkService videoLinkService) {
+    public CatalogGraphqlApi(final CatalogService service, final BrowseService browseService, final SpexService spexService,
+                             final VideoLinkService videoLinkService) {
         this.service = service;
+        this.browseService = browseService;
         this.spexService = spexService;
         this.videoLinkService = videoLinkService;
+    }
+
+    @QueryMapping
+    public List<CatalogDtos.CreditDto> credits(@Argument final CreditKind kind) {
+        return browseService.credits(kind);
+    }
+
+    @QueryMapping
+    public List<TrackDto> creditTracks(@Argument final CreditKind kind, @Argument final String name) {
+        return browseService.creditTracks(kind, name);
+    }
+
+    @QueryMapping
+    public List<TrackDto> radio(@Argument final @Nullable UUID trackId, @Argument final @Nullable UUID albumId,
+                                @Argument final @Nullable Integer limit) {
+        return browseService.radio(trackId, albumId, limit == null ? 50 : limit);
     }
 
     @QueryMapping

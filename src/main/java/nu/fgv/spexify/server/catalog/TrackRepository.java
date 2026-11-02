@@ -43,6 +43,14 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
 
     long countByLocation(Location location);
 
+    List<Track> findByLoudnessLufsIsNullAndTrashedAtIsNull();
+
+    @Query("""
+            SELECT t FROM Track t JOIN FETCH t.album a
+            WHERE a.published = TRUE AND a.trashedAt IS NULL AND t.published = TRUE AND t.trashedAt IS NULL
+            ORDER BY a.year DESC, a.title ASC, t.discNumber ASC, t.trackNumber ASC""")
+    List<Track> findListed();
+
     List<Track> findByNavidromeIdIn(Collection<String> navidromeIds);
 
     @Query("""

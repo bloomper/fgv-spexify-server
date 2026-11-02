@@ -22,6 +22,12 @@ type Query {
     years: [Int!]!
     "USER. Albums and tracks whose titles, performers, melodies or lyrics match."
     search(q: String!): SearchResult!
+    "USER. The names listed tracks are credited to, by name, with how many tracks each."
+    credits(kind: CreditKind!): [Credit!]!
+    "USER. The listed tracks credited to a name, newest album first. The name is matched without regard to case."
+    creditTracks(kind: CreditKind!, name: String!): [Track!]!
+    "USER. Listed tracks to play like a radio station. From a track: the track first, then tracks sharing its melody, original artist, performers, authors or spex. From an album: such tracks from other albums. Without either: listed tracks at random."
+    radio(trackId: ID, albumId: ID, limit: Int = 50): [Track!]!
     "EDITOR. Spex in Spexregister matching a title or year, for linking an album."
     spexSearch(q: String!): [Spex!]!
     "USER. The caller's app passwords that are not revoked."
@@ -34,8 +40,10 @@ type Query {
     trash: Trash!
     "EDITOR. Navidrome's state and the last scan."
     libraryStatus: LibraryStatus!
-    "EDITOR. The audit log: the caller's own changes, or everyone's for ADMIN."
-    auditLog(page: Int = 0, size: Int = 50): AuditPage!
+    "EDITOR. The audit log, newest first: the caller's own changes, or everyone's for ADMIN, narrowed by the filter."
+    auditLog(page: Int = 0, size: Int = 50, filter: AuditFilter): AuditPage!
+    "EDITOR. Who made the changes in the audit log the caller sees, with their latest names; only the caller unless ADMIN."
+    auditActors: [AuditActor!]!
     "SPEXFLIX or EDITOR. The published tracks of the published albums of a spex, for linking chapters."
     spexTracks(spexId: ID!): [TrackRef!]!
     "USER. Published tracks by Navidrome's ids, in the given order, for stars and playlists; unknown ones are left out."
@@ -248,6 +256,8 @@ type Track {
     trashedAt: Instant
     navidromeId: String
     fileMissing: Boolean!
+    "ReplayGain 2.0 values from the measured loudness; null until measured."
+    replayGain: ReplayGain
     "Published Spexflix videos with a chapter linked to the track; empty when Spexflix is unavailable."
     videoLinks: [VideoLink!]!
 }
@@ -257,6 +267,31 @@ type VideoLink {
     videoTitle: String!
     chapterTitle: String!
     startSeconds: Int!
+}
+
+"ReplayGain 2.0, aiming at -18 LUFS: gains in dB, peaks as linear amplitudes where 1.0 is full scale."
+type ReplayGain {
+    trackGain: Float!
+    trackPeak: Float!
+    "The album's listed tracks together; null for tracks that are not listed."
+    albumGain: Float
+    albumPeak: Float
+}
+
+"Who or what a track is credited to. Names are split on commas, semicolons, slashes and ampersands."
+enum CreditKind {
+    PERFORMER
+    "The original song, e.g. Dancing Queen (ABBA)."
+    MELODY
+    "The artist in parentheses at the end of the melody, e.g. ABBA."
+    ORIGINAL_ARTIST
+    LYRICS_AUTHOR
+    ARRANGER
+}
+
+type Credit {
+    name: String!
+    trackCount: Int!
 }
 
 type TrackRef {
@@ -340,6 +375,8 @@ type AuditPage {
 type AuditLogEntry {
     id: ID!
     at: Instant!
+    "Who made the change, by their subject."
+    actorId: String!
     actorName: String
     action: String!
     entityType: String!
@@ -348,12 +385,14 @@ type AuditLogEntry {
 }
 
 """
-A scheduled maintenance job: copying the current spex data from Spexregister (SPEX_REFRESH), and removing uploads that
-were never used (UPLOAD_CLEANUP).
+A scheduled maintenance job: copying the current spex data from Spexregister (SPEX_REFRESH), removing uploads that
+were never used (UPLOAD_CLEANUP), and measuring the loudness of tracks that have none yet, for ReplayGain
+(LOUDNESS_SCAN).
 """
 enum MaintenanceJob {
     SPEX_REFRESH
     UPLOAD_CLEANUP
+    LOUDNESS_SCAN
 }
 
 "A maintenance job and how its latest run went. Runs are remembered until the server restarts."
@@ -367,4 +406,27 @@ type MaintenanceJobStatus {
     lastFinishedAt: Instant
     "Whether the latest run finished without an error; null while it runs."
     lastSucceeded: Boolean
+}
+
+"What to show of the audit log; every field is optional."
+input AuditFilter {
+    "What was changed, e.g. ALBUM or VIDEO."
+    entityType: String
+    "CREATE, UPDATE, DELETE and so on."
+    action: String
+    "Who made the change; only ADMIN sees others' changes."
+    actorId: String
+    "Changes from this instant on."
+    from: Instant
+    "Changes before this instant."
+    to: Instant
+    "Text the summary contains."
+    q: String
+    "One record's changes."
+    entityId: ID
+}
+
+type AuditActor {
+    id: String!
+    name: String
 }

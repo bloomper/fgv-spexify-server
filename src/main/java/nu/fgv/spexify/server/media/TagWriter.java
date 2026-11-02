@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -87,7 +88,37 @@ public class TagWriter {
         if (!comment.isEmpty()) {
             tags.put("comment", String.join("\n", comment));
         }
+        replayGain(track, tags);
         return tags;
+    }
+
+    /**
+     * ReplayGain 2.0 tags, which Navidrome passes on to the apps. MP4 files are left out: ffmpeg writes only the
+     * standard iTunes keys into them.
+     */
+    private static void replayGain(final Track track, final Map<String, String> tags) {
+        final Loudness loudness = track.loudness();
+
+        if (loudness == null || "AAC".equals(track.getFileFormat()) || "ALAC".equals(track.getFileFormat())) {
+            return;
+        }
+
+        final Loudness album = track.albumLoudness();
+
+        tags.put("REPLAYGAIN_TRACK_GAIN", gain(loudness));
+        tags.put("REPLAYGAIN_TRACK_PEAK", peak(loudness));
+        if (album != null) {
+            tags.put("REPLAYGAIN_ALBUM_GAIN", gain(album));
+            tags.put("REPLAYGAIN_ALBUM_PEAK", peak(album));
+        }
+    }
+
+    private static String gain(final Loudness loudness) {
+        return String.format(Locale.ROOT, "%.2f dB", loudness.gainDb());
+    }
+
+    private static String peak(final Loudness loudness) {
+        return String.format(Locale.ROOT, "%.6f", loudness.peakAmplitude());
     }
 
     private static String albumArtist(final Album album) {

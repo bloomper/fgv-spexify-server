@@ -19,6 +19,10 @@ package nu.fgv.spexify.server.audit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
 
 /**
  * Repository for {@link AuditEntry}.
@@ -26,9 +30,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * @author Anders Jacobsson
  * @since 1.0
  */
-public interface AuditEntryRepository extends JpaRepository<AuditEntry, Long> {
+public interface AuditEntryRepository extends JpaRepository<AuditEntry, Long>, JpaSpecificationExecutor<AuditEntry> {
 
     Page<AuditEntry> findAllByOrderByAtDesc(Pageable pageable);
 
     Page<AuditEntry> findByActorSubjectOrderByAtDesc(String actorSubject, Pageable pageable);
+
+    /**
+     * Everyone who changed something, with the names they had, latest first.
+     */
+    @Query("SELECT e.actorSubject, e.actorName, MAX(e.at) FROM AuditEntry e GROUP BY e.actorSubject, e.actorName ORDER BY MAX(e.at) DESC")
+    List<Object[]> findActors();
 }

@@ -48,11 +48,20 @@ public final class CatalogDtos {
                            @Nullable String lyricsAuthor, @Nullable String arranger, @Nullable String lyrics,
                            boolean lyricsSynced, String format, double fileSize, double durationMs,
                            @Nullable Integer bitrate, boolean published, boolean listed, @Nullable Instant trashedAt,
-                           @Nullable String navidromeId, boolean fileMissing) {
+                           @Nullable String navidromeId, boolean fileMissing, @Nullable ReplayGainDto replayGain) {
+    }
+
+    /**
+     * ReplayGain 2.0 values: gains in dB, peaks as linear amplitudes. Album values only for listed tracks.
+     */
+    public record ReplayGainDto(double trackGain, double trackPeak, @Nullable Double albumGain, @Nullable Double albumPeak) {
     }
 
     public record TrackRefDto(UUID id, String title, int discNumber, int trackNumber, UUID albumId, String albumTitle,
                               @Nullable UUID spexId) {
+    }
+
+    public record CreditDto(String name, int trackCount) {
     }
 
     public record CategoryDto(UUID id, String name, int albumCount) {

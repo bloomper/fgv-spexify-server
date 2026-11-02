@@ -26,6 +26,7 @@ import nu.fgv.spexify.server.catalog.CatalogDtos.TrackInput;
 import nu.fgv.spexify.server.media.AudioFormat;
 import nu.fgv.spexify.server.media.AudioPreparer;
 import nu.fgv.spexify.server.media.AudioProbe;
+import nu.fgv.spexify.server.media.Loudness;
 import nu.fgv.spexify.server.media.LibraryPlacer;
 import nu.fgv.spexify.server.media.MediaStorage;
 import nu.fgv.spexify.server.media.PreparedAudio;
@@ -491,7 +492,7 @@ class CatalogServiceTest {
         when(uploadService.claim("u-1", TestCallers.editor())).thenReturn(file);
         lenient().when(uploadService.fileName("u-1")).thenReturn(fileName);
         when(audioPreparer.prepare(file)).thenReturn(new PreparedAudio(file, AudioFormat.FLAC, 2048, "sha",
-                new AudioProbe.Result("flac", "flac", 61_000, 900, tags)));
+                new AudioProbe.Result("flac", "flac", 61_000, 900, tags), new Loudness(-20.0, -1.0)));
     }
 
     @Test

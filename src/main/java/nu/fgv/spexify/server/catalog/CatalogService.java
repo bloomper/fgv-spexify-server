@@ -26,10 +26,12 @@ import nu.fgv.spexify.server.catalog.CatalogDtos.CategoryDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.SearchResultDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.TrackDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.TrackInput;
+import nu.fgv.spexify.server.catalog.CatalogDtos.ReplayGainDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.TrackRefDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.TrashDto;
 import nu.fgv.spexify.server.media.AudioPreparer;
 import nu.fgv.spexify.server.media.LibraryPlacer;
+import nu.fgv.spexify.server.media.Loudness;
 import nu.fgv.spexify.server.media.MediaStorage;
 import nu.fgv.spexify.server.media.PreparedAudio;
 import nu.fgv.spexify.server.navidrome.LibraryScanner;
@@ -117,6 +119,7 @@ public class CatalogService {
         track.setFileChecksum(audio.checksum());
         track.setDurationMs(audio.probe().durationMs());
         track.setBitrate(audio.probe().bitrateKbps());
+        track.setLoudness(audio.loudness());
     }
 
     static int parseNumber(final @Nullable String value, final int fallback) {
@@ -746,12 +749,17 @@ public class CatalogService {
                 album.getCreatedAt(), album.getLastModifiedAt());
     }
 
-    private TrackDto toDto(final Track track) {
+    TrackDto toDto(final Track track) {
+        final Loudness loudness = track.loudness();
+        final Loudness album = loudness == null || !track.isListed() ? null : track.albumLoudness();
+
         return new TrackDto(track.getUuid(), track.getAlbum().getUuid(), track.getAlbum().getTitle(),
                 track.getDiscNumber(), track.getTrackNumber(), track.getTitle(), track.getPerformers(), track.getMelody(),
                 track.getLyricsAuthor(), track.getArranger(), track.getLyrics(), track.isLyricsSynced(),
                 track.getFileFormat(), track.getFileSize(), track.getDurationMs(), track.getBitrate(), track.isPublished(),
-                track.isListed(), track.getTrashedAt(), track.getNavidromeId(), !storage.exists(track));
+                track.isListed(), track.getTrashedAt(), track.getNavidromeId(), !storage.exists(track),
+                loudness == null ? null : new ReplayGainDto(loudness.gainDb(), loudness.peakAmplitude(),
+                        album == null ? null : album.gainDb(), album == null ? null : album.peakAmplitude()));
     }
 
 }

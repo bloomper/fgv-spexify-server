@@ -17,6 +17,7 @@
 package nu.fgv.spexify.server.admin;
 
 import nu.fgv.spexify.server.audit.AuditEntry;
+import nu.fgv.spexify.server.audit.AuditFilter;
 import nu.fgv.spexify.server.audit.AuditService;
 import nu.fgv.spexify.server.catalog.Location;
 import nu.fgv.spexify.server.catalog.TrackRepository;
@@ -89,15 +90,21 @@ public class AdminGraphqlApi {
     }
 
     @QueryMapping
-    public AuditPageDto auditLog(@Argument final @Nullable Integer page, @Argument final @Nullable Integer size) {
+    public AuditPageDto auditLog(@Argument final @Nullable Integer page, @Argument final @Nullable Integer size,
+                                 @Argument final @Nullable AuditFilter filter) {
         final int p = page == null ? 0 : page;
         final int s = size == null ? 50 : size;
-        final Page<AuditEntry> entries = auditService.page(p, s);
+        final Page<AuditEntry> entries = auditService.page(p, s, filter);
 
         return new AuditPageDto(entries.getContent().stream()
-                .map(entry -> new AuditLogEntryDto(entry.getId(), entry.getAt(), entry.getActorName(), entry.getAction(),
-                        entry.getEntityType(), entry.getEntityId(), entry.getSummary()))
+                .map(entry -> new AuditLogEntryDto(entry.getId(), entry.getAt(), entry.getActorSubject(), entry.getActorName(),
+                        entry.getAction(), entry.getEntityType(), entry.getEntityId(), entry.getSummary()))
                 .toList(), entries.getTotalElements(), p, s);
+    }
+
+    @QueryMapping
+    public List<AuditActorDto> auditActors() {
+        return auditService.actors().entrySet().stream().map(actor -> new AuditActorDto(actor.getKey(), actor.getValue())).toList();
     }
 
     public record LibraryStatusDto(boolean navidromeAvailable, boolean scanning, boolean scanPending,
@@ -108,7 +115,10 @@ public class AdminGraphqlApi {
     public record AuditPageDto(List<AuditLogEntryDto> entries, long totalCount, int page, int size) {
     }
 
-    public record AuditLogEntryDto(Long id, Instant at, @Nullable String actorName, String action, String entityType,
-                                   @Nullable String entityId, String summary) {
+    public record AuditLogEntryDto(Long id, Instant at, String actorId, @Nullable String actorName, String action,
+                                   String entityType, @Nullable String entityId, String summary) {
+    }
+
+    public record AuditActorDto(String id, @Nullable String name) {
     }
 }

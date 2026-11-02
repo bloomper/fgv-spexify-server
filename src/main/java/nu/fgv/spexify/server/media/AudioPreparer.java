@@ -16,7 +16,9 @@
 
 package nu.fgv.spexify.server.media;
 
+import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.util.error.BadRequestException;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -31,20 +33,24 @@ import java.util.HexFormat;
 import java.util.List;
 
 /**
- * Checks an uploaded file with ffprobe, refuses what is not accepted audio and converts WAV to FLAC.
+ * Checks an uploaded file with ffprobe, refuses what is not accepted audio, converts WAV to FLAC and measures its
+ * loudness.
  *
  * @author Anders Jacobsson
  * @since 1.0
  */
+@Slf4j
 @Component
 public class AudioPreparer {
 
     private final AudioProbe probe;
     private final Ffmpeg ffmpeg;
+    private final LoudnessMeter loudnessMeter;
 
-    public AudioPreparer(final AudioProbe probe, final Ffmpeg ffmpeg) {
+    public AudioPreparer(final AudioProbe probe, final Ffmpeg ffmpeg, final LoudnessMeter loudnessMeter) {
         this.probe = probe;
         this.ffmpeg = ffmpeg;
+        this.loudnessMeter = loudnessMeter;
     }
 
     public static String checksum(final Path file) throws IOException {
@@ -81,6 +87,16 @@ public class AudioPreparer {
         if (format == null) {
             throw new BadRequestException("error.upload.unsupportedFormat", result.codec());
         }
-        return new PreparedAudio(file, format, Files.size(file), checksum(file), result);
+        return new PreparedAudio(file, format, Files.size(file), checksum(file), result, measure(file));
+    }
+
+    private @Nullable Loudness measure(final Path file) {
+        try {
+            return loudnessMeter.measure(file).orElse(null);
+        } catch (final IOException e) {
+            // ReplayGain is a nicety; the LOUDNESS_SCAN job tries again
+            log.warn("Could not measure the loudness of {}", file.getFileName(), e);
+            return null;
+        }
     }
 }

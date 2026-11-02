@@ -16,6 +16,8 @@
 
 package nu.fgv.spexify.server.media;
 
+import org.jspecify.annotations.Nullable;
+
 import java.nio.file.Path;
 
 /**
@@ -26,8 +28,10 @@ import java.nio.file.Path;
  * @param size     its size in bytes
  * @param checksum its SHA-256, hex
  * @param probe    what ffprobe found, tags included
+ * @param loudness its loudness, or null when it could not be measured
  * @author Anders Jacobsson
  * @since 1.0
  */
-public record PreparedAudio(Path file, AudioFormat format, long size, String checksum, AudioProbe.Result probe) {
+public record PreparedAudio(Path file, AudioFormat format, long size, String checksum, AudioProbe.Result probe,
+                            @Nullable Loudness loudness) {
 }
