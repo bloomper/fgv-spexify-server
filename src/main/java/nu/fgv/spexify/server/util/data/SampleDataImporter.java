@@ -23,6 +23,7 @@ import nu.fgv.spexify.server.audit.AuditEntry;
 import nu.fgv.spexify.server.audit.AuditEntryRepository;
 import nu.fgv.spexify.server.catalog.Album;
 import nu.fgv.spexify.server.catalog.AlbumKind;
+import nu.fgv.spexify.server.catalog.AlbumKindRepository;
 import nu.fgv.spexify.server.catalog.AlbumRepository;
 import nu.fgv.spexify.server.catalog.Location;
 import nu.fgv.spexify.server.catalog.Track;
@@ -70,6 +71,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 
@@ -93,7 +95,7 @@ public class SampleDataImporter {
     static final String NO_ACCESS = "no-access@fgv.nu";
     private static final int SPEXREGISTER_ATTEMPTS = 30;
     private static final Duration SPEXREGISTER_RETRY_INTERVAL = Duration.ofSeconds(10);
-    private static final List<String> TABLES = List.of("audit_entry", "api_key", "app_password", "track", "album", "upload_session", "app_user");
+    private static final List<String> TABLES = List.of("audit_entry", "api_key", "app_password", "track", "album", "album_kind", "upload_session", "app_user");
 
     private final SpexifyProperties properties;
     private final Environment environment;
@@ -108,6 +110,7 @@ public class SampleDataImporter {
     private final LibraryPlacer placer;
     private final LibraryScanner scanner;
     private final AlbumRepository albumRepository;
+    private final AlbumKindRepository albumKindRepository;
     private final AppUserRepository userRepository;
     private final AppPasswordService appPasswordService;
     private final AuditEntryRepository auditRepository;
@@ -119,6 +122,7 @@ public class SampleDataImporter {
                               final SpexService spexService, @Qualifier(KeycloakConfig.ADMIN) final Keycloak keycloak,
                               final MediaStorage storage, final Ffmpeg ffmpeg, final AudioPreparer audioPreparer,
                               final LibraryPlacer placer, final LibraryScanner scanner, final AlbumRepository albumRepository,
+                              final AlbumKindRepository albumKindRepository,
                               final AppUserRepository userRepository, final AppPasswordService appPasswordService,
                               final AuditEntryRepository auditRepository, final Clock clock) {
         this.properties = properties;
@@ -134,6 +138,7 @@ public class SampleDataImporter {
         this.placer = placer;
         this.scanner = scanner;
         this.albumRepository = albumRepository;
+        this.albumKindRepository = albumKindRepository;
         this.userRepository = userRepository;
         this.appPasswordService = appPasswordService;
         this.auditRepository = auditRepository;
@@ -184,11 +189,12 @@ public class SampleDataImporter {
         try {
             final List<PreparedAudio> clips = prepareClips(clipsFolder, large ? 2 : 12);
             final int albumCount = large ? 300 : 20;
+            final List<AlbumKind> kinds = Objects.requireNonNull(transactionTemplate.execute(_ -> createKinds()));
 
             for (int i = 0; i < albumCount; i++) {
                 final int index = i;
 
-                transactionTemplate.executeWithoutResult(_ -> createAlbum(index, spex, clips, large));
+                transactionTemplate.executeWithoutResult(_ -> createAlbum(index, spex, kinds, clips, large));
             }
             transactionTemplate.executeWithoutResult(_ -> createCredentials(users));
             transactionTemplate.executeWithoutResult(_ -> createAudit(users));
@@ -335,7 +341,28 @@ public class SampleDataImporter {
         return prepared;
     }
 
-    private void createAlbum(final int index, final List<SpexDto> spex, final List<PreparedAudio> clips, final boolean large) {
+    /**
+     * The kinds a new database starts with, as in the migration: show (the default), studio, compilation and other.
+     */
+    private List<AlbumKind> createKinds() {
+        final String[][] names = {{"Föreställning", "Show"}, {"Studio", "Studio"}, {"Samling", "Compilation"}, {"Övrigt", "Other"}};
+        final List<AlbumKind> kinds = new ArrayList<>();
+
+        for (int i = 0; i < names.length; i++) {
+            final AlbumKind kind = new AlbumKind();
+
+            kind.setUuid(UUID.fromString("00000000-0000-7000-8000-00000000a00" + (i + 1)));
+            kind.setNameSv(names[i][0]);
+            kind.setNameEn(names[i][1]);
+            kind.setPosition(i + 1);
+            kind.setCreatedBy("system");
+            kinds.add(albumKindRepository.save(kind));
+        }
+        return kinds;
+    }
+
+    private void createAlbum(final int index, final List<SpexDto> spex, final List<AlbumKind> kinds,
+                             final List<PreparedAudio> clips, final boolean large) {
         final Random random = new Random(2028L + index);
         final Album album = new Album();
         final boolean compilation = index == 9;
@@ -345,12 +372,12 @@ public class SampleDataImporter {
         if (compilation) {
             album.setTitle(SampleCatalog.COMPILATION_TITLE);
             album.setYear(2023);
-            album.setKind(AlbumKind.COMPILATION);
+            album.setKind(kinds.get(2));
         } else {
             spexService.copy(picked, album.getSpex());
             album.setTitle(index >= spex.size() ? picked.title() + " – studioinspelning" : String.valueOf(picked.title()));
             album.setYear(picked.year());
-            album.setKind(index >= spex.size() ? AlbumKind.STUDIO : index % 7 == 6 ? AlbumKind.OTHER : AlbumKind.SHOW);
+            album.setKind(kinds.get(index >= spex.size() ? 1 : index % 7 == 6 ? 3 : 0));
             album.setDescription("Inspelat under föreställningarna " + picked.year() + ". Exempeldata.");
         }
         album.setPublished(index != 3 && index != 5);

@@ -354,6 +354,14 @@ public abstract class AbstractIntegrationTest {
             jdbcClient.sql("TRUNCATE TABLE " + table).update();
         }
         jdbcClient.sql("SET FOREIGN_KEY_CHECKS = 1").update();
+        // Back to the album kinds of the migration, which a test may have changed
+        jdbcClient.sql("DELETE FROM album_kind").update();
+        jdbcClient.sql("""
+                INSERT INTO album_kind (uuid, name_sv, name_en, position, created_by, created_at)
+                VALUES ('00000000-0000-7000-8000-00000000a001', 'Föreställning', 'Show', 1, 'system', NOW(6)),
+                       ('00000000-0000-7000-8000-00000000a002', 'Studio', 'Studio', 2, 'system', NOW(6)),
+                       ('00000000-0000-7000-8000-00000000a003', 'Samling', 'Compilation', 3, 'system', NOW(6)),
+                       ('00000000-0000-7000-8000-00000000a004', 'Övrigt', 'Other', 4, 'system', NOW(6))""").update();
         // Back to the defaults, which an admin test may have changed
         jdbcClient.sql("DELETE FROM settings").update();
         storage.wipe();

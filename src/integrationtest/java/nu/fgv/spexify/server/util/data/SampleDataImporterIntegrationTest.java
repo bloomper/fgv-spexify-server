@@ -80,7 +80,7 @@ class SampleDataImporterIntegrationTest extends AbstractIntegrationTest {
                 .isEqualTo(1);
 
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album").query(Long.class).single()).isEqualTo(20);
-        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album WHERE kind = 'COMPILATION' AND spex_id IS NULL").query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album a JOIN album_kind k ON k.id = a.kind_id WHERE k.name_en = 'Compilation' AND a.spex_id IS NULL").query(Long.class).single()).isEqualTo(1);
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album WHERE published = FALSE").query(Long.class).single()).isEqualTo(2);
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album WHERE trashed_at IS NOT NULL").query(Long.class).single()).isEqualTo(1);
         assertThat(jdbcClient.sql("SELECT COUNT(DISTINCT spex_id) FROM album WHERE spex_id IS NOT NULL").query(Long.class).single()).isEqualTo(2);

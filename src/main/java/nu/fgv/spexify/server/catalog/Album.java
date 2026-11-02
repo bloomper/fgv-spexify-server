@@ -20,11 +20,12 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -68,9 +69,9 @@ public class Album extends AbstractAuditable {
     @Column(name = "year")
     private @Nullable Integer year;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "kind", nullable = false)
-    private AlbumKind kind = AlbumKind.SHOW;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "kind_id", nullable = false)
+    private AlbumKind kind;
 
     @Column(name = "description")
     private @Nullable String description;

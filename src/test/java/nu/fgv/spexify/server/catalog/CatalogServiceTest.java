@@ -80,6 +80,8 @@ class CatalogServiceTest {
     @Mock
     private AlbumRepository albumRepository;
     @Mock
+    private AlbumKindService kindService;
+    @Mock
     private TrackRepository trackRepository;
     @Mock
     private CallerService callerService;
@@ -103,6 +105,20 @@ class CatalogServiceTest {
     private Album published;
     private Album unpublished;
 
+    static AlbumKind kind(final long id, final String nameSv, final String nameEn) {
+        final AlbumKind kind = new AlbumKind();
+
+        kind.setId(id);
+        kind.setUuid(uuid(100 + id));
+        kind.setNameSv(nameSv);
+        kind.setNameEn(nameEn);
+        kind.setPosition((int) id);
+        return kind;
+    }
+
+    private static final AlbumKind SHOW = kind(1, "Föreställning", "Show");
+    private static final AlbumKind STUDIO = kind(2, "Studio", "Studio");
+
     private static Album album(final long id, final String title, final boolean isPublished) {
         final Album album = new Album();
 
@@ -110,7 +126,7 @@ class CatalogServiceTest {
         album.setUuid(uuid(id));
         album.setTitle(title);
         album.setYear(2024);
-        album.setKind(AlbumKind.SHOW);
+        album.setKind(SHOW);
         album.setPublished(isPublished);
         return album;
     }
@@ -135,8 +151,10 @@ class CatalogServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CatalogService(albumRepository, trackRepository, callerService, spexService, placer, storage, audioPreparer,
+        service = new CatalogService(albumRepository, kindService, trackRepository, callerService, spexService, placer, storage, audioPreparer,
                 uploadService, scanner, auditService, Clock.fixed(NOW, ZoneOffset.UTC));
+        lenient().when(kindService.kindOrDefault(null)).thenReturn(SHOW);
+        lenient().when(kindService.kindOrDefault(STUDIO.getUuid())).thenReturn(STUDIO);
         published = album(1L, "Cleopatra", true);
         unpublished = album(2L, "Opublicerat", false);
         track(11L, published, 1, "Ouvertyr");
@@ -317,12 +335,13 @@ class CatalogServiceTest {
         as(TestCallers.editor());
         when(spexService.byId(uuid(7))).thenReturn(CLEOPATRA);
 
-        final AlbumDto created = service.albumCreate(new AlbumInput(uuid(7), " ", null, AlbumKind.SHOW, "  Inspelat live.  "));
+        final AlbumDto created = service.albumCreate(new AlbumInput(uuid(7), " ", null, null, "  Inspelat live.  "));
 
         assertThat(created.title()).isEqualTo("Cleopatra");
         assertThat(created.year()).isEqualTo(2024);
         assertThat(created.published()).isFalse();
         assertThat(created.description()).isEqualTo("Inspelat live.");
+        assertThat(created.kind().nameEn()).isEqualTo("Show");
         assertThat(created.spex()).isNotNull();
         verify(auditService).record(eq("CREATE"), eq("ALBUM"), any(), eq("Skapade albumet Cleopatra"));
     }
@@ -331,10 +350,10 @@ class CatalogServiceTest {
     void aCompilationWithoutSpexNeedsATitle() {
         as(TestCallers.editor());
 
-        assertThatThrownBy(() -> service.albumCreate(new AlbumInput(null, null, 2023, AlbumKind.COMPILATION, null)))
+        assertThatThrownBy(() -> service.albumCreate(new AlbumInput(null, null, 2023, null, null)))
                 .isInstanceOf(BadRequestException.class);
 
-        final AlbumDto created = service.albumCreate(new AlbumInput(null, " Jubileum ", 2023, AlbumKind.COMPILATION, null));
+        final AlbumDto created = service.albumCreate(new AlbumInput(null, " Jubileum ", 2023, null, null));
 
         assertThat(created.title()).isEqualTo("Jubileum");
         assertThat(created.spex()).isNull();
@@ -344,7 +363,7 @@ class CatalogServiceTest {
     void titlesAreCutAt255Characters() {
         as(TestCallers.editor());
 
-        assertThat(service.albumCreate(new AlbumInput(null, "x".repeat(300), null, AlbumKind.OTHER, null)).title()).hasSize(255);
+        assertThat(service.albumCreate(new AlbumInput(null, "x".repeat(300), null, null, null)).title()).hasSize(255);
     }
 
     @Test
@@ -353,11 +372,12 @@ class CatalogServiceTest {
         published.getSpex().setId(uuid(7));
         published.getSpex().setTitle("Cleopatra");
 
-        service.albumUpdate(uuid(1), new AlbumInput(uuid(7), "Cleopatra – studio", 2025, AlbumKind.STUDIO, null));
+        service.albumUpdate(uuid(1), new AlbumInput(uuid(7), "Cleopatra – studio", 2025, STUDIO.getUuid(), null));
 
         verify(spexService, never()).byId(any());
         assertThat(published.getTitle()).isEqualTo("Cleopatra – studio");
         assertThat(published.getYear()).isEqualTo(2025);
+        assertThat(published.getKind()).isSameAs(STUDIO);
         verify(placer).place(published);
     }
 

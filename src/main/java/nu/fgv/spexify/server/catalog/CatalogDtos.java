@@ -32,7 +32,7 @@ public final class CatalogDtos {
     private CatalogDtos() {
     }
 
-    public record AlbumDto(UUID id, String title, @Nullable Integer year, AlbumKind kind,
+    public record AlbumDto(UUID id, String title, @Nullable Integer year, AlbumKindService.AlbumKindDto kind,
                            @Nullable String description, @Nullable AlbumSpexDto spex, boolean hasCover,
                            boolean published, @Nullable Instant publishedAt, @Nullable Instant trashedAt,
                            @Nullable String navidromeId, int trackCount, double durationMs, Instant createdAt,
@@ -68,7 +68,7 @@ public final class CatalogDtos {
                               @Nullable Boolean includeUnpublished) {
     }
 
-    public record AlbumInput(@Nullable UUID spexId, @Nullable String title, @Nullable Integer year, AlbumKind kind,
+    public record AlbumInput(@Nullable UUID spexId, @Nullable String title, @Nullable Integer year, @Nullable UUID kindId,
                              @Nullable String description) {
     }
 

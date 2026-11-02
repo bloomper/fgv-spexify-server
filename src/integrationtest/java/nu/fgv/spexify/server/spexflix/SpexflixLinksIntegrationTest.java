@@ -47,7 +47,7 @@ class SpexflixLinksIntegrationTest extends AbstractIntegrationTest {
     @BeforeEach
     void publishATrack() throws Exception {
         final String albumId = graphQl(EDITOR)
-                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\", kind: SHOW}) { id } }")
+                .document("mutation { albumCreate(input: {spexId: \"00000000-0000-7000-8000-000000000001\"}) { id } }")
                 .execute()
                 .path("albumCreate.id").entity(String.class).get();
 

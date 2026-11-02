@@ -92,8 +92,12 @@ New albums start unpublished.
 Listeners see published tracks of published albums; editors see everything that is not deleted.
 Trashing is undone from the trash; only an admin deletes for good.
 
+Every album has a kind (``albumKinds``), e.g. a show or a studio recording, with a Swedish and an English name.
+Admins add, rename, reorder and delete kinds; the first is the default for new albums, and a kind that any album uses, trashed ones included, cannot be deleted.
+
 Publishing puts the files into the folder Navidrome reads, with tags written by ffmpeg, and asks Navidrome to scan; ``libraryStatus`` shows how it went.
-Stars and playlists are Navidrome's, per user, and reached through the <<api-guide.adoc#subsonic,Subsonic API>>; ``tracksByNavidromeIds`` maps Navidrome's songs back to tracks.
+Stars and playlists are Navidrome's, per user, and reached through the <<api-guide.adoc#subsonic,Subsonic API>>; ``tracksByNavidromeIds`` and ``albumsByNavidromeIds`` map Navidrome's songs and albums back to tracks and albums.
+So do play counts, when a user last played a song or album, and Navidrome's lists of recently and most played albums: Spexify's web reports plays with ``scrobble`` and reads them with ``getAlbum`` and ``getAlbumList2``.
 
 [[audit]]
 == Audit
