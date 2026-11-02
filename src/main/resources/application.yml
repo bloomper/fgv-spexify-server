@@ -72,6 +72,11 @@ logging:
 
 spexify:
   time-zone: Europe/Stockholm
+  jobs:
+    spex-refresh:
+      cron-expression: 0 15 3 * * * # Every day at 03:15
+    upload-cleanup:
+      cron-expression: 0 5 * * * * # Every hour at :05
   keycloak:
     url: ${API_KEYCLOAK_URL:https://auth.fgv.local.nu:8443/auth}
     realm: ${API_KEYCLOAK_REALM:fgv}

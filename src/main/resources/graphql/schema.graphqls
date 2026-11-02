@@ -38,6 +38,8 @@ type Query {
     tracksByNavidromeIds(ids: [String!]!): [Track!]!
     "SPEXFLIX or USER. Published tracks by id; unknown and unpublished ones are left out."
     tracksByIds(ids: [ID!]!): [TrackRef!]!
+    "ADMIN. The scheduled maintenance jobs, with their schedules and how their latest runs went."
+    maintenanceJobs: [MaintenanceJobStatus!]!
 }
 
 type Mutation {
@@ -89,6 +91,8 @@ type Mutation {
     libraryRescan: Void
     "ADMIN."
     settingsUpdate(input: SettingsInput!): Settings!
+    "ADMIN. Starts the job in the background, as its schedule would. False when it is already running."
+    maintenanceJobRun(job: MaintenanceJob!): Boolean!
 }
 
 type Me {
@@ -318,4 +322,26 @@ type AuditLogEntry {
     entityType: String!
     entityId: ID
     summary: String!
+}
+
+"""
+A scheduled maintenance job: copying the current spex data from Spexregister (SPEX_REFRESH), and removing uploads that
+were never used (UPLOAD_CLEANUP).
+"""
+enum MaintenanceJob {
+    SPEX_REFRESH
+    UPLOAD_CLEANUP
+}
+
+"A maintenance job and how its latest run went. Runs are remembered until the server restarts."
+type MaintenanceJobStatus {
+    job: MaintenanceJob!
+    "The job's cron expression, in the server's time zone, or null when it is not scheduled."
+    schedule: String
+    running: Boolean!
+    "When the latest run started, or null when it has not run since the server started."
+    lastStartedAt: Instant
+    lastFinishedAt: Instant
+    "Whether the latest run finished without an error; null while it runs."
+    lastSucceeded: Boolean
 }

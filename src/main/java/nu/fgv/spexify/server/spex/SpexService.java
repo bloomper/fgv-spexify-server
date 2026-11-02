@@ -24,7 +24,6 @@ import nu.fgv.spexify.server.config.CacheConfig;
 import nu.fgv.spexify.server.user.CallerService;
 import nu.fgv.spexify.server.util.error.SpexregisterUnavailableException;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -117,7 +116,6 @@ public class SpexService {
     /**
      * Refreshes the copied spex data of every album, at night.
      */
-    @Scheduled(cron = "0 15 3 * * *", zone = "Europe/Stockholm")
     @Transactional
     public void refresh() {
         final List<UUID> ids = albumRepository.findSpexIds();
