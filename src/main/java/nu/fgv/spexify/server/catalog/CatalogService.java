@@ -347,20 +347,24 @@ public class CatalogService {
     }
 
     /**
-     * An album the caller may see, without its tracks.
+     * An album the caller may see, with its spex loaded but not its tracks.
      */
     @Transactional(readOnly = true)
     public Album visibleAlbum(final UUID id) {
-        return visibleAlbum(id, callerService.current());
+        final Album album = visibleAlbum(id, callerService.current());
+
+        album.getSpex().size();
+        return album;
     }
 
     /**
-     * An album the caller may see, with its tracks loaded.
+     * An album the caller may see, with its spex and tracks loaded.
      */
     @Transactional(readOnly = true)
     public Album visibleAlbumWithTracks(final UUID id) {
         final Album album = visibleAlbum(id, callerService.current());
 
+        album.getSpex().size();
         album.getTracks().size();
         return album;
     }
