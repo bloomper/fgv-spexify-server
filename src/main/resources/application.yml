@@ -95,6 +95,12 @@ spexify:
   media:
     root: ${API_MEDIA_ROOT:./data/media}
     max-track-size: ${API_MAX_TRACK_SIZE:2GB}
+    # The API's public address, where signed links to audio and downloads point (API_HOST, outside any CDN)
+    public-url: ${API_PUBLIC_URL:https://api.spexify.fgv.local.nu:8443}
+    # Signs those links; required
+    signing-key: ${API_MEDIA_SIGNING_KEY:}
+    # Long enough for a long album or a paused track; the web asks for a new link when one runs out
+    link-lifetime: 6h
   navidrome:
     url: ${API_NAVIDROME_URL:http://localhost:4533}
     system-user: ${API_NAVIDROME_SYSTEM_USER:spexify-system}
@@ -140,3 +146,6 @@ spexify:
   crypto:
     # A key for development only; every other environment sets API_APP_PASSWORD_ENCRYPTION_KEY
     app-password-encryption-key: ${API_APP_PASSWORD_ENCRYPTION_KEY:c3BleGlmeS1kZXZlbG9wbWVudC1rZXktbm90LXNlY3Jl}
+  media:
+    # A key for development only; every other environment sets API_MEDIA_SIGNING_KEY
+    signing-key: ${API_MEDIA_SIGNING_KEY:spexify-development-signing-key}

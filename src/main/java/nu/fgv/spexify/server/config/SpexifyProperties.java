@@ -47,7 +47,10 @@ public record SpexifyProperties(String timeZone,
     public record Security(List<String> authorizedParties, Duration accessCache) {
     }
 
-    public record Media(Path root, DataSize maxTrackSize) {
+    /**
+     * Where media lies, and the signed links that serve it from the API's public address without a token.
+     */
+    public record Media(Path root, DataSize maxTrackSize, String publicUrl, String signingKey, Duration linkLifetime) {
     }
 
     public record Navidrome(String url, String systemUser) {

@@ -20,6 +20,7 @@ import jakarta.persistence.OptimisticLockException;
 import nu.fgv.spexify.server.util.Locales;
 import nu.fgv.spexify.server.util.error.BadRequestException;
 import nu.fgv.spexify.server.util.error.ConflictException;
+import nu.fgv.spexify.server.util.error.LinkExpiredException;
 import nu.fgv.spexify.server.util.error.DirectoryUnavailableException;
 import nu.fgv.spexify.server.util.error.ResourceNotFoundException;
 import nu.fgv.spexify.server.util.error.SpexregisterUnavailableException;
@@ -76,6 +77,11 @@ public class HttpErrorAdvice {
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<Error> conflict(final ConflictException e, final Locale locale) {
         return error(HttpStatus.CONFLICT, "CONFLICT", e.getDetailMessageCode(), e.getDetailMessageArguments(), locale);
+    }
+
+    @ExceptionHandler(LinkExpiredException.class)
+    public ResponseEntity<Error> linkExpired(final LinkExpiredException e, final Locale locale) {
+        return error(HttpStatus.GONE, "GONE", LinkExpiredException.MESSAGE_CODE, null, locale);
     }
 
     @ExceptionHandler({OptimisticLockingFailureException.class, OptimisticLockException.class})

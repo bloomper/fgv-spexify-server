@@ -72,7 +72,7 @@ class UploadServiceTest {
     @BeforeEach
     void setUp() {
         final SpexifyProperties properties = new SpexifyProperties(null, null, null,
-                new SpexifyProperties.Media(folder, DataSize.ofBytes(100)), null, null, null, null, null);
+                new SpexifyProperties.Media(folder, DataSize.ofBytes(100), null, null, null), null, null, null, null, null);
 
         service = new UploadService(repository, storage, properties, clock);
         lenient().when(storage.uploadFile(anyString())).thenAnswer(invocation -> folder.resolve(invocation.<String>getArgument(0)));

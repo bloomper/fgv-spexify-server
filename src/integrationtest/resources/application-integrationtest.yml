@@ -3,6 +3,8 @@ logging:
     path: ./build/integrationtest-data/log_data
 
 spexify:
+  media:
+    signing-key: integration-test-signing-key
   crypto:
     app-password-encryption-key: aW50ZWdyYXRpb24tdGVzdC1lbmNyeXB0aW9uLWtleS0x
   security:

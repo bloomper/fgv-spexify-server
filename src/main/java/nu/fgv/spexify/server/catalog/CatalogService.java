@@ -347,6 +347,28 @@ public class CatalogService {
     }
 
     /**
+     * A track behind a signed link, which was checked against its caller when it was signed; there is no caller now.
+     */
+    @Transactional(readOnly = true)
+    public Track linkedTrack(final UUID id) {
+        final Track track = trackRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.track.notFound", id));
+
+        track.getAlbum().getTitle();
+        return track;
+    }
+
+    /**
+     * An album behind a signed link, with its tracks; see {@link #linkedTrack}.
+     */
+    @Transactional(readOnly = true)
+    public Album linkedAlbumWithTracks(final UUID id) {
+        final Album album = albumRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
+
+        album.getTracks().size();
+        return album;
+    }
+
+    /**
      * An album the caller may see, with its spex loaded but not its tracks.
      */
     @Transactional(readOnly = true)

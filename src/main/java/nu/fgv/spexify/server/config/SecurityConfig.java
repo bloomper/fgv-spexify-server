@@ -39,7 +39,7 @@ import org.springframework.security.web.SecurityFilterChain;
  * Two stateless chains. The Subsonic API ({@code /rest/**}) is open at HTTP level, because the gateway authenticates
  * app passwords, API keys and tokens itself and answers in the Subsonic format. Everything else is a JWT resource
  * server bound to {@code fgv-spexify} tokens (and Spexflix's service account); GraphQL is open at HTTP level because the
- * services decide access.
+ * services decide access, and so are the signed media links under {@code /media/}, whose signature is the access.
  *
  * @author Anders Jacobsson
  * @since 1.0
@@ -70,6 +70,8 @@ public class SecurityConfig {
                         authorize
                                 .requestMatchers(EndpointRequest.to(HealthEndpoint.class)).permitAll()
                                 .requestMatchers(HttpMethod.GET, "/docs/**").permitAll()
+                                // Signed links; MediaController checks the signature
+                                .requestMatchers(HttpMethod.GET, "/media/**").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/api/graphql").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/graphql").permitAll()
                                 .anyRequest().authenticated()
