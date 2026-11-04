@@ -3,6 +3,7 @@ name: fgv-spexify-server
 services:
   spexify-mysql:
     image: 'mysql:8.4'
+    restart: unless-stopped
     command: --log-error=/var/log/mysql/error.log
     environment:
       MYSQL_HOST: localhost
@@ -28,6 +29,7 @@ services:
 
   spexify-navidrome:
     image: 'deluan/navidrome:0.64.2'
+    restart: unless-stopped
     environment:
       ND_MUSICFOLDER: /music
       ND_DATAFOLDER: /data
@@ -72,7 +74,7 @@ services:
       API_SAMPLE_DATA_SIZE: ${API_SAMPLE_DATA_SIZE:-small}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak-server:8080/auth/realms/fgv/protocol/openid-connect/certs
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://auth.fgv.local.nu:8443/auth/realms/fgv
-    restart: on-failure
+    restart: unless-stopped
     healthcheck:
       test: [ "CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000;printf \"GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n\" >&3;grep -q \"^HTTP/1.1 200\" <&3" ]
       interval: 10s
