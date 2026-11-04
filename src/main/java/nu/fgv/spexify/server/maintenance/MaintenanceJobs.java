@@ -18,6 +18,7 @@ package nu.fgv.spexify.server.maintenance;
 
 import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.catalog.LoudnessScan;
+import nu.fgv.spexify.server.listening.ListeningService;
 import nu.fgv.spexify.server.spex.SpexService;
 import nu.fgv.spexify.server.upload.UploadService;
 import org.jspecify.annotations.Nullable;
@@ -48,11 +49,13 @@ public class MaintenanceJobs {
     private final ConcurrentMap<MaintenanceJob, Run> lastRuns = new ConcurrentHashMap<>();
 
     @Autowired
-    public MaintenanceJobs(final SpexService spexService, final UploadService uploadService, final LoudnessScan loudnessScan) {
+    public MaintenanceJobs(final SpexService spexService, final UploadService uploadService, final LoudnessScan loudnessScan,
+                           final ListeningService listeningService) {
         this(Map.of(
                 MaintenanceJob.SPEX_REFRESH, spexService::refresh,
                 MaintenanceJob.UPLOAD_CLEANUP, uploadService::cleanUp,
-                MaintenanceJob.LOUDNESS_SCAN, loudnessScan::run
+                MaintenanceJob.LOUDNESS_SCAN, loudnessScan::run,
+                MaintenanceJob.LISTENING_SYNC, listeningService::sync
         ));
     }
 
@@ -73,6 +76,11 @@ public class MaintenanceJobs {
     @Scheduled(cron = "${spexify.jobs.loudness-scan.cron-expression}", zone = "${spexify.time-zone}")
     void loudnessScan() {
         run(MaintenanceJob.LOUDNESS_SCAN);
+    }
+
+    @Scheduled(cron = "${spexify.jobs.listening-sync.cron-expression}", zone = "${spexify.time-zone}")
+    void listeningSync() {
+        run(MaintenanceJob.LISTENING_SYNC);
     }
 
     /**

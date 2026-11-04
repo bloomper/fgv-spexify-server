@@ -51,4 +51,18 @@ class SubsonicGatewayTest {
         assertThat(LibraryScanner.trackUuid(new NavidromeClient.Song("1", "a", "Artist/Album/01 - Title.flac", uuid))).isEqualTo(uuid);
         assertThat(LibraryScanner.trackUuid(new NavidromeClient.Song("1", "a", "Artist/Album/01 - Title.flac", ""))).isNull();
     }
+
+    @Test
+    void seesWhetherNavidromeAcceptedAChange() {
+        assertThat(SubsonicGateway.accepted("<subsonic-response xmlns=\"http://subsonic.org/restapi\" status=\"ok\" version=\"1.16.1\"/>".getBytes())).isTrue();
+        assertThat(SubsonicGateway.accepted("{\"subsonic-response\":{\"status\":\"ok\",\"version\":\"1.16.1\"}}".getBytes())).isTrue();
+        assertThat(SubsonicGateway.accepted("{\"subsonic-response\":{\"status\":\"failed\",\"error\":{\"code\":70}}}".getBytes())).isFalse();
+    }
+
+    @Test
+    void readsNavidromesTimestamps() {
+        assertThat(NavidromeClient.instant("2026-11-01T10:00:00.123Z")).isEqualTo(java.time.Instant.parse("2026-11-01T10:00:00.123Z"));
+        assertThat(NavidromeClient.instant("")).isNull();
+        assertThat(NavidromeClient.instant("yesterday")).isNull();
+    }
 }

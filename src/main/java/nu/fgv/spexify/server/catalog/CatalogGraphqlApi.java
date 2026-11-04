@@ -17,7 +17,6 @@
 package nu.fgv.spexify.server.catalog;
 
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumDto;
-import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumFilter;
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumInput;
 import nu.fgv.spexify.server.catalog.CatalogDtos.CategoryDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.SearchResultDto;
@@ -76,11 +75,6 @@ public class CatalogGraphqlApi {
     public List<TrackDto> radio(@Argument final @Nullable UUID trackId, @Argument final @Nullable UUID albumId,
                                 @Argument final @Nullable Integer limit) {
         return browseService.radio(trackId, albumId, limit == null ? 50 : limit);
-    }
-
-    @QueryMapping
-    public List<AlbumDto> albums(@Argument final @Nullable AlbumFilter filter) {
-        return service.albums(filter);
     }
 
     @QueryMapping

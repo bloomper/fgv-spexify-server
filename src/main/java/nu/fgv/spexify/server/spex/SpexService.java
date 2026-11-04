@@ -70,24 +70,6 @@ public class SpexService {
     }
 
     /**
-     * Spex whose title or year matches, for editors picking the spex of an album. Revivals come right after their
-     * original, which is included even when only a revival matches, so that they can be shown together.
-     */
-    public List<SpexDto> search(final String query) {
-        callerService.current().requireEditor();
-
-        final String q = query.strip().toLowerCase(Locale.ROOT);
-
-        try {
-            return group(client.allSpex(), spex -> q.isEmpty()
-                    || (spex.title() != null && spex.title().toLowerCase(Locale.ROOT).contains(q))
-                    || (spex.year() != null && spex.year().toString().equals(q)), MAX_RESULTS);
-        } catch (final SpexregisterClient.SpexregisterCallException e) {
-            throw new SpexregisterUnavailableException(e);
-        }
-    }
-
-    /**
      * The matching spex grouped by original, newest original first: each original, then its matching revivals by
      * year. At most {@code limit} spex, but never splitting a group.
      */
@@ -122,6 +104,24 @@ public class SpexService {
             result.addAll(group);
         }
         return result;
+    }
+
+    /**
+     * Spex whose title or year matches, for editors picking the spex of an album. Revivals come right after their
+     * original, which is included even when only a revival matches, so that they can be shown together.
+     */
+    public List<SpexDto> search(final String query) {
+        callerService.current().requireEditor();
+
+        final String q = query.strip().toLowerCase(Locale.ROOT);
+
+        try {
+            return group(client.allSpex(), spex -> q.isEmpty()
+                    || (spex.title() != null && spex.title().toLowerCase(Locale.ROOT).contains(q))
+                    || (spex.year() != null && spex.year().toString().equals(q)), MAX_RESULTS);
+        } catch (final SpexregisterClient.SpexregisterCallException e) {
+            throw new SpexregisterUnavailableException(e);
+        }
     }
 
     public SpexDto byId(final UUID id) {

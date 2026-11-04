@@ -6,8 +6,12 @@ type Query {
     me: Me!
     "USER. The start page texts and the limits for app passwords."
     settings: Settings!
-    "USER. Albums by year, newest first. Unpublished ones only for EDITOR, and only when asked for."
+    "USER. Albums by year, newest first, or in the filter's order. Unpublished ones only for EDITOR, and only when asked for."
     albums(filter: AlbumFilter): [Album!]!
+    "USER. Listed albums ranked by everyone: by weighted average rating, likes or plays of their tracks. Albums without any are left out. The filter's sort and liked are ignored."
+    topAlbums(by: TopBy = RATED, filter: AlbumFilter, limit: Int = 20): [Album!]!
+    "USER. Listed tracks of the listed albums the filter lists, ranked by everyone. Tracks without any are left out."
+    topTracks(by: TopBy = RATED, filter: AlbumFilter, limit: Int = 20): [Track!]!
     "USER. An album; unpublished or trashed ones only for EDITOR."
     album(id: ID!): Album
     "USER. The most recently published albums."
@@ -164,6 +168,43 @@ input AlbumFilter {
     spexId: ID
     "EDITOR only."
     includeUnpublished: Boolean
+    kindId: ID
+    "Albums from this year on."
+    fromYear: Int
+    "Albums up to and including this year."
+    toYear: Int
+    "Only albums the caller likes."
+    liked: Boolean
+    sort: AlbumSort
+}
+
+"How to order albums. Ties keep the default order: newest year first, then title."
+enum AlbumSort {
+    "Newest year first; the default."
+    YEAR_DESC
+    YEAR_ASC
+    TITLE
+    "Most recently published first."
+    PUBLISHED
+    "Highest weighted average rating first; unrated albums last."
+    RATING
+    "Most liked first."
+    LIKES
+    "Most played by everyone first."
+    PLAYS
+}
+
+"""
+What a top list ranks by. Navidrome keeps ratings, likes and plays per user; Spexify mirrors them as the Subsonic
+gateway passes them on, and copies them every night (LISTENING_SYNC).
+"""
+enum TopBy {
+    "Everyone's ratings, as an average weighed against two votes of the mean of all ratings, so that one 5 does not top the list."
+    RATED
+    "How many like it."
+    LIKED
+    "How often everyone played it; an album counts its tracks' plays."
+    PLAYED
 }
 
 input AlbumInput {
@@ -238,6 +279,13 @@ type Album {
     tracks: [Track!]!
     trackCount: Int!
     durationMs: Float!
+    "Everyone's average rating, or null when nobody rated it."
+    averageRating: Float
+    ratingCount: Int!
+    "How many like it."
+    likeCount: Int!
+    "How often everyone played its tracks."
+    totalPlays: Int!
     createdAt: Instant!
     lastModifiedAt: Instant
 }
@@ -269,6 +317,13 @@ type Track {
     replayGain: ReplayGain
     "Published Spexflix videos with a chapter linked to the track; empty when Spexflix is unavailable."
     videoLinks: [VideoLink!]!
+    "Everyone's average rating, or null when nobody rated it."
+    averageRating: Float
+    ratingCount: Int!
+    "How many like it."
+    likeCount: Int!
+    "How often everyone played it."
+    totalPlays: Int!
 }
 
 type VideoLink {
@@ -396,13 +451,15 @@ type AuditLogEntry {
 
 """
 A scheduled maintenance job: copying the current spex data from Spexregister (SPEX_REFRESH), removing uploads that
-were never used (UPLOAD_CLEANUP), and measuring the loudness of tracks that have none yet, for ReplayGain
-(LOUDNESS_SCAN).
+were never used (UPLOAD_CLEANUP), measuring the loudness of tracks that have none yet, for ReplayGain
+(LOUDNESS_SCAN), and copying everyone's ratings, likes and plays from Navidrome, for averages and top lists
+(LISTENING_SYNC).
 """
 enum MaintenanceJob {
     SPEX_REFRESH
     UPLOAD_CLEANUP
     LOUDNESS_SCAN
+    LISTENING_SYNC
 }
 
 "A maintenance job and how its latest run went. Runs are remembered until the server restarts."

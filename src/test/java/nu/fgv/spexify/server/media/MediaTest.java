@@ -156,11 +156,11 @@ class MediaTest {
     void readsTheSummaryOfEbur128() {
         final String log = """
                 [Parsed_ebur128_0 @ 0x1] Summary:
-
+                
                   Integrated loudness:
                     I:         -14.3 LUFS
                     Threshold: -24.3 LUFS
-
+                
                   True peak:
                     Peak:       -0.4 dBFS
                 """;

@@ -86,11 +86,13 @@ public class SubsonicGateway {
     private final CallerService callerService;
     private final JwtDecoder jwtDecoder;
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
+    private final List<SubsonicActivityListener> listeners;
 
     public SubsonicGateway(final NavidromeClient navidrome, final AppPasswordService appPasswordService,
                            final AccessChecker accessChecker, final LoginThrottle throttle,
                            final CallerService callerService, final JwtDecoder jwtDecoder,
-                           final JwtAuthenticationConverter jwtAuthenticationConverter) {
+                           final JwtAuthenticationConverter jwtAuthenticationConverter,
+                           final List<SubsonicActivityListener> listeners) {
         this.navidrome = navidrome;
         this.appPasswordService = appPasswordService;
         this.accessChecker = accessChecker;
@@ -98,6 +100,7 @@ public class SubsonicGateway {
         this.callerService = callerService;
         this.jwtDecoder = jwtDecoder;
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
+        this.listeners = listeners;
     }
 
     /**
@@ -134,6 +137,15 @@ public class SubsonicGateway {
         final String[] values = parameters.get(name);
 
         return values == null || values.length == 0 ? null : values[0];
+    }
+
+    /**
+     * Whether a Subsonic answer, in XML or JSON, says {@code status="ok"}.
+     */
+    static boolean accepted(final byte[] body) {
+        final String text = new String(body, java.nio.charset.StandardCharsets.UTF_8);
+
+        return text.matches("(?s).*status\\s*(=\\s*\"ok\"|\"\\s*:\\s*\"ok\").*");
     }
 
     @RequestMapping(path = "/rest/**", method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.HEAD})
@@ -305,6 +317,28 @@ public class SubsonicGateway {
         response.setStatus(upstream.statusCode());
         for (final String header : RESPONSE_HEADERS) {
             upstream.headers().firstValue(header).ifPresent(value -> response.setHeader(header, value));
+        }
+
+        final String activity = endpoint.toLowerCase(Locale.ROOT);
+
+        if (!listeners.isEmpty() && SubsonicActivityListener.ENDPOINTS.contains(activity)) {
+            // A small answer: read it whole to see whether Navidrome accepted the change before telling the listeners
+            final byte[] body;
+
+            try (InputStream in = upstream.body()) {
+                body = in.readAllBytes();
+            }
+            response.getOutputStream().write(body);
+            if (upstream.statusCode() == 200 && accepted(body)) {
+                for (final SubsonicActivityListener listener : listeners) {
+                    try {
+                        listener.accepted(username, activity, parameters);
+                    } catch (final RuntimeException e) {
+                        log.warn("Could not record {} by {}", activity, username, e);
+                    }
+                }
+            }
+            return;
         }
         try (InputStream body = upstream.body(); OutputStream out = response.getOutputStream()) {
             body.transferTo(out);

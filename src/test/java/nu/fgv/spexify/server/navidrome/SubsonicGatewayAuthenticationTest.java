@@ -89,7 +89,7 @@ class SubsonicGatewayAuthenticationTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        gateway = new SubsonicGateway(navidrome, appPasswordService, accessChecker, throttle, callerService, jwtDecoder, jwtAuthenticationConverter);
+        gateway = new SubsonicGateway(navidrome, appPasswordService, accessChecker, throttle, callerService, jwtDecoder, jwtAuthenticationConverter, java.util.List.of());
         lisa = new AppUser();
         lisa.setSubject("s-lisa");
         lisa.setUsername("lisa");

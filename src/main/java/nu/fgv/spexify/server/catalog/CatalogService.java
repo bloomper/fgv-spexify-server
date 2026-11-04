@@ -23,10 +23,10 @@ import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumFilter;
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumInput;
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumSpexDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.CategoryDto;
+import nu.fgv.spexify.server.catalog.CatalogDtos.ReplayGainDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.SearchResultDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.TrackDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.TrackInput;
-import nu.fgv.spexify.server.catalog.CatalogDtos.ReplayGainDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.TrackRefDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.TrashDto;
 import nu.fgv.spexify.server.media.AudioPreparer;
@@ -35,7 +35,6 @@ import nu.fgv.spexify.server.media.Loudness;
 import nu.fgv.spexify.server.media.MediaStorage;
 import nu.fgv.spexify.server.media.PreparedAudio;
 import nu.fgv.spexify.server.navidrome.LibraryScanner;
-import nu.fgv.spexify.server.spex.SpexDto;
 import nu.fgv.spexify.server.spex.SpexService;
 import nu.fgv.spexify.server.upload.UploadService;
 import nu.fgv.spexify.server.user.Caller;
@@ -162,6 +161,10 @@ public class CatalogService {
                 track.getAlbum().mainSpex() == null ? null : track.getAlbum().mainSpex().getId());
     }
 
+    private static @Nullable UUID categoryId(final Album album) {
+        return album.mainSpex() == null ? null : album.mainSpex().getCategoryId();
+    }
+
     @Transactional(readOnly = true)
     public List<AlbumDto> albums(final @Nullable AlbumFilter filter) {
         final Caller caller = callerService.current();
@@ -177,7 +180,26 @@ public class CatalogService {
                 .filter(album -> filter == null || filter.categoryId() == null || filter.categoryId().equals(categoryId(album)))
                 .filter(album -> filter == null || filter.year() == null || filter.year().equals(album.getYear()))
                 .filter(album -> filter == null || filter.spexId() == null || album.isAbout(filter.spexId()))
+                .filter(album -> filter == null || filter.kindId() == null || filter.kindId().equals(album.getKind().getUuid()))
+                .filter(album -> filter == null || filter.fromYear() == null || (album.getYear() != null && album.getYear() >= filter.fromYear()))
+                .filter(album -> filter == null || filter.toYear() == null || (album.getYear() != null && album.getYear() <= filter.toYear()))
                 .map(album -> toDto(album, caller))
+                .toList();
+    }
+
+    /**
+     * The listed tracks of the listed albums the filter lists, newest album first, in album order. Unpublished albums
+     * are never included.
+     */
+    @Transactional(readOnly = true)
+    public List<TrackDto> listedTracks(final @Nullable AlbumFilter filter) {
+        final Set<UUID> albums = albums(filter == null ? null : new AlbumFilter(filter.categoryId(), filter.year(), filter.spexId(),
+                false, filter.kindId(), filter.fromYear(), filter.toYear(), null, null))
+                .stream().map(AlbumDto::id).collect(Collectors.toSet());
+
+        return trackRepository.findListed().stream()
+                .filter(track -> albums.contains(track.getAlbum().getUuid()))
+                .map(this::toDto)
                 .toList();
     }
 
@@ -266,6 +288,8 @@ public class CatalogService {
                 .toList();
     }
 
+    // ---------------------------------------------------------------------------------------------------- albums
+
     @Transactional(readOnly = true)
     public List<TrackRefDto> spexTracks(final List<UUID> spexIds) {
         final Caller caller = callerService.current();
@@ -276,8 +300,6 @@ public class CatalogService {
         return spexIds.isEmpty() ? List.of()
                 : trackRepository.findListedBySpex(Set.copyOf(spexIds)).stream().map(CatalogService::toRef).toList();
     }
-
-    // ---------------------------------------------------------------------------------------------------- albums
 
     @Transactional(readOnly = true)
     public List<TrackRefDto> tracksByIds(final Collection<UUID> ids) {
@@ -454,6 +476,8 @@ public class CatalogService {
         album.setDescription(StringUtils.hasText(input.description()) ? input.description().strip() : null);
     }
 
+    // ---------------------------------------------------------------------------------------------------- tracks
+
     @Transactional
     public AlbumDto albumPublish(final UUID id, final boolean published) {
         final Caller caller = callerService.current();
@@ -471,8 +495,6 @@ public class CatalogService {
                 (published ? "Publicerade albumet " : "Avpublicerade albumet ") + album.getTitle());
         return toDto(album, caller);
     }
-
-    // ---------------------------------------------------------------------------------------------------- tracks
 
     @Transactional
     public AlbumDto albumTrash(final UUID id, final boolean trashed) {
@@ -622,6 +644,8 @@ public class CatalogService {
         return toDto(track);
     }
 
+    // ---------------------------------------------------------------------------------------------------- helpers
+
     @Transactional
     public TrackDto trackReplaceAudio(final UUID id, final String uploadId) {
         final Caller caller = callerService.current();
@@ -648,8 +672,6 @@ public class CatalogService {
         auditService.record("UPDATE", "TRACK", track.getUuid(), "Bytte ljudfil för " + track.getTitle());
         return toDto(track);
     }
-
-    // ---------------------------------------------------------------------------------------------------- helpers
 
     @Transactional
     public TrackDto trackUpdate(final UUID id, final TrackInput input) {
@@ -786,10 +808,6 @@ public class CatalogService {
                 album.getCoverExtension() != null, album.isPublished(), album.getPublishedAt(), album.getTrashedAt(),
                 album.getNavidromeId(), tracks.size(), tracks.stream().mapToLong(Track::getDurationMs).sum(),
                 album.getCreatedAt(), album.getLastModifiedAt());
-    }
-
-    private static @Nullable UUID categoryId(final Album album) {
-        return album.mainSpex() == null ? null : album.mainSpex().getCategoryId();
     }
 
     TrackDto toDto(final Track track) {

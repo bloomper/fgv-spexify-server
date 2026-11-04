@@ -112,6 +112,45 @@ class SubsonicGatewayIntegrationTest extends AbstractIntegrationTest {
                 .variable("ids", java.util.List.of(navidromeId))
                 .execute()
                 .path("tracksByNavidromeIds[0].id").entity(String.class).isEqualTo(trackId);
+
+        // What the app rates, likes and plays counts for everyone
+        assertThat(subsonic("setRating", credentials.username(), credentials.password(), Map.of("id", navidromeId, "rating", "4"))
+                .path("status").asString()).isEqualTo("ok");
+        subsonic("star", credentials.username(), credentials.password(), Map.of("id", navidromeId));
+        subsonic("scrobble", credentials.username(), credentials.password(), Map.of("id", navidromeId, "submission", "true"));
+        expectEveryone(trackId, albumId);
+
+        // The nightly copy from Navidrome comes to the same
+        graphQl(ADMIN).document("mutation { maintenanceJobRun(job: LISTENING_SYNC) }").execute().errors().verify();
+        final Instant copied = Instant.now().plus(Duration.ofSeconds(30));
+
+        while (Instant.now().isBefore(copied) && graphQl(ADMIN).document("{ maintenanceJobs { job lastSucceeded } }").execute()
+                .path("maintenanceJobs").entityList(Map.class).get().stream()
+                .noneMatch(job -> "LISTENING_SYNC".equals(job.get("job")) && Boolean.TRUE.equals(job.get("lastSucceeded")))) {
+            Thread.sleep(200);
+        }
+        expectEveryone(trackId, albumId);
+    }
+
+    private void expectEveryone(final String trackId, final String albumId) {
+        graphQl(LISTENER)
+                .document("""
+                        query($album: ID!) {
+                          album(id: $album) { totalPlays tracks { averageRating ratingCount likeCount totalPlays } }
+                          topTracks(by: RATED) { id }
+                          liked: topTracks(by: LIKED) { id }
+                          played: topAlbums(by: PLAYED) { id }
+                        }""")
+                .variable("album", albumId)
+                .execute()
+                .path("album.tracks[0].averageRating").entity(Double.class).isEqualTo(4.0)
+                .path("album.tracks[0].ratingCount").entity(Integer.class).isEqualTo(1)
+                .path("album.tracks[0].likeCount").entity(Integer.class).isEqualTo(1)
+                .path("album.tracks[0].totalPlays").entity(Integer.class).isEqualTo(1)
+                .path("album.totalPlays").entity(Integer.class).isEqualTo(1)
+                .path("topTracks[0].id").entity(String.class).isEqualTo(trackId)
+                .path("liked[0].id").entity(String.class).isEqualTo(trackId)
+                .path("played[0].id").entity(String.class).isEqualTo(albumId);
     }
 
     private Credentials appPassword(final String user) {
