@@ -120,40 +120,6 @@ public class BrowseService {
         return name.strip().toLowerCase(Locale.ROOT);
     }
 
-    @Transactional(readOnly = true)
-    public List<CreditDto> credits(final CreditKind kind) {
-        callerService.current().requireUser();
-
-        final Map<String, String> display = new LinkedHashMap<>();
-        final Map<String, Integer> counts = new LinkedHashMap<>();
-
-        for (final Track track : trackRepository.findListed()) {
-            for (final String name : names(track, kind)) {
-                display.putIfAbsent(key(name), name);
-                counts.merge(key(name), 1, Integer::sum);
-            }
-        }
-
-        final Collator collator = Collator.getInstance(Locale.forLanguageTag("sv"));
-
-        return counts.entrySet().stream()
-                .map(entry -> new CreditDto(display.get(entry.getKey()), entry.getValue()))
-                .sorted(Comparator.comparing(CreditDto::name, collator))
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<TrackDto> creditTracks(final CreditKind kind, final String name) {
-        callerService.current().requireUser();
-
-        final String wanted = key(name);
-
-        return trackRepository.findListed().stream()
-                .filter(track -> names(track, kind).stream().map(BrowseService::key).anyMatch(wanted::equals))
-                .map(catalogService::toDto)
-                .toList();
-    }
-
     /**
      * How well a track goes with the seed: the same melody counts most, then the same original artist, shared
      * performers, authors and arrangers, and the same spex.
@@ -190,6 +156,40 @@ public class BrowseService {
         final Set<String> names = new HashSet<>(names(a, kind).stream().map(BrowseService::key).toList());
 
         return names(b, kind).stream().map(BrowseService::key).anyMatch(names::contains);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CreditDto> credits(final CreditKind kind) {
+        callerService.current().requireUser();
+
+        final Map<String, String> display = new LinkedHashMap<>();
+        final Map<String, Integer> counts = new LinkedHashMap<>();
+
+        for (final Track track : trackRepository.findListed()) {
+            for (final String name : names(track, kind)) {
+                display.putIfAbsent(key(name), name);
+                counts.merge(key(name), 1, Integer::sum);
+            }
+        }
+
+        final Collator collator = Collator.getInstance(Locale.forLanguageTag("sv"));
+
+        return counts.entrySet().stream()
+                .map(entry -> new CreditDto(display.get(entry.getKey()), entry.getValue()))
+                .sorted(Comparator.comparing(CreditDto::name, collator))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TrackDto> creditTracks(final CreditKind kind, final String name) {
+        callerService.current().requireUser();
+
+        final String wanted = key(name);
+
+        return trackRepository.findListed().stream()
+                .filter(track -> names(track, kind).stream().map(BrowseService::key).anyMatch(wanted::equals))
+                .map(catalogService::toDto)
+                .toList();
     }
 
     /**

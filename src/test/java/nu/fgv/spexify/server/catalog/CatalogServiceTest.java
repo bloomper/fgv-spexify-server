@@ -26,8 +26,8 @@ import nu.fgv.spexify.server.catalog.CatalogDtos.TrackInput;
 import nu.fgv.spexify.server.media.AudioFormat;
 import nu.fgv.spexify.server.media.AudioPreparer;
 import nu.fgv.spexify.server.media.AudioProbe;
-import nu.fgv.spexify.server.media.Loudness;
 import nu.fgv.spexify.server.media.LibraryPlacer;
+import nu.fgv.spexify.server.media.Loudness;
 import nu.fgv.spexify.server.media.MediaStorage;
 import nu.fgv.spexify.server.media.PreparedAudio;
 import nu.fgv.spexify.server.navidrome.LibraryScanner;
@@ -77,7 +77,8 @@ class CatalogServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-11-01T10:00:00Z");
     private static final SpexDto CLEOPATRA = new SpexDto(uuid(7), "Cleopatra", 2024, false, null, uuid(1), "Chalmersspexet");
-
+    private static final AlbumKind SHOW = kind(1, "Föreställning", "Show");
+    private static final AlbumKind STUDIO = kind(2, "Studio", "Studio");
     private final List<Album> albums = new ArrayList<>();
     @Mock
     private AlbumRepository albumRepository;
@@ -117,9 +118,6 @@ class CatalogServiceTest {
         kind.setPosition((int) id);
         return kind;
     }
-
-    private static final AlbumKind SHOW = kind(1, "Föreställning", "Show");
-    private static final AlbumKind STUDIO = kind(2, "Studio", "Studio");
 
     private static Album album(final long id, final String title, final boolean isPublished) {
         final Album album = new Album();

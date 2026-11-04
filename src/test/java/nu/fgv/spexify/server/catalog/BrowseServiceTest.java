@@ -56,19 +56,6 @@ class BrowseServiceTest {
     private CallerService callerService;
     private BrowseService service;
 
-    @BeforeEach
-    void setUp() {
-        service = new BrowseService(trackRepository, catalogService, callerService, new Random(1));
-        lenient().when(callerService.current()).thenReturn(TestCallers.listener());
-        lenient().when(catalogService.toDto(any())).thenAnswer(invocation -> {
-            final Track track = invocation.getArgument(0);
-            final TrackDto dto = mock(TrackDto.class);
-
-            lenient().when(dto.title()).thenReturn(track.getTitle());
-            return dto;
-        });
-    }
-
     private static Track track(final int id, final String title, final UUID spex, final String performers, final String melody) {
         final Album album = new Album();
         final Track track = new Track();
@@ -87,6 +74,19 @@ class BrowseServiceTest {
         track.setPerformers(performers);
         track.setMelody(melody);
         return track;
+    }
+
+    @BeforeEach
+    void setUp() {
+        service = new BrowseService(trackRepository, catalogService, callerService, new Random(1));
+        lenient().when(callerService.current()).thenReturn(TestCallers.listener());
+        lenient().when(catalogService.toDto(any())).thenAnswer(invocation -> {
+            final Track track = invocation.getArgument(0);
+            final TrackDto dto = mock(TrackDto.class);
+
+            lenient().when(dto.title()).thenReturn(track.getTitle());
+            return dto;
+        });
     }
 
     @Test

@@ -33,6 +33,34 @@ public final class CatalogDtos {
     private CatalogDtos() {
     }
 
+    /**
+     * How to order a list of albums. Ties keep the default order: newest year first, then title.
+     */
+    public enum AlbumSort {
+        /**
+         * Newest year first; the default.
+         */
+        YEAR_DESC,
+        YEAR_ASC,
+        TITLE,
+        /**
+         * Most recently published first.
+         */
+        PUBLISHED,
+        /**
+         * Highest weighted average rating first; unrated albums last.
+         */
+        RATING,
+        /**
+         * Most liked first.
+         */
+        LIKES,
+        /**
+         * Most played by everyone first.
+         */
+        PLAYS
+    }
+
     public record AlbumDto(UUID id, String title, @Nullable Integer year, AlbumKindService.AlbumKindDto kind,
                            @Nullable String description, List<AlbumSpexDto> spex, boolean hasCover,
                            boolean published, @Nullable Instant publishedAt, @Nullable Instant trashedAt,
@@ -56,7 +84,8 @@ public final class CatalogDtos {
     /**
      * ReplayGain 2.0 values: gains in dB, peaks as linear amplitudes. Album values only for listed tracks.
      */
-    public record ReplayGainDto(double trackGain, double trackPeak, @Nullable Double albumGain, @Nullable Double albumPeak) {
+    public record ReplayGainDto(double trackGain, double trackPeak, @Nullable Double albumGain,
+                                @Nullable Double albumPeak) {
     }
 
     public record TrackRefDto(UUID id, String title, int discNumber, int trackNumber, UUID albumId, String albumTitle,
@@ -75,11 +104,22 @@ public final class CatalogDtos {
     public record TrashDto(List<AlbumDto> albums, List<TrackDto> tracks) {
     }
 
+    /**
+     * What to list of the albums. {@code fromYear} and {@code toYear} include their years; {@code liked} is about the
+     * caller.
+     */
     public record AlbumFilter(@Nullable UUID categoryId, @Nullable Integer year, @Nullable UUID spexId,
-                              @Nullable Boolean includeUnpublished) {
+                              @Nullable Boolean includeUnpublished, @Nullable UUID kindId, @Nullable Integer fromYear,
+                              @Nullable Integer toYear, @Nullable Boolean liked, @Nullable AlbumSort sort) {
+
+        public AlbumFilter(final @Nullable UUID categoryId, final @Nullable Integer year, final @Nullable UUID spexId,
+                           final @Nullable Boolean includeUnpublished) {
+            this(categoryId, year, spexId, includeUnpublished, null, null, null, null, null);
+        }
     }
 
-    public record AlbumInput(@Nullable List<UUID> spexIds, @Nullable String title, @Nullable Integer year, @Nullable UUID kindId,
+    public record AlbumInput(@Nullable List<UUID> spexIds, @Nullable String title, @Nullable Integer year,
+                             @Nullable UUID kindId,
                              @Nullable String description) {
     }
 

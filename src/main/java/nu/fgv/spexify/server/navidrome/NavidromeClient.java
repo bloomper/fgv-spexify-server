@@ -31,6 +31,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -79,6 +82,17 @@ public class NavidromeClient {
                 .collect(Collectors.joining("&"));
     }
 
+    static @Nullable Instant instant(final @Nullable String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(value).toInstant();
+        } catch (final DateTimeParseException e) {
+            return null;
+        }
+    }
+
     public String systemUser() {
         return systemUser;
     }
@@ -125,7 +139,14 @@ public class NavidromeClient {
      * Calls an endpoint as the system user, which is Navidrome's admin, and returns the {@code subsonic-response}.
      */
     public JsonNode system(final String endpoint, final Map<String, String> parameters) throws IOException {
-        ensureUser(systemUser);
+        return as(systemUser, endpoint, parameters);
+    }
+
+    /**
+     * Calls an endpoint as a user and returns the {@code subsonic-response}.
+     */
+    public JsonNode as(final String username, final String endpoint, final Map<String, String> parameters) throws IOException {
+        ensureUser(username);
 
         final Map<String, List<String>> all = new LinkedHashMap<>();
 
@@ -136,7 +157,7 @@ public class NavidromeClient {
 
         final HttpRequest request = HttpRequest.newBuilder(uri(endpoint, all))
                 .timeout(TIMEOUT)
-                .header(USER_HEADER, systemUser)
+                .header(USER_HEADER, username)
                 .GET()
                 .build();
 
@@ -152,7 +173,7 @@ public class NavidromeClient {
 
                 if (root.path("error").path("code").asInt(0) == 40) {
                     // Navidrome lost the user, e.g. its database was replaced
-                    knownUsers.invalidate(systemUser);
+                    knownUsers.invalidate(username);
                 }
                 if (!"ok".equals(root.path("status").asString(""))) {
                     throw new IOException("Navidrome failed " + endpoint + ": " + root.path("error").path("message").asString(""));
@@ -204,6 +225,66 @@ public class NavidromeClient {
                 return songs;
             }
         }
+    }
+
+    /**
+     * What a user has rated, starred and played of every song, page by page through {@code search3} with an empty
+     * query. Songs the user has done nothing with are left out.
+     */
+    public List<SongState> songStates(final String username) throws IOException {
+        final List<SongState> states = new ArrayList<>();
+
+        for (int offset = 0; ; offset += PAGE) {
+            final JsonNode page = as(username, "search3", Map.of("query", "", "artistCount", "0", "albumCount", "0",
+                    "songCount", Integer.toString(PAGE), "songOffset", Integer.toString(offset)))
+                    .path("searchResult3").path("song");
+
+            for (final JsonNode song : page) {
+                final SongState state = new SongState(song.path("id").asString(""), song.path("userRating").asInt(0),
+                        instant(song.path("starred").asString(null)), song.path("playCount").asInt(0),
+                        instant(song.path("played").asString(null)));
+
+                if (state.rating() > 0 || state.starred() != null || state.playCount() > 0) {
+                    states.add(state);
+                }
+            }
+            if (page.size() < PAGE) {
+                return states;
+            }
+        }
+    }
+
+    /**
+     * What a user has rated and starred of every album, page by page through {@code getAlbumList2}. Albums the user
+     * has done nothing with are left out.
+     */
+    public List<AlbumState> albumStates(final String username) throws IOException {
+        final List<AlbumState> states = new ArrayList<>();
+
+        for (int offset = 0; ; offset += PAGE) {
+            final JsonNode page = as(username, "getAlbumList2", Map.of("type", "alphabeticalByName",
+                    "size", Integer.toString(PAGE), "offset", Integer.toString(offset)))
+                    .path("albumList2").path("album");
+
+            for (final JsonNode album : page) {
+                final AlbumState state = new AlbumState(album.path("id").asString(""), album.path("userRating").asInt(0),
+                        instant(album.path("starred").asString(null)));
+
+                if (state.rating() > 0 || state.starred() != null) {
+                    states.add(state);
+                }
+            }
+            if (page.size() < PAGE) {
+                return states;
+            }
+        }
+    }
+
+    public record SongState(String id, int rating, @Nullable Instant starred, int playCount,
+                            @Nullable Instant played) {
+    }
+
+    public record AlbumState(String id, int rating, @Nullable Instant starred) {
     }
 
     public record ScanStatus(boolean scanning, long count, @Nullable String lastScan) {

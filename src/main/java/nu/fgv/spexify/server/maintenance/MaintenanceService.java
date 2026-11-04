@@ -102,6 +102,7 @@ public class MaintenanceService {
      * A maintenance job and how its latest run went.
      */
     public record MaintenanceJobStatus(MaintenanceJob job, @Nullable String schedule, boolean running,
-                                       @Nullable Instant lastStartedAt, @Nullable Instant lastFinishedAt, @Nullable Boolean lastSucceeded) {
+                                       @Nullable Instant lastStartedAt, @Nullable Instant lastFinishedAt,
+                                       @Nullable Boolean lastSucceeded) {
     }
 }

@@ -24,9 +24,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -56,21 +56,6 @@ public class AuditService {
         this.repository = repository;
         this.callerService = callerService;
         this.clock = clock;
-    }
-
-    @Transactional
-    public void record(final String action, final String entityType, final @Nullable UUID entityId, final String summary) {
-        final AuditEntry entry = new AuditEntry();
-        final Caller caller = callerService.currentIfAny().orElse(null);
-
-        entry.setAt(clock.instant());
-        entry.setActorSubject(caller == null ? "system" : caller.subject());
-        entry.setActorName(caller == null ? "Spexify" : caller.displayName());
-        entry.setAction(action);
-        entry.setEntityType(entityType);
-        entry.setEntityId(entityId == null ? null : entityId.toString());
-        entry.setSummary(summary.length() > MAX_SUMMARY ? summary.substring(0, MAX_SUMMARY) : summary);
-        repository.save(entry);
     }
 
     private static Specification<AuditEntry> specification(final AuditFilter filter, final Caller caller) {
@@ -105,6 +90,21 @@ public class AuditService {
             }
             return builder.and(predicates.toArray(Predicate[]::new));
         };
+    }
+
+    @Transactional
+    public void record(final String action, final String entityType, final @Nullable UUID entityId, final String summary) {
+        final AuditEntry entry = new AuditEntry();
+        final Caller caller = callerService.currentIfAny().orElse(null);
+
+        entry.setAt(clock.instant());
+        entry.setActorSubject(caller == null ? "system" : caller.subject());
+        entry.setActorName(caller == null ? "Spexify" : caller.displayName());
+        entry.setAction(action);
+        entry.setEntityType(entityType);
+        entry.setEntityId(entityId == null ? null : entityId.toString());
+        entry.setSummary(summary.length() > MAX_SUMMARY ? summary.substring(0, MAX_SUMMARY) : summary);
+        repository.save(entry);
     }
 
     @Transactional(readOnly = true)
