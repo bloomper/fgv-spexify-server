@@ -58,7 +58,7 @@ class LibraryPlacerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        storage = new MediaStorage(new SpexifyProperties(null, null, null, new SpexifyProperties.Media(root, DataSize.ofMegabytes(1)),
+        storage = new MediaStorage(new SpexifyProperties(null, null, null, new SpexifyProperties.Media(root, DataSize.ofMegabytes(1), null, null, null),
                 null, null, null, null, null));
         placer = new LibraryPlacer(storage, tagWriter);
         album = new Album();

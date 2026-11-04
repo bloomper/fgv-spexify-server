@@ -28,4 +28,18 @@ The same file as an attachment, named by the track's number and title.
 
 operation::track-download-get[snippets='security,path-parameters,request-headers,http-request,response-headers']
 
+[[link]]
+== Signed links
+
+The web's player and downloads fetch audio from the API's public address, with no access token: the web asks for a signed link with the user's token and hands it to the browser.
+`/api/tracks/{id}/download/link` does the same for a download.
+A link opens that one file, until it expires.
+
+operation::track-audio-link-get[snippets='security,path-parameters,request-headers,http-request,http-response,response-fields']
+
+The link then serves the file as above, `Range` requests included.
+A link whose signature does not match is answered `403 Forbidden`, and an expired one `410 Gone`.
+
+operation::track-audio-signed-get[snippets='security,http-request,response-headers']
+
 xref:../api-guide.adoc[Back to API guide]

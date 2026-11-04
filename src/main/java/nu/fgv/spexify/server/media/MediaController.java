@@ -23,6 +23,7 @@ import nu.fgv.spexify.server.catalog.Track;
 import nu.fgv.spexify.server.spex.SpexService;
 import nu.fgv.spexify.server.user.CallerService;
 import nu.fgv.spexify.server.util.error.BadRequestException;
+import nu.fgv.spexify.server.util.error.LinkExpiredException;
 import nu.fgv.spexify.server.util.error.ResourceNotFoundException;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -31,6 +32,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,6 +59,9 @@ import java.util.zip.ZipOutputStream;
  * Audio, downloads and covers over plain HTTP, which GraphQL does not suit. Files are served from disk with byte-range
  * support, so the web player can seek. A thin adapter: {@link CatalogService} decides access.
  *
+ * <p>Audio and downloads are also handed out as signed links ({@link MediaLinkSigner}) under {@code /media/}, which
+ * need no token, so that the web's player and downloads fetch them from the API's public address directly.</p>
+ *
  * @author Anders Jacobsson
  * @since 1.0
  */
@@ -69,13 +74,15 @@ public class MediaController {
     private final MediaStorage storage;
     private final SpexService spexService;
     private final CallerService callerService;
+    private final MediaLinkSigner signer;
 
     public MediaController(final CatalogService catalogService, final MediaStorage storage, final SpexService spexService,
-                           final CallerService callerService) {
+                           final CallerService callerService, final MediaLinkSigner signer) {
         this.catalogService = catalogService;
         this.storage = storage;
         this.spexService = spexService;
         this.callerService = callerService;
+        this.signer = signer;
     }
 
     static String downloadName(final Track track) {
@@ -140,12 +147,84 @@ public class MediaController {
 
     @GetMapping("/api/tracks/{id}/audio")
     public ResponseEntity<Resource> audio(@PathVariable final UUID id) {
-        final Track track = catalogService.playableTrack(id);
-        final Path file = storage.trackFile(track);
+        return audio(catalogService.playableTrack(id));
+    }
 
-        if (!Files.isRegularFile(file)) {
-            throw new ResourceNotFoundException("error.track.fileMissing", id);
+    @GetMapping("/api/tracks/{id}/download")
+    public ResponseEntity<Resource> download(@PathVariable final UUID id) {
+        return download(catalogService.playableTrack(id));
+    }
+
+    @GetMapping("/api/albums/{id}/download")
+    public ResponseEntity<StreamingResponseBody> downloadAlbum(@PathVariable final UUID id) {
+        return downloadAlbum(catalogService.visibleAlbumWithTracks(id), callerService.current().isEditor());
+    }
+
+    /**
+     * A signed link to a track's audio, for the web's player, which then fetches it without a token.
+     */
+    @GetMapping("/api/tracks/{id}/audio/link")
+    public MediaLinkSigner.Link audioLink(@PathVariable final UUID id) {
+        return signer.sign("tracks/%s/audio".formatted(catalogService.playableTrack(id).getUuid()));
+    }
+
+    @GetMapping("/api/tracks/{id}/download/link")
+    public MediaLinkSigner.Link downloadLink(@PathVariable final UUID id) {
+        return signer.sign("tracks/%s/download".formatted(catalogService.playableTrack(id).getUuid()));
+    }
+
+    /**
+     * A signed link to an album's zip; an editor's also holds the unlisted tracks, as the album page shows them.
+     */
+    @GetMapping("/api/albums/{id}/download/link")
+    public MediaLinkSigner.Link downloadAlbumLink(@PathVariable final UUID id) {
+        final Album album = catalogService.visibleAlbum(id);
+
+        return signer.sign("albums/%s/download%s".formatted(album.getUuid(), callerService.current().isEditor() ? "/all" : ""));
+    }
+
+    @GetMapping("/media/{expires}/{signature}/tracks/{id}/audio")
+    public ResponseEntity<Resource> signedAudio(@PathVariable final long expires, @PathVariable final String signature,
+                                                @PathVariable final UUID id) {
+        verify(expires, signature, "tracks/%s/audio".formatted(id));
+        return audio(catalogService.linkedTrack(id));
+    }
+
+    @GetMapping("/media/{expires}/{signature}/tracks/{id}/download")
+    public ResponseEntity<Resource> signedDownload(@PathVariable final long expires, @PathVariable final String signature,
+                                                   @PathVariable final UUID id) {
+        verify(expires, signature, "tracks/%s/download".formatted(id));
+        return download(catalogService.linkedTrack(id));
+    }
+
+    @GetMapping("/media/{expires}/{signature}/albums/{id}/download")
+    public ResponseEntity<StreamingResponseBody> signedDownloadAlbum(@PathVariable final long expires,
+                                                                     @PathVariable final String signature,
+                                                                     @PathVariable final UUID id) {
+        verify(expires, signature, "albums/%s/download".formatted(id));
+        return downloadAlbum(catalogService.linkedAlbumWithTracks(id), false);
+    }
+
+    @GetMapping("/media/{expires}/{signature}/albums/{id}/download/all")
+    public ResponseEntity<StreamingResponseBody> signedDownloadAlbumAll(@PathVariable final long expires,
+                                                                        @PathVariable final String signature,
+                                                                        @PathVariable final UUID id) {
+        verify(expires, signature, "albums/%s/download/all".formatted(id));
+        return downloadAlbum(catalogService.linkedAlbumWithTracks(id), true);
+    }
+
+    private void verify(final long expires, final String signature, final String scope) {
+        switch (signer.verify(expires, signature, scope)) {
+            case INVALID -> throw new AccessDeniedException("Invalid media link");
+            case EXPIRED -> throw new LinkExpiredException();
+            case VALID -> {
+            }
         }
+    }
+
+    private ResponseEntity<Resource> audio(final Track track) {
+        final Path file = existingFile(track);
+
         return ResponseEntity.ok()
                 .contentType(contentType(track))
                 .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
@@ -153,14 +232,9 @@ public class MediaController {
                 .body(new FileSystemResource(file));
     }
 
-    @GetMapping("/api/tracks/{id}/download")
-    public ResponseEntity<Resource> download(@PathVariable final UUID id) {
-        final Track track = catalogService.playableTrack(id);
-        final Path file = storage.trackFile(track);
+    private ResponseEntity<Resource> download(final Track track) {
+        final Path file = existingFile(track);
 
-        if (!Files.isRegularFile(file)) {
-            throw new ResourceNotFoundException("error.track.fileMissing", id);
-        }
         return ResponseEntity.ok()
                 .contentType(contentType(track))
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
@@ -168,10 +242,16 @@ public class MediaController {
                 .body(new FileSystemResource(file));
     }
 
-    @GetMapping("/api/albums/{id}/download")
-    public ResponseEntity<StreamingResponseBody> downloadAlbum(@PathVariable final UUID id) {
-        final Album album = catalogService.visibleAlbumWithTracks(id);
-        final boolean editor = callerService.current().isEditor();
+    private Path existingFile(final Track track) {
+        final Path file = storage.trackFile(track);
+
+        if (!Files.isRegularFile(file)) {
+            throw new ResourceNotFoundException("error.track.fileMissing", track.getUuid());
+        }
+        return file;
+    }
+
+    private ResponseEntity<StreamingResponseBody> downloadAlbum(final Album album, final boolean editor) {
         final List<Track> tracks = album.getTracks().stream()
                 .filter(track -> editor ? !track.isTrashed() : track.isListed())
                 .filter(storage::exists)

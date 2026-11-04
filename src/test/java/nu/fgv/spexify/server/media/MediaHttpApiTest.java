@@ -30,18 +30,27 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.restdocs.payload.ResponseFieldsSnippet;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.restdocs.request.PathParametersSnippet;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipInputStream;
 
 import static nu.fgv.spexify.server.util.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,6 +66,7 @@ import static org.springframework.restdocs.operation.preprocess.Preprocessors.pr
 import static org.springframework.restdocs.operation.preprocess.Preprocessors.prettyPrint;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.restdocs.payload.PayloadDocumentation.relaxedResponseFields;
+import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
 import static org.springframework.restdocs.request.RequestDocumentation.parameterWithName;
 import static org.springframework.restdocs.request.RequestDocumentation.partWithName;
 import static org.springframework.restdocs.request.RequestDocumentation.pathParameters;
@@ -75,13 +85,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @since 1.0
  */
 @WebMvcTest(MediaController.class)
+@Import(MediaHttpApiTest.Signer.class)
 class MediaHttpApiTest extends AbstractApiTest {
+
+    private static final Instant NOW = Instant.parse("2026-11-04T12:00:00Z");
+    private static final MediaLinkSigner SIGNER = new MediaLinkSigner("https://api.spexify.fgv.local.nu:8443", "test-signing-key",
+            Duration.ofHours(6), Clock.fixed(NOW, ZoneOffset.UTC));
 
     private static final byte[] AUDIO = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 13};
 
     private final PathParametersSnippet trackId = pathParameters(parameterWithName("id").description("The id of the track"));
     private final PathParametersSnippet albumId = pathParameters(parameterWithName("id").description("The id of the album"));
+
+    private final ResponseFieldsSnippet linkFields = responseFields(
+            fieldWithPath("url").description("The signed link, on the API's public address; it needs no access token"),
+            fieldWithPath("expiresAt").description("When the link stops working, after which it answers `410 Gone`")
+    );
 
     @MockitoBean
     private CatalogService catalogService;
@@ -98,6 +118,13 @@ class MediaHttpApiTest extends AbstractApiTest {
     private Album album;
     private Track track;
 
+    /**
+     * The path of a signed link, without the public address.
+     */
+    private static String signedPath(final String scope) {
+        return SIGNER.sign(scope).url().replace("https://api.spexify.fgv.local.nu:8443", "");
+    }
+
     private static AlbumDto albumDto(final boolean hasCover) {
         return new AlbumDto(uuid(1), "Cleopatra", 2024, new AlbumKindService.AlbumKindDto(uuid(101), "Föreställning", "Show", 1), null, null,
                 hasCover, true, Instant.parse("2026-10-01T10:00:00Z"), null, null, 12, 2_400_000, Instant.parse("2026-09-30T10:00:00Z"), null);
@@ -107,11 +134,13 @@ class MediaHttpApiTest extends AbstractApiTest {
     void setUpCatalog() throws IOException {
         album = new Album();
         album.setId(1L);
+        album.setUuid(uuid(1));
         album.setTitle("Cleopatra");
         album.setYear(2024);
         album.setCoverExtension("png");
         track = new Track();
         track.setId(2L);
+        track.setUuid(uuid(2));
         track.setAlbum(album);
         track.setTrackNumber(1);
         track.setTitle("Ouvertyr");
@@ -289,6 +318,123 @@ class MediaHttpApiTest extends AbstractApiTest {
     }
 
     @Test
+    void signsALinkToATracksAudio() throws Exception {
+        when(catalogService.playableTrack(uuid(2))).thenReturn(track);
+
+        mockMvc
+                .perform(get("/api/tracks/{id}/audio/link", uuid(2)).header(HttpHeaders.AUTHORIZATION, BEARER))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.url").value(SIGNER.sign("tracks/" + uuid(2) + "/audio").url()))
+                .andDo(document(
+                        "track-audio-link-get",
+                        preprocessResponse(prettyPrint()),
+                        trackId,
+                        secureRequestHeaders,
+                        linkFields,
+                        security(List.of("USER"))
+                ));
+        mockMvc.perform(get("/api/tracks/{id}/download/link", uuid(2)))
+                .andExpect(jsonPath("$.url").value(SIGNER.sign("tracks/" + uuid(2) + "/download").url()));
+    }
+
+    @Test
+    void anEditorsAlbumLinkHoldsEveryTrack() throws Exception {
+        when(catalogService.visibleAlbum(uuid(1))).thenReturn(album);
+
+        mockMvc
+                .perform(get("/api/albums/{id}/download/link", uuid(1)).header(HttpHeaders.AUTHORIZATION, BEARER))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.url").value(SIGNER.sign("albums/" + uuid(1) + "/download").url()))
+                .andDo(document(
+                        "album-download-link-get",
+                        preprocessResponse(prettyPrint()),
+                        albumId,
+                        secureRequestHeaders,
+                        linkFields,
+                        security(List.of("USER"))
+                ));
+
+        when(callerService.current()).thenReturn(new Caller("subject", "editor@fgv.nu", "Editor", Set.of(Role.USER, Role.EDITOR), false));
+        mockMvc.perform(get("/api/albums/{id}/download/link", uuid(1)))
+                .andExpect(jsonPath("$.url").value(SIGNER.sign("albums/" + uuid(1) + "/download/all").url()));
+    }
+
+    @Test
+    void streamsATrackFromASignedLink() throws Exception {
+        when(catalogService.linkedTrack(uuid(2))).thenReturn(track);
+
+        mockMvc
+                .perform(get(signedPath("tracks/" + uuid(2) + "/audio")))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "audio/flac"))
+                .andExpect(content().bytes(AUDIO))
+                .andDo(document(
+                        "track-audio-signed-get",
+                        responseHeaders(
+                                headerWithName(HttpHeaders.CONTENT_TYPE).description("The audio's type, e.g. `audio/flac` or `audio/mpeg`"),
+                                headerWithName(HttpHeaders.ACCEPT_RANGES).description("`bytes`: a `Range` header fetches part of the file"),
+                                headerWithName(HttpHeaders.CACHE_CONTROL).description("Private, for an hour")
+                        ),
+                        noSecurity()
+                ));
+        mockMvc.perform(get(signedPath("tracks/" + uuid(2) + "/download")))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.CONTENT_DISPOSITION));
+    }
+
+    @Test
+    void aSignedAlbumLinkHoldsTheListedTracksUnlessSignedForAnEditor() throws Exception {
+        final Track unlisted = new Track();
+
+        unlisted.setId(3L);
+        unlisted.setAlbum(album);
+        unlisted.setTrackNumber(2);
+        unlisted.setTitle("Finalen");
+        unlisted.setFileExtension("flac");
+        unlisted.setPublished(false);
+        album.setPublished(true);
+        album.getTracks().add(unlisted);
+        when(storage.exists(unlisted)).thenReturn(true);
+        when(storage.trackFile(unlisted)).thenReturn(folder.resolve("track.flac"));
+        when(catalogService.linkedAlbumWithTracks(uuid(1))).thenReturn(album);
+
+        assertThat(zipEntries(signedPath("albums/" + uuid(1) + "/download"))).isEqualTo(1);
+        assertThat(zipEntries(signedPath("albums/" + uuid(1) + "/download/all"))).isEqualTo(2);
+    }
+
+    private long zipEntries(final String path) throws Exception {
+        final MvcResult started = mockMvc.perform(get(path)).andExpect(request().asyncStarted()).andReturn();
+        final byte[] zip = mockMvc.perform(asyncDispatch(started)).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        long entries = 0;
+
+        try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip))) {
+            while (in.getNextEntry() != null) {
+                entries++;
+            }
+        }
+        return entries;
+    }
+
+    @Test
+    void aForgedOrExpiredLinkIsRefused() throws Exception {
+        final String path = signedPath("tracks/" + uuid(2) + "/audio");
+
+        // Another track with this track's signature
+        mockMvc.perform(get(path.replace(uuid(2).toString(), uuid(3).toString()))).andExpect(status().isForbidden());
+        // A later expiry with the same signature
+        mockMvc.perform(get(path.replaceFirst("/media/(\\d+)/", "/media/" + NOW.plus(Duration.ofDays(30)).getEpochSecond() + "/")))
+                .andExpect(status().isForbidden());
+        // The download with the audio's signature
+        mockMvc.perform(get(path.replace("/audio", "/download"))).andExpect(status().isForbidden());
+
+        // Signed seven hours ago, so it ran out an hour ago
+        final String expired = new MediaLinkSigner("", "test-signing-key", Duration.ofHours(6),
+                Clock.fixed(NOW.minus(Duration.ofHours(7)), ZoneOffset.UTC)).sign("tracks/" + uuid(2) + "/audio").url();
+
+        mockMvc.perform(get(expired)).andExpect(status().isGone()).andExpect(jsonPath("$.code").value("GONE"));
+    }
+
+    @Test
     void aTrackWhoseFileIsMissingIsNotFound() throws Exception {
         when(catalogService.playableTrack(uuid(2))).thenReturn(track);
         when(storage.trackFile(track)).thenReturn(folder.resolve("missing.flac"));
@@ -311,5 +457,14 @@ class MediaHttpApiTest extends AbstractApiTest {
     void repeatedNamesInAnAlbumZipGetANumber() {
         assertThat(MediaController.uniqueNames(List.of("01 Visa.flac", "01 Visa.flac", "01 visa.FLAC", "02 Annan.mp3")))
                 .containsExactly("01 Visa.flac", "01 Visa (2).flac", "01 visa (3).FLAC", "02 Annan.mp3");
+    }
+
+    @TestConfiguration
+    static class Signer {
+
+        @Bean
+        MediaLinkSigner mediaLinkSigner() {
+            return SIGNER;
+        }
     }
 }

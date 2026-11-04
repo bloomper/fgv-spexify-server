@@ -16,6 +16,10 @@ Every track of the album the caller may reach, as a zip streamed while it is rea
 
 operation::album-download-get[snippets='security,request-headers,http-request,response-headers']
 
+A signed link to the zip, like a xref:track.adoc#link[track's], holds the same tracks as the caller would get above.
+
+operation::album-download-link-get[snippets='security,path-parameters,request-headers,http-request,http-response,response-fields']
+
 [[cover]]
 == Cover
 

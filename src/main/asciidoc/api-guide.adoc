@@ -65,13 +65,16 @@ Subsonic apps use the <<subsonic,Subsonic API>> instead.
 | The request has no valid access token.
 
 | `403 Forbidden`
-| The user lacks the role the request requires.
+| The user lacks the role the request requires, or a signed link's signature does not match.
 
 | `404 Not Found`
 | The requested resource does not exist, or the user may not reach it.
 
 | `409 Conflict`
 | A chunk does not start where the upload stands, or someone else changed the resource.
+
+| `410 Gone`
+| A signed link has expired.
 
 | `413 Content Too Large`
 | A cover is larger than 10 MB.
@@ -94,7 +97,7 @@ include::{snippets}/error/http-response.adoc[]
 [[roles]]
 == Roles
 
-Every endpoint requires an access token from the `fgv-spexify` client with the `USER` client role.
+Every endpoint requires an access token from the `fgv-spexify` client with the `USER` client role, except the signed links under `/media/`, whose signature stands in for it (see xref:resources/track.adoc#link[Track]).
 Uploads and cover uploads also need `EDITOR` or `ADMIN`, exactly as in the xref:graphql-api-guide.adoc#roles[GraphQL API].
 
 [[resources]]

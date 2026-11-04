@@ -81,6 +81,7 @@ To see a changed placeholder after a pull, undo it with ``git update-index --no-
 |API_KEYCLOAK_SERVICE_CLIENT_SECRET|The client secret of ``fgv-spexify-service``, with which Spexify Server calls Spexregister and Spexflix and checks that users still have access|Must match the value in ``realm/fgv.json`` in fgv-keycloak, search for ``fgv-spexify-service`` and pick the value for ``secret`` in the same section|
 |API_KEYCLOAK_ADMIN_CLIENT_SECRET|The client secret of ``fgv-admin``, with which the sample data import gives users roles|Must match the value in ``realm/fgv.json``, search for ``fgv-admin``|
 |API_APP_PASSWORD_ENCRYPTION_KEY|Encrypts the app passwords, which Subsonic's token login needs to read back|32 random bytes, base64, e.g. from ``openssl rand -base64 32``|
+|API_MEDIA_SIGNING_KEY|Signs the links with which the web's player and downloads fetch audio from the API without a token|A long random string, e.g. from ``openssl rand -base64 32``|
 
 |===
 
