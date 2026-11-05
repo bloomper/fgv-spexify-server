@@ -468,7 +468,7 @@ public class SampleDataImporter {
      * The kinds a new database starts with, as in the migration: show (the default), studio, compilation and other.
      */
     private List<AlbumKind> createKinds() {
-        final String[][] names = {{"Föreställning", "Show"}, {"Studio", "Studio"}, {"Samling", "Compilation"}, {"Övrigt", "Other"}};
+        final String[][] names = {{"Föreställning", "Show"}, {"Studio", "Studio"}, {"Samlingsalbum", "Compilation"}, {"Övrigt", "Other"}};
         final List<AlbumKind> kinds = new ArrayList<>();
 
         for (int i = 0; i < names.length; i++) {
