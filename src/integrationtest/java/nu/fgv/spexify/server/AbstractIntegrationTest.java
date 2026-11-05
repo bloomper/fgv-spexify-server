@@ -360,7 +360,7 @@ public abstract class AbstractIntegrationTest {
                 INSERT INTO album_kind (uuid, name_sv, name_en, position, created_by, created_at)
                 VALUES ('00000000-0000-7000-8000-00000000a001', 'Föreställning', 'Show', 1, 'system', NOW(6)),
                        ('00000000-0000-7000-8000-00000000a002', 'Studio', 'Studio', 2, 'system', NOW(6)),
-                       ('00000000-0000-7000-8000-00000000a003', 'Samling', 'Compilation', 3, 'system', NOW(6)),
+                       ('00000000-0000-7000-8000-00000000a003', 'Samlingsalbum', 'Compilation', 3, 'system', NOW(6)),
                        ('00000000-0000-7000-8000-00000000a004', 'Övrigt', 'Other', 4, 'system', NOW(6))""").update();
         // Back to the defaults, which an admin test may have changed
         jdbcClient.sql("DELETE FROM settings").update();
