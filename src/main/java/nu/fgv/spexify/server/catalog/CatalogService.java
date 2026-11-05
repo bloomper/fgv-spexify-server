@@ -797,7 +797,7 @@ public class CatalogService {
         return track;
     }
 
-    private AlbumDto toDto(final Album album, final Caller caller) {
+    AlbumDto toDto(final Album album, final Caller caller) {
         final List<Track> tracks = album.getTracks().stream()
                 .filter(track -> caller.isEditor() ? !track.isTrashed() : track.isListed())
                 .toList();

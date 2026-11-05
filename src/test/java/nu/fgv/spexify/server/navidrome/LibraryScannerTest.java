@@ -68,7 +68,8 @@ class LibraryScannerTest {
     @BeforeEach
     void setUp() {
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        scanner = new LibraryScanner(client, trackRepository, storage, new TransactionTemplate(transactionManager), clock);
+        scanner = new LibraryScanner(client, trackRepository, storage, new TransactionTemplate(transactionManager), clock, _ -> {
+        });
         track = new Track();
         track.setUuid(java.util.UUID.fromString(UUID));
         track.setAlbum(new Album());

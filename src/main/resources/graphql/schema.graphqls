@@ -26,6 +26,10 @@ type Query {
     years: [Int!]!
     "USER. Albums and tracks whose titles, performers, melodies or lyrics match."
     search(q: String!): SearchResult!
+    "USER. Collections with a listed album, by title; every collection for EDITOR."
+    collections: [Collection!]!
+    "USER. A collection with a listed album; any collection for EDITOR."
+    collection(id: ID!): Collection
     "USER. The names listed tracks are credited to, by name, with how many tracks each."
     credits(kind: CreditKind!): [Credit!]!
     "USER. The listed tracks credited to a name, newest album first. The name is matched without regard to case."
@@ -113,6 +117,12 @@ type Mutation {
     albumKindsReorder(ids: [ID!]!): [AlbumKind!]!
     "ADMIN. Only a kind no album uses, trashed ones included, and not the last one."
     albumKindDelete(id: ID!): Void
+    "EDITOR. The albums are kept in the given order."
+    collectionCreate(input: CollectionInput!): Collection!
+    "EDITOR. Replaces the title, description and albums."
+    collectionUpdate(id: ID!, input: CollectionInput!): Collection!
+    "ADMIN. The albums stay."
+    collectionDelete(id: ID!): Void
     "ADMIN."
     settingsUpdate(input: SettingsInput!): Settings!
     "ADMIN. Starts the job in the background, as its schedule would. False when it is already running."
@@ -286,6 +296,8 @@ type Album {
     likeCount: Int!
     "How often everyone played its tracks."
     totalPlays: Int!
+    "The collections the album is in, by title."
+    collections: [CollectionRef!]!
     createdAt: Instant!
     lastModifiedAt: Instant
 }
@@ -496,4 +508,26 @@ input AuditFilter {
 type AuditActor {
     id: String!
     name: String
+}
+
+"Albums grouped in an order of their own, e.g. a spex's recordings over the years."
+type Collection {
+    id: ID!
+    title: String!
+    description: String
+    "Listed albums for listeners; every album not in the trash for EDITOR."
+    albums: [Album!]!
+    createdAt: Instant!
+    lastModifiedAt: Instant
+}
+
+type CollectionRef {
+    id: ID!
+    title: String!
+}
+
+input CollectionInput {
+    title: String!
+    description: String
+    albumIds: [ID!]!
 }

@@ -16,6 +16,7 @@
 
 package nu.fgv.spexify.server.maintenance;
 
+import nu.fgv.spexify.server.navidrome.LibraryScanner;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -83,5 +84,18 @@ class MaintenanceJobsTest {
 
         assertThat(runs).hasValue(1);
         assertThat(jobs.isRunning(MaintenanceJob.SPEX_REFRESH)).isFalse();
+    }
+
+    @Test
+    void copiesListeningOnceTheLibraryIsFirstMatched() {
+        final AtomicInteger runs = new AtomicInteger();
+        final MaintenanceJobs jobs = new MaintenanceJobs(Map.of(MaintenanceJob.LISTENING_SYNC, runs::incrementAndGet));
+
+        jobs.libraryMatched(new LibraryScanner.LibraryMatched(0));
+        assertThat(runs).hasValue(0);
+
+        jobs.libraryMatched(new LibraryScanner.LibraryMatched(12));
+        jobs.libraryMatched(new LibraryScanner.LibraryMatched(12));
+        assertThat(runs).hasValue(1);
     }
 }
