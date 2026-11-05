@@ -23,6 +23,7 @@ import nu.fgv.spexify.server.catalog.Track;
 import nu.fgv.spexify.server.catalog.TrackRepository;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -59,6 +60,7 @@ public class LibraryScanner {
     private final nu.fgv.spexify.server.media.MediaStorage storage;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
     private volatile boolean pending = true;
     private volatile boolean fullScan;
     private volatile int retries;
@@ -69,12 +71,14 @@ public class LibraryScanner {
 
     public LibraryScanner(final NavidromeClient client, final TrackRepository trackRepository,
                           final nu.fgv.spexify.server.media.MediaStorage storage,
-                          final TransactionTemplate transactionTemplate, final Clock clock) {
+                          final TransactionTemplate transactionTemplate, final Clock clock,
+                          final ApplicationEventPublisher events) {
         this.client = client;
         this.trackRepository = trackRepository;
         this.storage = storage;
         this.transactionTemplate = transactionTemplate;
         this.clock = clock;
+        this.events = events;
     }
 
     static @Nullable String trackUuid(final NavidromeClient.Song song) {
@@ -166,12 +170,21 @@ public class LibraryScanner {
         });
         log.info("Matched {} of Navidrome's {} songs to tracks; {} published tracks are not in Navidrome yet",
                 byTrackUuid.size(), songs.size(), missing[0]);
+        events.publishEvent(new LibraryMatched(byTrackUuid.size()));
         if (missing[0] > 0 && retries < MAX_RETRIES) {
             // The scan started before the files were in place, or Navidrome skipped folders it thought unchanged
             retries++;
             fullScan = true;
             pending = true;
         }
+    }
+
+    /**
+     * Published after Navidrome's ids were recorded, when ratings, likes and plays of the matched tracks can be mirrored.
+     *
+     * @param matched how many songs were matched to tracks
+     */
+    public record LibraryMatched(int matched) {
     }
 
     public record Status(boolean available, boolean scanning, boolean pending, @Nullable Instant lastScanAt,

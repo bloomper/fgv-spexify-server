@@ -99,13 +99,17 @@ Publishing puts the files into the folder Navidrome reads, with tags written by 
 Stars and playlists are Navidrome's, per user, and reached through the <<api-guide.adoc#subsonic,Subsonic API>>; ``tracksByNavidromeIds`` and ``albumsByNavidromeIds`` map Navidrome's songs and albums back to tracks and albums.
 So do play counts, when a user last played a song or album, ratings (``setRating``), starred albums, Navidrome's lists of recently played, most played and highest rated albums, and the play queue the user's apps share (``savePlayQueue``, ``getPlayQueue``): Spexify's web reports plays with ``scrobble`` and reads them with ``getAlbum`` and ``getAlbumList2``.
 
-Since Navidrome keeps ratings, stars and plays per user only, Spexify mirrors them to sum up everyone's: the gateway records every ``setRating``, ``star``, ``unstar`` and submitted ``scrobble`` that Navidrome accepts, from the web or an app, and the ``LISTENING_SYNC`` maintenance job copies every user's state from Navidrome each night, which also fills the mirror the first time.
+Since Navidrome keeps ratings, stars and plays per user only, Spexify mirrors them to sum up everyone's: the gateway records every ``setRating``, ``star``, ``unstar`` and submitted ``scrobble`` that Navidrome accepts, from the web or an app, and the ``LISTENING_SYNC`` maintenance job copies every user's state from Navidrome each night, which also fills the mirror the first time; it also runs once after the library is first matched at a start, since a change to a track Navidrome had not yet been matched to is not mirrored.
 ``Track`` and ``Album`` have everyone's ``averageRating``, ``ratingCount``, ``likeCount`` and ``totalPlays`` (an album's are its tracks' plays).
 ``topTracks(by)`` and ``topAlbums(by)`` rank listed tracks and albums by everyone: ``RATED`` by a weighted average, ``(2 × mean of all ratings + sum) / (2 + count)``, so that a single 5 does not top the list; ``LIKED`` by likes; ``PLAYED`` by plays.
 Their ``AlbumFilter`` narrows by category, kind, spex and years (``fromYear``, ``toYear``); ``albums`` takes the same filter, plus ``liked`` for the caller's liked albums and a ``sort`` (``YEAR_DESC``, the default, ``YEAR_ASC``, ``TITLE``, ``PUBLISHED``, ``RATING``, ``LIKES`` or ``PLAYS``).
 
 Every uploaded track's loudness is measured with ffmpeg's EBU R 128 filter, and ReplayGain 2.0 track and album values (aiming at -18 LUFS) are written into the tags of FLAC, MP3, Ogg and Opus files and returned as ``Track.replayGain``.
 Tracks uploaded before that are measured by the ``LOUDNESS_SCAN`` maintenance job.
+
+Collections (``collections``, ``collection``) hold albums in an order of their own; an album can be in several, and ``Album.collections`` lists them.
+Listeners see a collection's listed albums only, and only collections with one.
+Editors create and change collections (``collectionCreate``, ``collectionUpdate``); only admins delete them, and their albums stay.
 
 ``credits(kind)`` lists the performers, melodies, original artists (the parentheses after a melody), lyricists and arrangers of listed tracks, and ``creditTracks(kind, name)`` their tracks.
 ``radio`` returns tracks to play like a radio station: from a track, the track first and then tracks sharing its melody, original artist, performers, authors or spex; from an album, such tracks of other albums; without either, tracks at random.

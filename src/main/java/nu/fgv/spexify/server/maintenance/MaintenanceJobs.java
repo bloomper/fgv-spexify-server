@@ -19,10 +19,12 @@ package nu.fgv.spexify.server.maintenance;
 import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.catalog.LoudnessScan;
 import nu.fgv.spexify.server.listening.ListeningService;
+import nu.fgv.spexify.server.navidrome.LibraryScanner;
 import nu.fgv.spexify.server.spex.SpexService;
 import nu.fgv.spexify.server.upload.UploadService;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -32,6 +34,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Runs the maintenance jobs on their schedules, one run of each at a time, and remembers how the latest run of each
@@ -47,6 +50,7 @@ public class MaintenanceJobs {
     private final Map<MaintenanceJob, Runnable> work;
     private final Set<MaintenanceJob> running = ConcurrentHashMap.newKeySet();
     private final ConcurrentMap<MaintenanceJob, Run> lastRuns = new ConcurrentHashMap<>();
+    private final AtomicBoolean syncedAfterStart = new AtomicBoolean();
 
     @Autowired
     public MaintenanceJobs(final SpexService spexService, final UploadService uploadService, final LoudnessScan loudnessScan,
@@ -81,6 +85,18 @@ public class MaintenanceJobs {
     @Scheduled(cron = "${spexify.jobs.listening-sync.cron-expression}", zone = "${spexify.time-zone}")
     void listeningSync() {
         run(MaintenanceJob.LISTENING_SYNC);
+    }
+
+    /**
+     * Copies ratings, likes and plays once the library is first matched after a start. The gateway mirrors a change only
+     * for a track whose Navidrome id is known, so what was done before the release, or with tracks not matched yet,
+     * would otherwise wait for the night.
+     */
+    @EventListener
+    void libraryMatched(final LibraryScanner.LibraryMatched event) {
+        if (event.matched() > 0 && syncedAfterStart.compareAndSet(false, true)) {
+            run(MaintenanceJob.LISTENING_SYNC);
+        }
     }
 
     /**

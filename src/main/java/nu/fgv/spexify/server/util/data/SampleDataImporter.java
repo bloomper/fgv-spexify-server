@@ -22,6 +22,8 @@ import nu.fgv.spexify.server.apppassword.AppPasswordService;
 import nu.fgv.spexify.server.audit.AuditEntry;
 import nu.fgv.spexify.server.audit.AuditEntryRepository;
 import nu.fgv.spexify.server.catalog.Album;
+import nu.fgv.spexify.server.catalog.AlbumCollection;
+import nu.fgv.spexify.server.catalog.AlbumCollectionRepository;
 import nu.fgv.spexify.server.catalog.AlbumKind;
 import nu.fgv.spexify.server.catalog.AlbumKindRepository;
 import nu.fgv.spexify.server.catalog.AlbumRepository;
@@ -30,12 +32,14 @@ import nu.fgv.spexify.server.catalog.SpexRef;
 import nu.fgv.spexify.server.catalog.Track;
 import nu.fgv.spexify.server.config.KeycloakConfig;
 import nu.fgv.spexify.server.config.SpexifyProperties;
+import nu.fgv.spexify.server.listening.ListeningService;
 import nu.fgv.spexify.server.media.AudioPreparer;
 import nu.fgv.spexify.server.media.Ffmpeg;
 import nu.fgv.spexify.server.media.LibraryPlacer;
 import nu.fgv.spexify.server.media.MediaStorage;
 import nu.fgv.spexify.server.media.PreparedAudio;
 import nu.fgv.spexify.server.navidrome.LibraryScanner;
+import nu.fgv.spexify.server.navidrome.NavidromeClient;
 import nu.fgv.spexify.server.spex.SpexDto;
 import nu.fgv.spexify.server.spex.SpexService;
 import nu.fgv.spexify.server.spex.SpexregisterClient;
@@ -75,6 +79,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Replaces everything with sample data at every start while {@code spexify.data.import-sample-data} is set: the
@@ -96,7 +101,7 @@ public class SampleDataImporter {
     static final String NO_ACCESS = "no-access@fgv.nu";
     private static final int SPEXREGISTER_ATTEMPTS = 30;
     private static final Duration SPEXREGISTER_RETRY_INTERVAL = Duration.ofSeconds(10);
-    private static final List<String> TABLES = List.of("audit_entry", "api_key", "app_password", "track", "album_spex", "album", "album_kind", "upload_session", "app_user");
+    private static final List<String> TABLES = List.of("audit_entry", "album_collection_album", "album_collection", "track_listening", "album_listening", "api_key", "app_password", "track", "album_spex", "album", "album_kind", "upload_session", "app_user");
 
     private final SpexifyProperties properties;
     private final Environment environment;
@@ -110,20 +115,26 @@ public class SampleDataImporter {
     private final AudioPreparer audioPreparer;
     private final LibraryPlacer placer;
     private final LibraryScanner scanner;
+    private final NavidromeClient navidrome;
+    private final ListeningService listeningService;
     private final AlbumRepository albumRepository;
     private final AlbumKindRepository albumKindRepository;
+    private final AlbumCollectionRepository collectionRepository;
     private final AppUserRepository userRepository;
     private final AppPasswordService appPasswordService;
     private final AuditEntryRepository auditRepository;
     private final Clock clock;
+    // Set by an import, until Navidrome has scanned the new files and the sample listening can be given to it
+    private volatile boolean listeningPending;
 
     @SuppressWarnings("java:S107")
     public SampleDataImporter(final SpexifyProperties properties, final Environment environment, final JdbcTemplate jdbcTemplate,
                               final TransactionTemplate transactionTemplate, final SpexregisterClient spexregisterClient,
                               final SpexService spexService, @Qualifier(KeycloakConfig.ADMIN) final Keycloak keycloak,
                               final MediaStorage storage, final Ffmpeg ffmpeg, final AudioPreparer audioPreparer,
-                              final LibraryPlacer placer, final LibraryScanner scanner, final AlbumRepository albumRepository,
-                              final AlbumKindRepository albumKindRepository,
+                              final LibraryPlacer placer, final LibraryScanner scanner, final NavidromeClient navidrome,
+                              final ListeningService listeningService, final AlbumRepository albumRepository,
+                              final AlbumKindRepository albumKindRepository, final AlbumCollectionRepository collectionRepository,
                               final AppUserRepository userRepository, final AppPasswordService appPasswordService,
                               final AuditEntryRepository auditRepository, final Clock clock) {
         this.properties = properties;
@@ -138,8 +149,11 @@ public class SampleDataImporter {
         this.audioPreparer = audioPreparer;
         this.placer = placer;
         this.scanner = scanner;
+        this.navidrome = navidrome;
+        this.listeningService = listeningService;
         this.albumRepository = albumRepository;
         this.albumKindRepository = albumKindRepository;
+        this.collectionRepository = collectionRepository;
         this.userRepository = userRepository;
         this.appPasswordService = appPasswordService;
         this.auditRepository = auditRepository;
@@ -197,13 +211,88 @@ public class SampleDataImporter {
 
                 transactionTemplate.executeWithoutResult(_ -> createAlbum(index, spex, kinds, clips, large));
             }
+            transactionTemplate.executeWithoutResult(_ -> createCollection());
             transactionTemplate.executeWithoutResult(_ -> createCredentials(users));
             transactionTemplate.executeWithoutResult(_ -> createAudit(users));
         } finally {
             FileSystemUtils.deleteRecursively(clipsFolder);
         }
+        listeningPending = true;
         scanner.requestScan();
         log.info("Imported sample data in {} s", Duration.ofNanos(System.nanoTime() - started).toSeconds());
+    }
+
+    // ---------------------------------------------------------------------------------------------------- listening
+
+    /**
+     * Once Navidrome knows the sample tracks, the sample users rate, like and play some of them, so that averages, top
+     * lists and play counts have something to show. Ratings and likes live in Navidrome per user, so they are given to
+     * it as each user and then copied to Spexify's mirror. Navidrome's play counts cannot be reset, so a user who
+     * already played something there gets no more plays.
+     */
+    @EventListener
+    public void libraryMatched(final LibraryScanner.LibraryMatched event) {
+        if (!listeningPending || event.matched() == 0) {
+            return;
+        }
+        listeningPending = false;
+
+        // Read with their tracks, which Navidrome is then called about outside the transaction
+        final List<Album> albums = Objects.requireNonNull(transactionTemplate.execute(_ -> {
+            final List<Album> listed = albumRepository.findAll().stream()
+                    .filter(album -> album.isListed() && album.getNavidromeId() != null)
+                    .toList();
+
+            listed.forEach(album -> org.hibernate.Hibernate.initialize(album.getTracks()));
+            return listed;
+        }));
+        final Random random = new Random(7);
+
+        for (final String username : List.of(ADMIN, EDITOR, USER)) {
+            try {
+                final boolean played = navidrome.songStates(username).stream().anyMatch(song -> song.playCount() > 0);
+
+                for (final Album album : albums) {
+                    if (random.nextInt(10) < 4) {
+                        navidrome.as(username, "setRating", Map.of("id", album.getNavidromeId(), "rating", String.valueOf(rating(random))));
+                    }
+                    if (random.nextInt(10) < 2) {
+                        navidrome.as(username, "star", Map.of("albumId", album.getNavidromeId()));
+                    }
+                    for (final Track track : album.getTracks()) {
+                        if (!track.isListed() || track.getNavidromeId() == null) {
+                            continue;
+                        }
+                        if (random.nextInt(10) < 5) {
+                            navidrome.as(username, "setRating", Map.of("id", track.getNavidromeId(), "rating", String.valueOf(rating(random))));
+                        }
+                        if (random.nextInt(10) < 2) {
+                            navidrome.as(username, "star", Map.of("id", track.getNavidromeId()));
+                        }
+
+                        final int plays = played ? 0 : random.nextInt(10) < 6 ? random.nextInt(6) : 0;
+
+                        for (int i = 0; i < plays; i++) {
+                            final Instant at = clock.instant().minus(Duration.ofHours(random.nextInt(24 * 60) + 1));
+
+                            navidrome.as(username, "scrobble", Map.of("id", track.getNavidromeId(), "submission", "true",
+                                    "time", String.valueOf(at.toEpochMilli())));
+                        }
+                    }
+                }
+            } catch (final IOException e) {
+                log.warn("Could not give {} sample ratings, likes and plays: {}", username, e.getMessage());
+            }
+        }
+        listeningService.sync();
+        log.info("Gave the sample users ratings, likes and plays");
+    }
+
+    /**
+     * Ratings leaning towards the good, as people rate what they like.
+     */
+    private static int rating(final Random random) {
+        return Math.min(5, 2 + random.nextInt(3) + random.nextInt(2));
     }
 
     // ---------------------------------------------------------------------------------------------------- users
@@ -300,6 +389,39 @@ public class SampleDataImporter {
             final String path = response.getLocation().getPath();
 
             return realm.users().get(path.substring(path.lastIndexOf('/') + 1)).toRepresentation();
+        }
+    }
+
+    /**
+     * One collection: every album of the spex with the most albums, oldest first, or, when no spex has more than one,
+     * as in the small sample, the oldest albums.
+     */
+    private void createCollection() {
+        final Comparator<Album> oldestFirst = Comparator.comparing(Album::getYear, Comparator.nullsLast(Comparator.<Integer>naturalOrder()))
+                .thenComparing(Album::getId);
+        final List<Album> albums = albumRepository.findAll().stream().filter(album -> !album.isTrashed()).toList();
+        final List<Album> family = albums.stream()
+                .filter(album -> album.mainSpex() != null)
+                .collect(Collectors.groupingBy(album -> album.mainSpex().familyId()))
+                .values().stream()
+                .filter(group -> group.size() > 1)
+                .max(Comparator.comparingInt(List::size))
+                .orElse(List.of());
+        final AlbumCollection collection = new AlbumCollection();
+
+        if (family.isEmpty()) {
+            collection.setTitle("Från de första åren");
+            collection.setDescription("Exempeldata: de äldsta inspelningarna, i tur och ordning.");
+            collection.getAlbums().addAll(albums.stream().filter(Album::isPublished).sorted(oldestFirst).limit(5).toList());
+        } else {
+            final Album first = family.getFirst();
+
+            collection.setTitle(Objects.requireNonNullElse(first.mainSpex().getTitle(), first.getTitle()) + " genom åren");
+            collection.setDescription("Alla inspelningar av spexet, i tur och ordning.");
+            collection.getAlbums().addAll(family.stream().sorted(oldestFirst).toList());
+        }
+        if (!collection.getAlbums().isEmpty()) {
+            collectionRepository.save(collection);
         }
     }
 
