@@ -295,7 +295,19 @@ public abstract class AbstractIntegrationTest {
                 "client_secret", SECRETS.get(SPEXFLIX_SERVICE_CLIENT_ID))));
     }
 
+    /**
+     * A user's ID token from {@code fgv-spexify}, which the API must refuse in place of an access token.
+     */
+    protected static String idToken(final String user) {
+        return "Bearer " + tokens(Map.of("grant_type", "password", "client_id", CLIENT_ID, "client_secret", SECRETS.get(CLIENT_ID),
+                "username", user, "password", PASSWORD, "scope", "openid")).get("id_token");
+    }
+
     private static String requestToken(final Map<String, String> parameters) {
+        return "Bearer " + tokens(parameters).get("access_token");
+    }
+
+    private static Map<String, Object> tokens(final Map<String, String> parameters) {
         final MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
 
         parameters.forEach(form::add);
@@ -308,7 +320,7 @@ public abstract class AbstractIntegrationTest {
                 .retrieve()
                 .body(String.class);
 
-        return "Bearer " + JSON.parseMap(response).get("access_token");
+        return JSON.parseMap(response);
     }
 
     /**

@@ -32,7 +32,6 @@ import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.BatchMapping;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
-import org.springframework.graphql.data.method.annotation.SchemaMapping;
 import org.springframework.stereotype.Controller;
 
 import java.util.List;
@@ -132,9 +131,13 @@ public class CatalogGraphqlApi {
         return service.tracksByIds(ids);
     }
 
-    @SchemaMapping(typeName = "Album", field = "tracks")
-    public List<TrackDto> tracks(final AlbumDto album) {
-        return service.tracks(album.id());
+    @BatchMapping(typeName = "Album", field = "tracks")
+    public Map<AlbumDto, List<TrackDto>> tracks(final List<AlbumDto> albums) {
+        final Map<UUID, List<TrackDto>> tracks = service.tracksOf(albums.stream().map(AlbumDto::id).toList());
+        final Map<AlbumDto, List<TrackDto>> result = new java.util.LinkedHashMap<>();
+
+        albums.forEach(album -> result.put(album, tracks.getOrDefault(album.id(), List.of())));
+        return result;
     }
 
     @BatchMapping(typeName = "Track", field = "videoLinks")

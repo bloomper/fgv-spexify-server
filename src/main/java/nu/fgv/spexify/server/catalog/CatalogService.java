@@ -50,6 +50,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -275,17 +276,28 @@ public class CatalogService {
     }
 
     /**
-     * The tracks of an album the caller may see: listed ones for listeners, every one not in the trash for editors.
+     * The tracks of some albums the caller may see, in one query for all of them: listed ones for listeners, every one
+     * not in the trash for editors. An album the caller may not see has none.
      */
     @Transactional(readOnly = true)
-    public List<TrackDto> tracks(final UUID albumId) {
+    public Map<UUID, List<TrackDto>> tracksOf(final Collection<UUID> albumIds) {
         final Caller caller = callerService.current();
-        final Album album = visibleAlbum(albumId, caller);
+        final Map<UUID, List<TrackDto>> result = new HashMap<>();
 
-        return album.getTracks().stream()
-                .filter(track -> caller.isEditor() ? !track.isTrashed() : track.isListed())
-                .map(this::toDto)
-                .toList();
+        caller.requireUser();
+        albumIds.forEach(id -> result.put(id, List.of()));
+        if (albumIds.isEmpty()) {
+            return result;
+        }
+        for (final Album album : albumRepository.findByUuidIn(albumIds)) {
+            if (album.isListed() || caller.isEditor()) {
+                result.put(album.getUuid(), album.getTracks().stream()
+                        .filter(track -> caller.isEditor() ? !track.isTrashed() : track.isListed())
+                        .map(this::toDto)
+                        .toList());
+            }
+        }
+        return result;
     }
 
     // ---------------------------------------------------------------------------------------------------- albums
@@ -526,11 +538,7 @@ public class CatalogService {
     private void deleteAlbum(final Album album) {
         final boolean wasInMusic = album.getTracks().stream().anyMatch(track -> track.getLocation() == Location.MUSIC);
 
-        try {
-            storage.deleteAlbum(album);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        storage.deleteAlbumAfterCommit(album);
         auditService.record("DELETE", "ALBUM", album.getUuid(), "Raderade albumet " + album.getTitle());
         albumRepository.delete(album);
         if (wasInMusic) {
@@ -548,13 +556,11 @@ public class CatalogService {
         caller.requireEditor();
 
         final Album album = editableAlbum(id);
+        final String oldExtension = album.getCoverExtension();
 
+        album.setCoverExtension(extension);
         try {
-            if (album.getCoverExtension() != null) {
-                java.nio.file.Files.deleteIfExists(storage.coverFile(album));
-            }
-            album.setCoverExtension(extension);
-            java.nio.file.Files.write(storage.coverFile(album), content);
+            storage.replaceCover(album, oldExtension, content);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -571,13 +577,15 @@ public class CatalogService {
 
         final Album album = editableAlbum(id);
 
-        if (album.getCoverExtension() != null) {
+        final String oldExtension = album.getCoverExtension();
+
+        if (oldExtension != null) {
+            album.setCoverExtension(null);
             try {
-                java.nio.file.Files.deleteIfExists(storage.coverFile(album));
+                storage.replaceCover(album, oldExtension, null);
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);
             }
-            album.setCoverExtension(null);
             place(album);
             auditService.record("UPDATE", "ALBUM", album.getUuid(), "Tog bort omslaget på albumet " + album.getTitle());
         }
@@ -633,7 +641,7 @@ public class CatalogService {
         track.setLocation(Location.UNPUBLISHED);
         trackRepository.save(track);
         try {
-            storage.store(audio.file(), track);
+            storage.storeNew(audio.file(), track, storage.uploadFile(uploadId));
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -656,10 +664,11 @@ public class CatalogService {
         final PreparedAudio audio = prepare(uploadId, caller);
         final boolean wasInMusic = track.getLocation() == Location.MUSIC;
 
+        final Path old = storage.trackFile(track);
+
+        setAudio(track, audio);
         try {
-            storage.delete(track);
-            setAudio(track, audio);
-            storage.store(audio.file(), track);
+            storage.replace(audio.file(), track, old, storage.uploadFile(uploadId));
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -735,11 +744,7 @@ public class CatalogService {
     }
 
     private void deleteTrack(final Track track) {
-        try {
-            storage.delete(track);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        storage.deleteAfterCommit(track);
         auditService.record("DELETE", "TRACK", track.getUuid(), "Raderade " + track.getTitle());
         track.getAlbum().getTracks().remove(track);
         trackRepository.delete(track);

@@ -203,7 +203,10 @@ class CatalogServiceTest {
         assertThat(result).extracting(AlbumDto::title).containsExactly("Cleopatra");
         assertThat(result.getFirst().trackCount()).isEqualTo(1);
         assertThat(service.album(uuid(2))).isNull();
-        assertThat(service.tracks(uuid(1))).extracting(TrackDto::title).containsExactly("Ouvertyr");
+        when(albumRepository.findByUuidIn(List.of(uuid(1), uuid(2)))).thenReturn(albums);
+        final Map<UUID, List<TrackDto>> tracks = service.tracksOf(List.of(uuid(1), uuid(2)));
+        assertThat(tracks.get(uuid(1))).extracting(TrackDto::title).containsExactly("Ouvertyr");
+        assertThat(tracks.get(uuid(2))).isEmpty();
     }
 
     @Test
@@ -213,7 +216,8 @@ class CatalogServiceTest {
 
         assertThat(service.albums(new AlbumFilter(null, null, null, true))).extracting(AlbumDto::title).containsExactly("Cleopatra", "Opublicerat");
         assertThat(service.album(uuid(2))).isNotNull();
-        assertThat(service.tracks(uuid(1))).extracting(TrackDto::title).containsExactly("Ouvertyr", "Duetten");
+        when(albumRepository.findByUuidIn(List.of(uuid(1)))).thenReturn(List.of(published));
+        assertThat(service.tracksOf(List.of(uuid(1))).get(uuid(1))).extracting(TrackDto::title).containsExactly("Ouvertyr", "Duetten");
     }
 
     @Test
@@ -463,7 +467,7 @@ class CatalogServiceTest {
         published.setTrashedAt(NOW);
         published.getTracks().getFirst().setLocation(Location.MUSIC);
         service.albumDelete(uuid(1));
-        verify(storage).deleteAlbum(published);
+        verify(storage).deleteAlbumAfterCommit(published);
         verify(albumRepository).delete(published);
         verify(scanner).requestScan();
     }
@@ -481,7 +485,7 @@ class CatalogServiceTest {
 
         service.trashEmpty();
 
-        verify(storage).delete(loose);
+        verify(storage).deleteAfterCommit(loose);
         verify(trackRepository).delete(loose);
         assertThat(published.getTracks()).extracting(Track::getTitle).containsExactly("Duetten");
         verify(albumRepository).delete(unpublished);
@@ -490,13 +494,13 @@ class CatalogServiceTest {
     @Test
     void aCoverIsWrittenAndRemoved() throws Exception {
         as(TestCallers.editor());
-        when(storage.coverFile(published)).thenReturn(folder.resolve("cover"));
 
+        // MediaStorage keeps the earlier cover until the commit (MediaStorageTest)
         assertThat(service.albumCover(uuid(1), new byte[]{1, 2, 3}, "png").hasCover()).isTrue();
-        assertThat(folder.resolve("cover")).hasBinaryContent(new byte[]{1, 2, 3});
+        verify(storage).replaceCover(published, null, new byte[]{1, 2, 3});
 
         assertThat(service.albumCoverRemove(uuid(1)).hasCover()).isFalse();
-        assertThat(folder.resolve("cover")).doesNotExist();
+        verify(storage).replaceCover(published, "png", null);
     }
 
     @Test
@@ -578,9 +582,13 @@ class CatalogServiceTest {
 
         track.setLocation(Location.MUSIC);
         track.setTagsHash("old");
+        when(storage.trackFile(track)).thenReturn(folder.resolve("old.flac"));
+        when(storage.uploadFile("u-1")).thenReturn(folder.resolve("upload"));
         service.trackReplaceAudio(uuid(11), "u-1");
 
-        verify(storage).delete(track);
+        // The old file is kept aside until the transaction completes
+        verify(storage).replace(folder.resolve("upload"), track, folder.resolve("old.flac"), folder.resolve("upload"));
+        verify(storage, never()).delete(track);
         assertThat(track.getTagsHash()).isNull();
         assertThat(track.getFileSize()).isEqualTo(2048);
         verify(scanner).requestScan();
@@ -621,7 +629,7 @@ class CatalogServiceTest {
 
         published.getTracks().getFirst().setTrashedAt(NOW);
         service.trackDelete(uuid(11));
-        verify(storage).delete(any(Track.class));
+        verify(storage).deleteAfterCommit(any(Track.class));
         assertThat(published.getTracks()).extracting(Track::getUuid).containsExactly(uuid(12));
     }
 }

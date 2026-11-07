@@ -195,6 +195,10 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
                 .path("auditLog.entries[*].action").entityList(String.class).contains("CREATE", "PUBLISH");
         graphQl(LISTENER).document("{ auditLog { totalCount } }").execute().errors()
                 .satisfy(errors -> assertThat(errors).isNotEmpty());
+        // The page that was actually read, not the one asked for
+        graphQl(EDITOR).document("{ auditLog(page: -3, size: 100000) { page size } }").execute()
+                .path("auditLog.page").entity(Integer.class).isEqualTo(0)
+                .path("auditLog.size").entity(Integer.class).isEqualTo(200);
 
         // Narrowed by action, record, text and period; the editor sees only their own changes and only themselves as actor
         graphQl(EDITOR)

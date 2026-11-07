@@ -69,6 +69,8 @@ import java.util.zip.ZipOutputStream;
 public class MediaController {
 
     private static final long MAX_COVER = 10L * 1024 * 1024;
+    private static final String NOSNIFF_HEADER = "X-Content-Type-Options";
+    private static final String NOSNIFF = "nosniff";
 
     private final CatalogService catalogService;
     private final MediaStorage storage;
@@ -229,6 +231,7 @@ public class MediaController {
                 .contentType(contentType(track))
                 .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                .header(NOSNIFF_HEADER, NOSNIFF)
                 .body(new FileSystemResource(file));
     }
 
@@ -239,6 +242,7 @@ public class MediaController {
                 .contentType(contentType(track))
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                         .filename(downloadName(track), StandardCharsets.UTF_8).build().toString())
+                .header(NOSNIFF_HEADER, NOSNIFF)
                 .body(new FileSystemResource(file));
     }
 
@@ -273,6 +277,7 @@ public class MediaController {
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/zip"))
+                .header(NOSNIFF_HEADER, NOSNIFF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(zipName, StandardCharsets.UTF_8).build().toString())
                 .body(body);
     }
@@ -290,6 +295,7 @@ public class MediaController {
             if (Files.isRegularFile(file)) {
                 return ResponseEntity.ok()
                         .contentType(imageType(album.getCoverExtension()))
+                        .header(NOSNIFF_HEADER, NOSNIFF)
                         .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
                         .body(new FileSystemResource(file));
             }
@@ -298,6 +304,7 @@ public class MediaController {
             return spexService.poster(album.mainSpex().getId())
                     .<ResponseEntity<?>>map(poster -> ResponseEntity.ok()
                             .contentType(MediaType.parseMediaType(poster.contentType()))
+                            .header(NOSNIFF_HEADER, NOSNIFF)
                             .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
                             .body(poster.content()))
                     .orElseGet(() -> ResponseEntity.notFound().build());

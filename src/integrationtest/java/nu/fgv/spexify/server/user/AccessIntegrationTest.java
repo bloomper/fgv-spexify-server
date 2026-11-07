@@ -18,6 +18,8 @@ package nu.fgv.spexify.server.user;
 
 import nu.fgv.spexify.server.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,6 +57,17 @@ class AccessIntegrationTest extends AbstractIntegrationTest {
     @Test
     void withoutATokenTheCatalogueIsUnauthorized() {
         expectError(graphQl(null).document("{ albums { id } }").execute(), "UNAUTHORIZED");
+    }
+
+    @Test
+    void anIdTokenIsRefusedInPlaceOfAnAccessToken() {
+        final int status = http().post().uri("/api/graphql")
+                .header(HttpHeaders.AUTHORIZATION, idToken(EDITOR))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"query\": \"{ me { username } }\"}")
+                .exchange((request, response) -> response.getStatusCode().value());
+
+        assertThat(status).isEqualTo(401);
     }
 
     @Test
