@@ -20,6 +20,8 @@ import nu.fgv.spexify.server.TestCallers;
 import nu.fgv.spexify.server.TestClock;
 import nu.fgv.spexify.server.config.SpexifyProperties;
 import nu.fgv.spexify.server.media.MediaStorage;
+import nu.fgv.spexify.server.user.Caller;
+import nu.fgv.spexify.server.user.Role;
 import nu.fgv.spexify.server.util.error.BadRequestException;
 import nu.fgv.spexify.server.util.error.ConflictException;
 import nu.fgv.spexify.server.util.error.ResourceNotFoundException;
@@ -33,6 +35,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.unit.DataSize;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -41,12 +44,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -135,6 +141,46 @@ class UploadServiceTest {
         assertThatThrownBy(() -> service.get(TestCallers.admin(), session.getId())).isInstanceOf(ResourceNotFoundException.class);
         assertThatThrownBy(() -> service.terminate(TestCallers.admin(), session.getId())).isInstanceOf(ResourceNotFoundException.class);
         assertThat(service.get(TestCallers.editor(), session.getId())).isSameAs(session);
+    }
+
+    @Test
+    void onlyAnEditorGoesOnWithTheirUpload() throws Exception {
+        final UploadSession session = service.create(TestCallers.editor(), 2, "a.flac");
+        // The same person after losing EDITOR
+        final Caller demoted = new Caller(TestCallers.editor().subject(), "erik@spexify.test", "Erik", Set.of(Role.USER), false);
+
+        assertThatThrownBy(() -> service.get(demoted, session.getId())).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.append(demoted, session.getId(), 0, new ByteArrayInputStream(new byte[]{1})))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.claim(session.getId(), demoted)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.terminate(demoted, session.getId())).isInstanceOf(AccessDeniedException.class);
+        assertThat(session.getOffset()).isZero();
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
+    void anUploadCannotBeTerminatedWhileAChunkIsBeingWritten() throws Exception {
+        final UploadSession session = service.create(TestCallers.editor(), 2, "a.flac");
+        final AtomicReference<Throwable> refused = new AtomicReference<>();
+        final InputStream body = new ByteArrayInputStream(new byte[]{1, 2}) {
+            @Override
+            public synchronized int read(final byte[] buffer, final int offset, final int length) {
+                if (refused.get() == null) {
+                    try {
+                        service.terminate(TestCallers.editor(), session.getId());
+                        refused.set(new AssertionError("terminated"));
+                    } catch (final Exception e) {
+                        refused.set(e);
+                    }
+                }
+                return super.read(buffer, offset, length);
+            }
+        };
+
+        assertThat(service.append(TestCallers.editor(), session.getId(), 0, body)).isEqualTo(2);
+        assertThat(refused.get()).isInstanceOf(ConflictException.class);
+        verify(repository, never()).delete(any());
+        assertThat(folder.resolve(session.getId())).exists();
     }
 
     @Test

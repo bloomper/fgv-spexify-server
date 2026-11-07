@@ -3,6 +3,8 @@ logging:
     path: ./build/integrationtest-data/log_data
 
 spexify:
+  data:
+    sample-user-password: s3cr3t-s3cr3t
   media:
     signing-key: integration-test-signing-key
   crypto:

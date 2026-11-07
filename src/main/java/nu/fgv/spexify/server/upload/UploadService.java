@@ -150,6 +150,11 @@ public class UploadService {
     public void terminate(final Caller caller, final String id) throws IOException {
         final UploadSession session = owned(caller, id);
 
+        // A chunk being written would save the session again after it was deleted
+        if (appending.contains(id)) {
+            throw new ConflictException("error.upload.offset");
+        }
+
         Files.deleteIfExists(storage.uploadFile(session.getId()));
         repository.delete(session);
     }
@@ -191,7 +196,11 @@ public class UploadService {
         }
     }
 
+    /**
+     * The caller's upload; only editors upload, so one who is no longer an editor cannot go on.
+     */
     private UploadSession owned(final Caller caller, final String id) {
+        caller.requireEditor();
         return repository.findById(id)
                 .filter(session -> session.getOwner().equals(caller.subject()))
                 .orElseThrow(() -> new ResourceNotFoundException("error.upload.notFound", id));

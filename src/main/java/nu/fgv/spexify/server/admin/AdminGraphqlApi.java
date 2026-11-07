@@ -99,7 +99,7 @@ public class AdminGraphqlApi {
         return new AuditPageDto(entries.getContent().stream()
                 .map(entry -> new AuditLogEntryDto(entry.getId(), entry.getAt(), entry.getActorSubject(), entry.getActorName(),
                         entry.getAction(), entry.getEntityType(), entry.getEntityId(), entry.getSummary()))
-                .toList(), entries.getTotalElements(), p, s);
+                .toList(), entries.getTotalElements(), entries.getNumber(), entries.getSize());
     }
 
     @QueryMapping

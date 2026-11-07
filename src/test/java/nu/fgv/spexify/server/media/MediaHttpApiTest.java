@@ -164,6 +164,7 @@ class MediaHttpApiTest extends AbstractApiTest {
                 .perform(get("/api/tracks/{id}/audio", uuid(2)).header(HttpHeaders.AUTHORIZATION, BEARER))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "audio/flac"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(content().bytes(AUDIO))
                 .andDo(document(
                         "track-audio-get",
@@ -185,6 +186,7 @@ class MediaHttpApiTest extends AbstractApiTest {
         mockMvc
                 .perform(get("/api/tracks/{id}/download", uuid(2)).header(HttpHeaders.AUTHORIZATION, BEARER))
                 .andExpect(status().isOk())
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(content().bytes(AUDIO))
                 .andDo(document(
                         "track-download-get",
@@ -211,6 +213,7 @@ class MediaHttpApiTest extends AbstractApiTest {
                 .perform(asyncDispatch(started))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "application/zip"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andDo(document(
                         "album-download-get",
                         secureRequestHeaders,
@@ -367,6 +370,7 @@ class MediaHttpApiTest extends AbstractApiTest {
                 .perform(get(signedPath("tracks/" + uuid(2) + "/audio")))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "audio/flac"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(content().bytes(AUDIO))
                 .andDo(document(
                         "track-audio-signed-get",
