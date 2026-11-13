@@ -22,7 +22,7 @@ import nu.fgv.spexify.server.catalog.AlbumRepository;
 import nu.fgv.spexify.server.catalog.SpexRef;
 import nu.fgv.spexify.server.config.CacheConfig;
 import nu.fgv.spexify.server.user.CallerService;
-import nu.fgv.spexify.server.util.error.SpexregisterUnavailableException;
+import nu.fgv.spexify.server.util.error.SpexipediaUnavailableException;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,12 +56,12 @@ public class SpexService {
 
     private static final int MAX_RESULTS = 30;
 
-    private final SpexregisterClient client;
+    private final SpexipediaClient client;
     private final AlbumRepository albumRepository;
     private final CallerService callerService;
     private final Clock clock;
 
-    public SpexService(final SpexregisterClient client, final AlbumRepository albumRepository,
+    public SpexService(final SpexipediaClient client, final AlbumRepository albumRepository,
                        final CallerService callerService, final Clock clock) {
         this.client = client;
         this.albumRepository = albumRepository;
@@ -119,26 +119,46 @@ public class SpexService {
             return group(client.allSpex(), spex -> q.isEmpty()
                     || (spex.title() != null && spex.title().toLowerCase(Locale.ROOT).contains(q))
                     || (spex.year() != null && spex.year().toString().equals(q)), MAX_RESULTS);
-        } catch (final SpexregisterClient.SpexregisterCallException e) {
-            throw new SpexregisterUnavailableException(e);
+        } catch (final SpexipediaClient.SpexipediaCallException e) {
+            throw new SpexipediaUnavailableException(e);
         }
     }
 
     public SpexDto byId(final UUID id) {
         try {
             return client.spexById(id).orElseThrow(() -> new nu.fgv.spexify.server.util.error.BadRequestException("error.spex.notFound", id));
-        } catch (final SpexregisterClient.SpexregisterCallException e) {
-            throw new SpexregisterUnavailableException(e);
+        } catch (final SpexipediaClient.SpexipediaCallException e) {
+            throw new SpexipediaUnavailableException(e);
         }
     }
 
     @Cacheable(cacheNames = CacheConfig.SPEX_POSTERS)
-    public Optional<SpexregisterClient.Poster> poster(final UUID spexId) {
+    public Optional<SpexipediaClient.Poster> poster(final UUID spexId) {
         try {
             return client.poster(spexId);
-        } catch (final SpexregisterClient.SpexregisterCallException e) {
+        } catch (final SpexipediaClient.SpexipediaCallException e) {
             log.debug("Could not read the poster of spex {}", spexId, e);
             return Optional.empty();
+        }
+    }
+
+    /**
+     * EDITOR. The numbers of a spex in Spexipedia, for linking tracks.
+     */
+    public List<NumberDto> numbers(final UUID spexId) {
+        callerService.current().requireEditor();
+        try {
+            return client.numbers(spexId);
+        } catch (final SpexipediaClient.SpexipediaCallException e) {
+            throw new SpexipediaUnavailableException(e);
+        }
+    }
+
+    public NumberDto number(final UUID id) {
+        try {
+            return client.number(id).orElseThrow(() -> new nu.fgv.spexify.server.util.error.BadRequestException("error.number.notFound", id));
+        } catch (final SpexipediaClient.SpexipediaCallException e) {
+            throw new SpexipediaUnavailableException(e);
         }
     }
 
@@ -173,12 +193,12 @@ public class SpexService {
                     if (current != null) {
                         copy(current, ref);
                     } else if (StringUtils.hasText(ref.getTitle())) {
-                        log.warn("Spex {} of album {} is no longer in Spexregister", ref.getId(), album.getId());
+                        log.warn("Spex {} of album {} is no longer in Spexipedia", ref.getId(), album.getId());
                     }
                 }
             }
-        } catch (final SpexregisterClient.SpexregisterCallException e) {
-            log.warn("Could not refresh spex from Spexregister: {}", e.getMessage());
+        } catch (final SpexipediaClient.SpexipediaCallException e) {
+            log.warn("Could not refresh spex from Spexipedia: {}", e.getMessage());
         }
     }
 }

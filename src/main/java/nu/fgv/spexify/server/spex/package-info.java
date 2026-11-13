@@ -15,7 +15,7 @@
  */
 
 /**
- * Spex from Spexregister, which albums are linked to.
+ * Spex and numbers from Spexipedia, which albums and tracks are linked to, and its change feed.
  */
 @NullMarked
 package nu.fgv.spexify.server.spex;

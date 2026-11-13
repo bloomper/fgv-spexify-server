@@ -68,7 +68,8 @@ services:
       API_KEYCLOAK_ADMIN_CLIENT_ID: ${API_KEYCLOAK_ADMIN_CLIENT_ID}
       SPEXIFY_NAVIDROME_URL: http://spexify-navidrome:4533
       API_MEDIA_ROOT: /data/media
-      API_SPEXREGISTER_GRAPHQL_URL: http://spexregister-api:8080/api/graphql
+      API_SPEXIPEDIA_GRAPHQL_URL: http://spexipedia-api:8080/api/graphql
+      SPEXIPEDIA_WEB_URL: ${SPEXIPEDIA_WEB_URL:-https://spexipedia.fgv.local.nu:8443}
       API_SPEXFLIX_GRAPHQL_URL: ${API_SPEXFLIX_GRAPHQL_URL:-}
       API_IMPORT_SAMPLE_DATA: ${API_IMPORT_SAMPLE_DATA:-false}
       API_SAMPLE_DATA_SIZE: ${API_SAMPLE_DATA_SIZE:-small}

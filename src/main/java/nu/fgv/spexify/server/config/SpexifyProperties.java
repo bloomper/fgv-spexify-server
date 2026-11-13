@@ -36,7 +36,7 @@ public record SpexifyProperties(String timeZone,
                                 Media media,
                                 Navidrome navidrome,
                                 Crypto crypto,
-                                Spexregister spexregister,
+                                Spexipedia spexipedia,
                                 Spexflix spexflix,
                                 Data data) {
 
@@ -59,7 +59,12 @@ public record SpexifyProperties(String timeZone,
     public record Crypto(String appPasswordEncryptionKey) {
     }
 
-    public record Spexregister(String graphqlUrl) {
+    /**
+     * @param graphqlUrl  Spexipedia's GraphQL API, e.g. {@code http://spexipedia-api:8080/api/graphql}
+     * @param webUrl      Spexipedia's web, for links to its pages; empty for none
+     * @param syncEnabled whether to follow its change feed
+     */
+    public record Spexipedia(String graphqlUrl, String webUrl, boolean syncEnabled) {
     }
 
     public record Spexflix(String graphqlUrl) {

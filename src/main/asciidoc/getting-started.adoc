@@ -55,8 +55,8 @@ $ docker compose up -d
 It creates the Docker network ``fgv-local``, which this repository's ``docker-compose.yaml`` joins.
 Keycloak imports the realm, with its clients and their secrets, from ``realm/fgv.json`` in https://github.com/bloomper/fgv-keycloak[fgv-keycloak].
 
-Spexify reads spex from Spexregister, and its sample data is built on Spexregister's (see <<sample_data>>).
-Run https://github.com/bloomper/spexregister-server[spexregister-server]'s local stack as well, as its getting started guide describes.
+Spexify reads spex from Spexipedia, and its sample data is built on Spexipedia's spex and Spexregister's users (see <<sample_data>>).
+Run the local stacks of fgv-spexipedia-server and https://github.com/bloomper/spexregister-server[spexregister-server] as well, as their getting started guides describe.
 
 [[configuration]]
 === Configuration
@@ -83,7 +83,7 @@ To see a changed placeholder after a pull, undo it with ``git update-index --no-
 
 |FGV_SPEXIFY_MYSQL_ROOT_PASSWORD|The password for the root user of Spexify Server's database||verysecret
 |FGV_SPEXIFY_MYSQL_USER_PASSWORD|The password for the user of Spexify Server's database||secret
-|API_KEYCLOAK_SERVICE_CLIENT_SECRET|The client secret of ``fgv-spexify-service``, with which Spexify Server calls Spexregister and Spexflix and checks that users still have access|Must match the value in ``realm/fgv.json`` in fgv-keycloak, search for ``fgv-spexify-service`` and pick the value for ``secret`` in the same section|
+|API_KEYCLOAK_SERVICE_CLIENT_SECRET|The client secret of ``fgv-spexify-service``, with which Spexify Server calls Spexipedia and Spexflix and checks that users still have access|Must match the value in ``realm/fgv.json`` in fgv-keycloak, search for ``fgv-spexify-service`` and pick the value for ``secret`` in the same section|
 |API_KEYCLOAK_ADMIN_CLIENT_SECRET|The client secret of ``fgv-admin``, with which the sample data import gives users roles|Must match the value in ``realm/fgv.json``, search for ``fgv-admin``|
 |API_APP_PASSWORD_ENCRYPTION_KEY|Encrypts the app passwords, which Subsonic's token login needs to read back|32 random bytes, base64, e.g. from ``openssl rand -base64 32``|
 |API_MEDIA_SIGNING_KEY|Signs the links with which the web's player and downloads fetch audio from the API without a token|A long random string, e.g. from ``openssl rand -base64 32``|
@@ -134,7 +134,7 @@ $ docker compose -f ../../fgv-infra-deploy/local/compose.yaml up -d
 $ docker compose up -d
 ----
 
-This starts MySQL, Navidrome and ``spexify-api``, which reaches Keycloak and Spexregister by their container names on the ``fgv-local`` network.
+This starts MySQL, Navidrome and ``spexify-api``, which reaches Keycloak and Spexipedia by their container names on the ``fgv-local`` network.
 Caddy serves it on ``https://api.spexify.fgv.local.nu:8443``.
 MySQL and Navidrome are also published on localhost, on ports 3308 and 4533.
 
@@ -190,10 +190,10 @@ If ``API_IMPORT_SAMPLE_DATA`` is set to ``true``, the database is replaced and t
 None of the data can be traced to real individuals, i.e. no personally identifiable information (PII).
 The import needs the secret of ``fgv-admin``.
 
-The sample data is built on Spexregister's, so Spexregister must run with ``API_IMPORT_SAMPLE_DATA=true``:
+The sample data is built on Spexipedia's and Spexregister's, so both must run with ``API_IMPORT_SAMPLE_DATA=true``:
 
-* The albums belong to Spexregister's sample spex, read from its API.
-The import waits up to 5 minutes for Spexregister.
+* The albums belong to Spexipedia's sample spex, read from its API, and their first tracks to the spex's numbers.
+The import waits up to 5 minutes for Spexipedia.
 * Spexregister's sample users get roles on ``fgv-spexify`` (see <<test_credentials>>).
 The import refuses to run without them, which keeps it away from real environments.
 
@@ -219,7 +219,7 @@ The username is ``KEYCLOAK_ADMIN`` in fgv-infra-deploy's ``local/.env`` and the 
 === Setup
 
 The realm is defined by ``realm/fgv.json`` in fgv-keycloak, whose README describes what it contains.
-Spexify uses its clients ``fgv-spexify`` (the web, and Spexify's roles), ``fgv-spexify-service`` (calls to Spexregister and Spexflix, and checking that app password owners still have access) and ``fgv-admin`` (the sample data's users).
+Spexify uses its clients ``fgv-spexify`` (the web, and Spexify's roles), ``fgv-spexify-service`` (calls to Spexipedia and Spexflix, and checking that app password owners still have access) and ``fgv-admin`` (the sample data's users).
 
 The integration tests import a copy of ``fgv.json`` at ``src/integrationtest/resources/realm/fgv.json``.
 After every realm change, replace it with the new ``realm/fgv.json`` from fgv-keycloak and commit it.

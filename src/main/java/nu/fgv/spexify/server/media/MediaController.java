@@ -283,7 +283,7 @@ public class MediaController {
     }
 
     /**
-     * The album's own cover, else the main spex's poster from Spexregister, else 404.
+     * The album's own cover, else the main spex's poster from Spexipedia, else 404.
      */
     @GetMapping("/api/albums/{id}/cover")
     public ResponseEntity<?> cover(@PathVariable final UUID id) {

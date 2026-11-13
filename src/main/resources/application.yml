@@ -75,6 +75,8 @@ spexify:
   jobs:
     spex-refresh:
       cron-expression: 0 15 3 * * * # Every day at 03:15
+    spexipedia-sync:
+      cron-expression: 0 */5 * * * * # Every five minutes
     upload-cleanup:
       cron-expression: 0 5 * * * * # Every hour at :05
     loudness-scan:
@@ -91,7 +93,7 @@ spexify:
     admin-client-id: ${API_KEYCLOAK_ADMIN_CLIENT_ID:fgv-admin}
     admin-client-secret: ${API_KEYCLOAK_ADMIN_CLIENT_SECRET:}
   security:
-    authorized-parties: ${API_SECURITY_AUTHORIZED_PARTIES:fgv-spexify,fgv-spexflix-service}
+    authorized-parties: ${API_SECURITY_AUTHORIZED_PARTIES:fgv-spexify,fgv-spexflix-service,fgv-spexipedia-service,fgv-archive-service}
     # How long a user's access in Keycloak is trusted before it is checked again, for app passwords
     access-cache: 10m
   media:
@@ -109,8 +111,10 @@ spexify:
   crypto:
     # 32 bytes, base64; encrypts app passwords, which Subsonic token authentication needs to read back
     app-password-encryption-key: ${API_APP_PASSWORD_ENCRYPTION_KEY:}
-  spexregister:
-    graphql-url: ${API_SPEXREGISTER_GRAPHQL_URL:https://api.register.fgv.local.nu:8443/api/graphql}
+  spexipedia:
+    graphql-url: ${API_SPEXIPEDIA_GRAPHQL_URL:https://api.spexipedia.fgv.local.nu:8443/api/graphql}
+    web-url: ${SPEXIPEDIA_WEB_URL:}
+    sync-enabled: ${API_SPEXIPEDIA_SYNC_ENABLED:true}
   spexflix:
     graphql-url: ${API_SPEXFLIX_GRAPHQL_URL:}
   data:

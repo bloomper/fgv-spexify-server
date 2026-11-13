@@ -42,7 +42,8 @@ import nu.fgv.spexify.server.navidrome.LibraryScanner;
 import nu.fgv.spexify.server.navidrome.NavidromeClient;
 import nu.fgv.spexify.server.spex.SpexDto;
 import nu.fgv.spexify.server.spex.SpexService;
-import nu.fgv.spexify.server.spex.SpexregisterClient;
+import nu.fgv.spexify.server.spex.NumberDto;
+import nu.fgv.spexify.server.spex.SpexipediaClient;
 import nu.fgv.spexify.server.user.AppUser;
 import nu.fgv.spexify.server.user.AppUserRepository;
 import nu.fgv.spexify.server.util.security.SecurityUtil;
@@ -84,8 +85,8 @@ import java.util.stream.Collectors;
 
 /**
  * Replaces everything with sample data at every start while {@code spexify.data.import-sample-data} is set: the
- * database, the media folder and the sample users in Keycloak. Built on Spexregister's sample spex, so Spexregister must
- * run with its sample data too. Ids are the same on every run, so Navidrome's stars keep pointing at the same tracks.
+ * database, the media folder and the sample users in Keycloak. Built on Spexipedia's sample spex, so Spexipedia must
+ * run with its sample data too; tracks are linked to the numbers it has. Ids are the same on every run, so Navidrome's stars keep pointing at the same tracks.
  *
  * @author Anders Jacobsson
  * @since 1.0
@@ -100,15 +101,15 @@ public class SampleDataImporter {
     static final String USER = "user@fgv.nu";
     // The only user of the applications' own, shared by Spexify's and Spexflix's sample data: an account without access
     static final String NO_ACCESS = "no-access@fgv.nu";
-    private static final int SPEXREGISTER_ATTEMPTS = 30;
-    private static final Duration SPEXREGISTER_RETRY_INTERVAL = Duration.ofSeconds(10);
+    private static final int SPEXIPEDIA_ATTEMPTS = 30;
+    private static final Duration SPEXIPEDIA_RETRY_INTERVAL = Duration.ofSeconds(10);
     private static final List<String> TABLES = List.of("audit_entry", "album_collection_album", "album_collection", "track_listening", "album_listening", "api_key", "app_password", "track", "album_spex", "album", "album_kind", "upload_session", "app_user");
 
     private final SpexifyProperties properties;
     private final Environment environment;
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
-    private final SpexregisterClient spexregisterClient;
+    private final SpexipediaClient spexipediaClient;
     private final SpexService spexService;
     private final Keycloak keycloak;
     private final MediaStorage storage;
@@ -130,7 +131,7 @@ public class SampleDataImporter {
 
     @SuppressWarnings("java:S107")
     public SampleDataImporter(final SpexifyProperties properties, final Environment environment, final JdbcTemplate jdbcTemplate,
-                              final TransactionTemplate transactionTemplate, final SpexregisterClient spexregisterClient,
+                              final TransactionTemplate transactionTemplate, final SpexipediaClient spexipediaClient,
                               final SpexService spexService, @Qualifier(KeycloakConfig.ADMIN) final Keycloak keycloak,
                               final MediaStorage storage, final Ffmpeg ffmpeg, final AudioPreparer audioPreparer,
                               final LibraryPlacer placer, final LibraryScanner scanner, final NavidromeClient navidrome,
@@ -142,7 +143,7 @@ public class SampleDataImporter {
         this.environment = environment;
         this.jdbcTemplate = jdbcTemplate;
         this.transactionTemplate = transactionTemplate;
-        this.spexregisterClient = spexregisterClient;
+        this.spexipediaClient = spexipediaClient;
         this.spexService = spexService;
         this.keycloak = keycloak;
         this.storage = storage;
@@ -296,27 +297,36 @@ public class SampleDataImporter {
         return Math.min(5, 2 + random.nextInt(3) + random.nextInt(2));
     }
 
+    private List<NumberDto> numbers(final SpexDto spex) {
+        try {
+            return spexipediaClient.numbers(spex.id());
+        } catch (final SpexipediaClient.SpexipediaCallException e) {
+            log.warn("Could not read the numbers of {}: {}", spex.title(), e.getMessage());
+            return List.of();
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------------- users
 
     private List<SpexDto> spexWithRetry() {
         for (int attempt = 1; ; attempt++) {
             try {
-                final List<SpexDto> spex = spexregisterClient.allSpex();
+                final List<SpexDto> spex = spexipediaClient.allSpex().stream().filter(s -> !s.retired()).toList();
 
                 if (spex.isEmpty()) {
-                    throw new IllegalStateException("Spexregister has no spex; import its sample data first");
+                    throw new IllegalStateException("Spexipedia has no spex; import its sample data first");
                 }
                 return spex.stream().sorted(Comparator.comparing((SpexDto s) -> s.year() == null ? 0 : s.year())).toList();
-            } catch (final SpexregisterClient.SpexregisterCallException e) {
-                if (attempt == SPEXREGISTER_ATTEMPTS) {
-                    throw new IllegalStateException("Spexregister is unavailable, so sample data cannot be imported", e);
+            } catch (final SpexipediaClient.SpexipediaCallException e) {
+                if (attempt == SPEXIPEDIA_ATTEMPTS) {
+                    throw new IllegalStateException("Spexipedia is unavailable, so sample data cannot be imported", e);
                 }
-                log.info("Waiting for Spexregister ({}/{})", attempt, SPEXREGISTER_ATTEMPTS);
+                log.info("Waiting for Spexipedia ({}/{})", attempt, SPEXIPEDIA_ATTEMPTS);
                 try {
-                    Thread.sleep(SPEXREGISTER_RETRY_INTERVAL);
+                    Thread.sleep(SPEXIPEDIA_RETRY_INTERVAL);
                 } catch (final InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
-                    throw new IllegalStateException("Interrupted while waiting for Spexregister", interrupted);
+                    throw new IllegalStateException("Interrupted while waiting for Spexipedia", interrupted);
                 }
             }
         }
@@ -539,6 +549,7 @@ public class SampleDataImporter {
         }
 
         final int trackCount = large ? 10 + random.nextInt(6) : 6 + random.nextInt(7);
+        final List<NumberDto> numbers = compilation || medley ? List.of() : numbers(picked);
 
         for (int number = 1; number <= trackCount; number++) {
             final Track track = new Track();
@@ -550,6 +561,13 @@ public class SampleDataImporter {
             track.setDiscNumber(secondDisc ? 2 : 1);
             track.setTrackNumber(secondDisc ? number - trackCount / 2 : number);
             track.setTitle(SampleCatalog.TITLES.get((index * 3 + number) % SampleCatalog.TITLES.size()));
+            if (number <= numbers.size()) {
+                final NumberDto linked = numbers.get(number - 1);
+
+                track.setTitle(linked.title());
+                track.setNumberId(linked.id());
+                track.setNumberTitle(linked.title());
+            }
             track.setPerformers(SampleCatalog.PERFORMERS.get(random.nextInt(SampleCatalog.PERFORMERS.size())));
             if (random.nextInt(3) > 0) {
                 track.setMelody(SampleCatalog.MELODIES.get(random.nextInt(SampleCatalog.MELODIES.size())));

@@ -26,7 +26,7 @@ import nu.fgv.spexify.server.util.error.BadRequestException;
 import nu.fgv.spexify.server.util.error.ConflictException;
 import nu.fgv.spexify.server.util.error.DirectoryUnavailableException;
 import nu.fgv.spexify.server.util.error.ResourceNotFoundException;
-import nu.fgv.spexify.server.util.error.SpexregisterUnavailableException;
+import nu.fgv.spexify.server.util.error.SpexipediaUnavailableException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -86,8 +86,8 @@ public class GlobalExceptionResolver extends DataFetcherExceptionResolverAdapter
             case final BadRequestException e -> localized(ErrorType.BAD_REQUEST, e, environment);
             case final ResourceNotFoundException e -> localized(ErrorType.NOT_FOUND, e, environment);
             case final ConflictException e -> localized(CustomErrorType.CONFLICT, e, environment);
-            case final SpexregisterUnavailableException e ->
-                    localized(CustomErrorType.SPEXREGISTER_UNAVAILABLE, e, environment);
+            case final SpexipediaUnavailableException e ->
+                    localized(CustomErrorType.SPEXIPEDIA_UNAVAILABLE, e, environment);
             case final DirectoryUnavailableException e ->
                     localized(CustomErrorType.DIRECTORY_UNAVAILABLE, e, environment);
             case final OptimisticLockingFailureException _, final OptimisticLockException _ ->

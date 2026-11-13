@@ -296,7 +296,7 @@ class MediaHttpApiTest extends AbstractApiTest {
         spex.setId(uuid(7));
         withSpex.getSpex().add(spex);
         when(catalogService.visibleAlbum(uuid(1))).thenReturn(withSpex);
-        when(spexService.poster(uuid(7))).thenReturn(java.util.Optional.of(new nu.fgv.spexify.server.spex.SpexregisterClient.Poster(PNG, "image/png")));
+        when(spexService.poster(uuid(7))).thenReturn(java.util.Optional.of(new nu.fgv.spexify.server.spex.SpexipediaClient.Poster(PNG, "image/png")));
         mockMvc.perform(get("/api/albums/{id}/cover", uuid(1))).andExpect(status().isOk()).andExpect(content().bytes(PNG));
 
         when(spexService.poster(uuid(7))).thenReturn(java.util.Optional.empty());

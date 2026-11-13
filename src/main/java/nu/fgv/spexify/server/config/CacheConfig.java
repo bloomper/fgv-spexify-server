@@ -17,7 +17,7 @@
 package nu.fgv.spexify.server.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
-import nu.fgv.spexify.server.spex.SpexregisterClient;
+import nu.fgv.spexify.server.spex.SpexipediaClient;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -28,7 +28,7 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * Caches for what other services answer: spex posters from Spexregister and video links from Spexflix.
+ * Caches for what other services answer: spex posters from Spexipedia and video links from Spexflix.
  *
  * @author Anders Jacobsson
  * @since 1.0
@@ -49,11 +49,11 @@ public class CacheConfig {
         cacheManager.registerCustomCache(SPEX_POSTERS, Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofHours(1))
                 .maximumWeight(POSTER_CACHE_BYTES)
-                .weigher((_, value) -> value instanceof Optional<?> poster && poster.orElse(null) instanceof SpexregisterClient.Poster image
+                .weigher((_, value) -> value instanceof Optional<?> poster && poster.orElse(null) instanceof SpexipediaClient.Poster image
                         ? image.content().length + 64
                         : 64)
                 .build());
-        // Editors search the spex as they type; Spexregister is asked once every few minutes, not on every key
+        // Editors search the spex as they type; Spexipedia is asked once every few minutes, not on every key
         cacheManager.registerCustomCache(ALL_SPEX, Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMinutes(5))
                 .maximumSize(1)

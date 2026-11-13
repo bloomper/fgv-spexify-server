@@ -23,7 +23,7 @@ import nu.fgv.spexify.server.util.error.ConflictException;
 import nu.fgv.spexify.server.util.error.DirectoryUnavailableException;
 import nu.fgv.spexify.server.util.error.LinkExpiredException;
 import nu.fgv.spexify.server.util.error.ResourceNotFoundException;
-import nu.fgv.spexify.server.util.error.SpexregisterUnavailableException;
+import nu.fgv.spexify.server.util.error.SpexipediaUnavailableException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -89,9 +89,9 @@ public class HttpErrorAdvice {
         return error(HttpStatus.CONFLICT, "CONFLICT", "error.conflict", null, locale);
     }
 
-    @ExceptionHandler(SpexregisterUnavailableException.class)
-    public ResponseEntity<Error> spexregisterUnavailable(final SpexregisterUnavailableException e, final Locale locale) {
-        return error(HttpStatus.SERVICE_UNAVAILABLE, "SPEXREGISTER_UNAVAILABLE", SpexregisterUnavailableException.MESSAGE_CODE, null, locale);
+    @ExceptionHandler(SpexipediaUnavailableException.class)
+    public ResponseEntity<Error> spexipediaUnavailable(final SpexipediaUnavailableException e, final Locale locale) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "SPEXIPEDIA_UNAVAILABLE", SpexipediaUnavailableException.MESSAGE_CODE, null, locale);
     }
 
     @ExceptionHandler(DirectoryUnavailableException.class)

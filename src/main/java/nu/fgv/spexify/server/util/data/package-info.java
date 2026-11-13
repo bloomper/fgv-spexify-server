@@ -15,7 +15,7 @@
  */
 
 /**
- * Sample data for development, tests and staging: generated audio, albums built on Spexregister's sample spex, and
+ * Sample data for development, tests and staging: generated audio, albums built on Spexipedia's sample spex, and
  * users with one purpose each.
  */
 @NullMarked

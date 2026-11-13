@@ -51,6 +51,11 @@ public interface AlbumRepository extends JpaRepository<Album, Long> {
     List<Album> findWithSpex();
 
     @Query("""
+            SELECT DISTINCT a FROM Album a JOIN a.spex s
+            WHERE a.published = TRUE AND a.trashedAt IS NULL AND (s.id IN :spexIds OR s.parentId IN :spexIds)""")
+    List<Album> findListedBySpex(@Param("spexIds") java.util.Collection<UUID> spexIds);
+
+    @Query("""
             SELECT DISTINCT a FROM Album a LEFT JOIN a.tracks t LEFT JOIN a.spex s
             WHERE a.trashedAt IS NULL AND (:editor = TRUE OR a.published = TRUE)
               AND (LOWER(a.title) LIKE :q OR LOWER(s.title) LIKE :q OR LOWER(a.description) LIKE :q

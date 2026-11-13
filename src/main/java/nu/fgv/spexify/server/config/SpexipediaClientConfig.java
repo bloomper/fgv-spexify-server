@@ -29,28 +29,29 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.web.client.OAuth2ClientHttpRequestInterceptor;
 import org.springframework.web.client.RestClient;
 
-import java.net.URI;
 import java.time.Duration;
 
 import static org.springframework.security.oauth2.client.web.client.RequestAttributeClientRegistrationIdResolver.clientRegistrationId;
 
 /**
- * The GraphQL client for Spexregister: client credentials of {@code fgv-spexify-service}, which holds only the
- * {@code MEDIA} role, with 3-second timeouts.
+ * The clients for Spexipedia: GraphQL with the client credentials of {@code fgv-spexify-service}, which holds
+ * {@code SYNC} on {@code fgv-spexipedia} for its change feed, and a plain one for its public poster images.
  *
  * @author Anders Jacobsson
  * @since 1.0
  */
 @Configuration
-public class SpexregisterClientConfig {
+public class SpexipediaClientConfig {
 
     public static final String REGISTRATION_ID = "fgv-spexify-service";
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    // A page of the change feed is up to 500 records
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(30);
 
     @Bean
-    public OAuth2AuthorizedClientManager spexregisterAuthorizedClientManager(final ClientRegistrationRepository clientRegistrationRepository,
-                                                                             final OAuth2AuthorizedClientService authorizedClientService) {
+    public OAuth2AuthorizedClientManager serviceAuthorizedClientManager(final ClientRegistrationRepository clientRegistrationRepository,
+                                                                        final OAuth2AuthorizedClientService authorizedClientService) {
         final AuthorizedClientServiceOAuth2AuthorizedClientManager manager =
                 new AuthorizedClientServiceOAuth2AuthorizedClientManager(clientRegistrationRepository, authorizedClientService);
 
@@ -58,27 +59,29 @@ public class SpexregisterClientConfig {
         return manager;
     }
 
-    /**
-     * Spexregister's REST API, rooted at the GraphQL URL's origin, for the one thing GraphQL cannot carry: poster
-     * images.
-     */
     @Bean
-    public RestClient spexregisterRestClient(final SpexifyProperties properties,
-                                             final OAuth2AuthorizedClientManager spexregisterAuthorizedClientManager) {
-        return RestClient.builder()
-                .baseUrl(URI.create(properties.spexregister().graphqlUrl()).resolve("/").toString())
+    public HttpSyncGraphQlClient spexipediaGraphQlClient(final SpexifyProperties properties,
+                                                         final OAuth2AuthorizedClientManager serviceAuthorizedClientManager) {
+        final RestClient restClient = RestClient.builder()
                 .requestFactory(ClientHttpRequestFactoryBuilder.detect().build(HttpClientSettings.defaults()
-                        .withConnectTimeout(TIMEOUT)
-                        .withReadTimeout(TIMEOUT)))
-                .requestInterceptor(new OAuth2ClientHttpRequestInterceptor(spexregisterAuthorizedClientManager))
+                        .withConnectTimeout(CONNECT_TIMEOUT)
+                        .withReadTimeout(READ_TIMEOUT)))
+                .requestInterceptor(new OAuth2ClientHttpRequestInterceptor(serviceAuthorizedClientManager))
                 .defaultRequest(request -> request.attributes(clientRegistrationId(REGISTRATION_ID)))
                 .build();
+
+        return HttpSyncGraphQlClient.builder(restClient).url(properties.spexipedia().graphqlUrl()).build();
     }
 
+    /**
+     * For Spexipedia's images, which are public: no token.
+     */
     @Bean
-    public HttpSyncGraphQlClient spexregisterGraphQlClient(final SpexifyProperties properties,
-                                                           final RestClient spexregisterRestClient) {
-        return HttpSyncGraphQlClient.builder(spexregisterRestClient).url(properties.spexregister().graphqlUrl()).build();
+    public RestClient spexipediaMediaRestClient() {
+        return RestClient.builder()
+                .requestFactory(ClientHttpRequestFactoryBuilder.detect().build(HttpClientSettings.defaults()
+                        .withConnectTimeout(CONNECT_TIMEOUT)
+                        .withReadTimeout(CONNECT_TIMEOUT)))
+                .build();
     }
-
 }

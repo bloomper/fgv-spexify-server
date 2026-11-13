@@ -45,30 +45,33 @@ class SampleDataImporterIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private SampleDataImporter importer;
 
-    private static void spexregisterWithSpex() {
-        SPEXREGISTER.stubFor(post(urlEqualTo("/api/graphql")).withRequestBody(containing("AllSpex"))
+    private static void spexipediaWithSpex() {
+        SPEXIPEDIA.stubFor(post(urlEqualTo("/api/graphql")).withRequestBody(containing("AllSpex"))
                 .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("""
-                        {"data": {"spexPaged": {"edges": [
-                            {"node": {"id": "00000000-0000-7000-8000-000000000001", "year": "1975", "title": "Nobel", "revival": false, "parent": null, "category": {"id": "00000000-0000-7000-8000-000000000001", "name": "Chalmersspexet"}}},
-                            {"node": {"id": "00000000-0000-7000-8000-000000000002", "year": "2024", "title": "Cleopatra", "revival": false, "parent": null, "category": {"id": "00000000-0000-7000-8000-000000000001", "name": "Chalmersspexet"}}}
-                        ]}}}""")));
+                        {"data": {"spexAll": [
+                            {"id": "00000000-0000-7000-8000-000000000001", "year": "1975", "title": "Nobel", "revival": false, "retired": false, "parent": null, "poster": null, "category": {"id": "00000000-0000-7000-8000-000000000001", "name": "Chalmersspexet"}},
+                            {"id": "00000000-0000-7000-8000-000000000002", "year": "2024", "title": "Cleopatra", "revival": false, "retired": false, "parent": null, "poster": null, "category": {"id": "00000000-0000-7000-8000-000000000001", "name": "Chalmersspexet"}}
+                        ]}}""")));
+        SPEXIPEDIA.stubFor(post(urlEqualTo("/api/graphql")).withRequestBody(containing("SpexNumbers"))
+                .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("""
+                        {"data": {"spex": {"numbers": [{"id": "00000000-0000-7000-8000-0000000000b1", "act": 1, "position": 1, "title": "Ouvertyr"}]}}}""")));
     }
 
     @Test
     @Order(1)
     void refusesWithoutSpexregistersSampleUsers() {
-        spexregisterWithSpex();
+        spexipediaWithSpex();
 
         assertThatThrownBy(() -> importer.importSampleData()).hasMessageContaining("Spexregister's sample user");
     }
 
     @Test
     @Order(2)
-    void buildsAlbumsOnSpexregistersSpexAndGivesItsUsersRoles() throws Exception {
+    void buildsAlbumsOnSpexipediasSpexAndGivesItsUsersRoles() throws Exception {
         createSpexregisterUser(SampleDataImporter.ADMIN);
         createSpexregisterUser(SampleDataImporter.EDITOR);
         createSpexregisterUser(SampleDataImporter.USER);
-        spexregisterWithSpex();
+        spexipediaWithSpex();
 
         importer.importSampleData();
 

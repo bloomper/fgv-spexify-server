@@ -5,7 +5,7 @@
 Spexify Server is the backend of Spexify, FGV's music service for the songs the spex have recorded over the years.
 It is a Spring Boot application with a GraphQL API, plain HTTP endpoints for audio, downloads, covers and resumable
 (tus) uploads, and a Subsonic API for apps, which it serves as a gateway to [Navidrome][1]. It is backed by MySQL, a
-media folder and Keycloak ([fgv-keycloak][2]) for authentication, and reads spex from Spexregister. [Spexify Web][3] is
+media folder and Keycloak ([fgv-keycloak][2]) for authentication, and reads spex and numbers from Spexipedia. [Spexify Web][3] is
 its frontend and [fgv-spexify-deploy][4] runs it on a server.
 
 The product spec is in [fgv-spexify-spec][5].

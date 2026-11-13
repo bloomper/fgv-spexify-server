@@ -66,4 +66,11 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
               AND EXISTS (SELECT 1 FROM Album x JOIN x.spex s WHERE x = a AND (s.id IN :spexIds OR s.parentId IN :spexIds))
             ORDER BY a.year ASC, a.title ASC, t.discNumber ASC, t.trackNumber ASC""")
     List<Track> findListedBySpex(@Param("spexIds") Collection<UUID> spexIds);
+
+    @Query("""
+            SELECT t FROM Track t JOIN FETCH t.album a
+            WHERE a.published = TRUE AND a.trashedAt IS NULL AND t.published = TRUE AND t.trashedAt IS NULL
+              AND t.numberId IN :numberIds
+            ORDER BY a.year, a.title, t.discNumber, t.trackNumber""")
+    List<Track> findListedByNumber(@Param("numberIds") Collection<UUID> numberIds);
 }
