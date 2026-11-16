@@ -94,6 +94,10 @@ logging:
 
 spexify:
   time-zone: Europe/Stockholm
+  imports:
+    # Files received through the import API (Spexipedia's docs/content-import.md, section 4)
+    root: ${API_IMPORTS_ROOT:./data/imports}
+    keep-files: 7d
   jobs:
     spex-refresh:
       cron-expression: 0 15 3 * * * # Every day at 03:15
@@ -112,7 +116,7 @@ spexify:
     service-client-id: ${API_KEYCLOAK_SERVICE_CLIENT_ID:fgv-spexify-service}
     service-client-secret: ${API_KEYCLOAK_SERVICE_CLIENT_SECRET:}
   security:
-    authorized-parties: ${API_SECURITY_AUTHORIZED_PARTIES:fgv-spexify,fgv-spexflix-service,fgv-spexipedia-service,fgv-archive-service}
+    authorized-parties: ${API_SECURITY_AUTHORIZED_PARTIES:fgv-spexify,fgv-spexflix-service,fgv-spexipedia-service,fgv-archive-service,fgv-content-migration}
     # How long a user's access in Keycloak is trusted before it is checked again, for app passwords
     access-cache: 10m
   mcp:

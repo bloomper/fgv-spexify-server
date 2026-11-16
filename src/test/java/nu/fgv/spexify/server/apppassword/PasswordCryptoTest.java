@@ -29,7 +29,7 @@ class PasswordCryptoTest {
     private static final String KEY = Base64.getEncoder().encodeToString(new byte[32]);
 
     private static PasswordCrypto crypto(final String key) {
-        return new PasswordCrypto(new SpexifyProperties(null, null, null, null, null,
+        return new PasswordCrypto(new SpexifyProperties(null, null, null, null, null, null,
                 new SpexifyProperties.Crypto(key), null, null, null));
     }
 

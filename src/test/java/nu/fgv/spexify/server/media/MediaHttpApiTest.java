@@ -126,7 +126,7 @@ class MediaHttpApiTest extends AbstractApiTest {
     }
 
     private static AlbumDto albumDto(final boolean hasCover) {
-        return new AlbumDto(uuid(1), "Cleopatra", 2024, new AlbumKindService.AlbumKindDto(uuid(101), "Föreställning", "Show", 1), null, null,
+        return new AlbumDto(uuid(1), "Cleopatra", 2024, new AlbumKindService.AlbumKindDto(uuid(101), "Föreställning", "Show", java.util.List.of(), 1), null, null,
                 hasCover, true, Instant.parse("2026-10-01T10:00:00Z"), null, null, 12, 2_400_000, Instant.parse("2026-09-30T10:00:00Z"), null);
     }
 

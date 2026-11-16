@@ -73,7 +73,7 @@ class AccessCheckerTest {
         final ClientRepresentation client = new ClientRepresentation();
 
         client.setId("uuid");
-        checker = new AccessChecker(keycloak, new SpexifyProperties(null,
+        checker = new AccessChecker(keycloak, new SpexifyProperties(null, null,
                 new SpexifyProperties.Keycloak(null, "fgv", null, null),
                 new SpexifyProperties.Security(List.of(), Duration.ofMinutes(10)), null, null, null, null, null, null));
         lenient().when(keycloak.realm("fgv").clients().findByClientId("fgv-spexify")).thenReturn(List.of(client));

@@ -16,6 +16,7 @@
 
 package nu.fgv.spexify.server.maintenance;
 
+import nu.fgv.spexify.server.imports.ImportFileStore;
 import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.catalog.LoudnessScan;
 import nu.fgv.spexify.server.listening.ListeningService;
@@ -54,10 +55,13 @@ public class MaintenanceJobs {
 
     @Autowired
     public MaintenanceJobs(final SpexService spexService, final UploadService uploadService, final LoudnessScan loudnessScan,
-                           final ListeningService listeningService) {
+                           final ListeningService listeningService, final ImportFileStore importFiles) {
         this(Map.of(
                 MaintenanceJob.SPEX_REFRESH, spexService::refresh,
-                MaintenanceJob.UPLOAD_CLEANUP, uploadService::cleanUp,
+                MaintenanceJob.UPLOAD_CLEANUP, () -> {
+                    uploadService.cleanUp();
+                    importFiles.cleanUp();
+                },
                 MaintenanceJob.LOUDNESS_SCAN, loudnessScan::run,
                 MaintenanceJob.LISTENING_SYNC, listeningService::sync
         ));

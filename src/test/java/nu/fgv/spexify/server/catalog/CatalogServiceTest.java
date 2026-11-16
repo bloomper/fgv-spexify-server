@@ -97,6 +97,8 @@ class CatalogServiceTest {
     @Mock
     private AudioPreparer audioPreparer;
     @Mock
+    private AudioProbe audioProbe;
+    @Mock
     private UploadService uploadService;
     @Mock
     private LibraryScanner scanner;
@@ -162,7 +164,7 @@ class CatalogServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CatalogService(albumRepository, kindService, trackRepository, callerService, spexService, placer, storage, audioPreparer,
+        service = new CatalogService(albumRepository, kindService, trackRepository, callerService, spexService, placer, storage, audioPreparer, audioProbe,
                 uploadService, scanner, auditService, Clock.fixed(NOW, ZoneOffset.UTC));
         lenient().when(kindService.kindOrDefault(null)).thenReturn(SHOW);
         lenient().when(kindService.kindOrDefault(STUDIO.getUuid())).thenReturn(STUDIO);
