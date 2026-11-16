@@ -147,7 +147,6 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.security.oauth2.client.registration.fgv-spexify-service.client-secret", () -> SECRETS.get("fgv-spexify-service"));
         registry.add("spexify.keycloak.url", KEYCLOAK::getAuthServerUrl);
         registry.add("spexify.keycloak.service-client-secret", () -> SECRETS.get("fgv-spexify-service"));
-        registry.add("spexify.keycloak.admin-client-secret", () -> SECRETS.get("fgv-admin"));
         registry.add("spexify.navidrome.url", () -> "http://%s:%d".formatted(NAVIDROME.getHost(), NAVIDROME.getMappedPort(4533)));
         registry.add("spexify.media.root", MEDIA::toString);
         registry.add("spexify.spexipedia.graphql-url", () -> SPEXIPEDIA.baseUrl() + "/api/graphql");

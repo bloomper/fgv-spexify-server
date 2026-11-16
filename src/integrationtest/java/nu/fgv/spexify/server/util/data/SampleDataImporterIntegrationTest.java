@@ -30,11 +30,10 @@ import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The sample data is built on Spexregister's: its spex, and its sample users, who get roles here. The only user of
- * Spexify's own is {@code no-access@fgv.nu}.
+ * The sample data is built on Spexipedia's spex and fgv-infra-deploy's sample users, which it records by their fixed
+ * ids without asking Keycloak.
  *
  * @author Anders Jacobsson
  * @since 1.0
@@ -58,27 +57,16 @@ class SampleDataImporterIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @Order(1)
-    void refusesWithoutSpexregistersSampleUsers() {
-        spexipediaWithSpex();
-
-        assertThatThrownBy(() -> importer.importSampleData()).hasMessageContaining("Spexregister's sample user");
-    }
-
-    @Test
     @Order(2)
-    void buildsAlbumsOnSpexipediasSpexAndGivesItsUsersRoles() throws Exception {
-        createSpexregisterUser(SampleDataImporter.ADMIN);
-        createSpexregisterUser(SampleDataImporter.EDITOR);
-        createSpexregisterUser(SampleDataImporter.USER);
+    void buildsAlbumsOnSpexipediasSpexAndRecordsTheSampleUsers() throws Exception {
         spexipediaWithSpex();
 
         importer.importSampleData();
 
-        assertThat(spexifyRoles(SampleDataImporter.ADMIN)).containsExactly("ADMIN", "EDITOR", "USER");
-        assertThat(spexifyRoles(SampleDataImporter.EDITOR)).containsExactly("EDITOR", "USER");
-        assertThat(spexifyRoles(SampleDataImporter.USER)).containsExactly("USER");
-        assertThat(spexifyRoles(SampleDataImporter.NO_ACCESS)).isEmpty();
+        // fgv-infra-deploy's sample users, recorded by their fixed ids without asking Keycloak
+        assertThat(jdbcClient.sql("SELECT subject FROM app_user ORDER BY subject").query(String.class).list()).containsExactly(
+                "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002",
+                "00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000005");
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM app_user WHERE username = ?").param(SampleDataImporter.NO_ACCESS).query(Long.class).single())
                 .isEqualTo(1);
 

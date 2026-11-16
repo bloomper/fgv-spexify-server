@@ -89,9 +89,6 @@ spexify:
     # The service account checks that app password owners still have access; it needs realm-management view-users
     service-client-id: ${API_KEYCLOAK_SERVICE_CLIENT_ID:fgv-spexify-service}
     service-client-secret: ${API_KEYCLOAK_SERVICE_CLIENT_SECRET:}
-    # Only for the sample data import, which creates users
-    admin-client-id: ${API_KEYCLOAK_ADMIN_CLIENT_ID:fgv-admin}
-    admin-client-secret: ${API_KEYCLOAK_ADMIN_CLIENT_SECRET:}
   security:
     authorized-parties: ${API_SECURITY_AUTHORIZED_PARTIES:fgv-spexify,fgv-spexflix-service,fgv-spexipedia-service,fgv-archive-service}
     # How long a user's access in Keycloak is trusted before it is checked again, for app passwords
@@ -120,8 +117,6 @@ spexify:
   data:
     import-sample-data: ${API_IMPORT_SAMPLE_DATA:false}
     sample-data-size: ${API_SAMPLE_DATA_SIZE:small}
-    # Needed only to import sample data; the local profile has a development value
-    sample-user-password: ${SAMPLE_USER_PASSWORD:}
     sample-app-password: ${SAMPLE_APP_PASSWORD:sample-app-password-0001}
 
 ---
@@ -146,9 +141,6 @@ management:
     port: 9002
 
 spexify:
-  data:
-    # For development only; every other environment sets SAMPLE_USER_PASSWORD
-    sample-user-password: ${SAMPLE_USER_PASSWORD:s3cr3t-s3cr3t}
   keycloak:
     url: https://auth.fgv.local.nu:8443/auth
   navidrome:
