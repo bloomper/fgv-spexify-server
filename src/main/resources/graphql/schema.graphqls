@@ -36,8 +36,12 @@ type Query {
     creditTracks(kind: CreditKind!, name: String!): [Track!]!
     "USER. Listed tracks to play like a radio station. From a track: the track first, then tracks sharing its melody, original artist, performers, authors or spex. From an album: such tracks from other albums. Without either: listed tracks at random."
     radio(trackId: ID, albumId: ID, limit: Int = 50): [Track!]!
-    "EDITOR. Spex in Spexregister matching a title or year, for linking an album: each original, then its revivals, newest original first. An original is included when only a revival matches."
+    "EDITOR. Spex in Spexipedia, retired ones left out, matching a title or year, for linking an album: each original, then its revivals, newest original first. An original is included when only a revival matches."
     spexSearch(q: String!): [Spex!]!
+    "EDITOR. The numbers of a spex in Spexipedia, by act and position, for linking tracks."
+    spexNumbers(spexId: ID!): [SpexNumber!]!
+    "SPEXIPEDIA. The published albums about the spex (or revivals of them), and the published tracks of the numbers. At most 500 ids each."
+    spexipediaLinks(spexIds: [ID!]!, numberIds: [ID!]!): SpexipediaLinks!
     "USER. The caller's app passwords that are not revoked."
     appPasswords: [AppPassword!]!
     "USER. The caller's API keys that are not revoked."
@@ -77,6 +81,8 @@ type Mutation {
     albumDelete(id: ID!): Void
     "EDITOR. The spex poster is shown instead."
     albumCoverRemove(id: ID!): Album!
+    "EDITOR. Links the track to a number in Spexipedia of one of its album's spex; null unlinks it."
+    trackSetNumber(id: ID!, numberId: ID): Track!
     "EDITOR. Numbers the album's tracks in the given order, per disc."
     tracksReorder(albumId: ID!, trackIds: [ID!]!): Album!
     "EDITOR. A track from a finished upload; tags in the file pre-fill its fields."
@@ -218,7 +224,7 @@ enum TopBy {
 }
 
 input AlbumInput {
-    "Spex in Spexregister, the main one first, e.g. several for a compilation. Empty when the album is not about any spex, e.g. a jubilee recording."
+    "Spex in Spexipedia, the main one first, e.g. several for a compilation. Empty when the album is not about any spex, e.g. a jubilee recording."
     spexIds: [ID!]! = []
     "Defaults to the main spex's title; required without a spex."
     title: String
@@ -327,6 +333,12 @@ type Track {
     fileMissing: Boolean!
     "ReplayGain 2.0 values from the measured loudness; null until measured."
     replayGain: ReplayGain
+    "The number in Spexipedia the track is a recording of."
+    numberId: ID
+    "The number's title, as copied from Spexipedia."
+    numberTitle: String
+    "The number on its spex's page in Spexipedia."
+    spexipediaUrl: String
     "Published Spexflix videos with a chapter linked to the track; empty when Spexflix is unavailable."
     videoLinks: [VideoLink!]!
     "Everyone's average rating, or null when nobody rated it."
@@ -336,6 +348,34 @@ type Track {
     likeCount: Int!
     "How often everyone played it."
     totalPlays: Int!
+}
+
+"A number (one song) of a spex in Spexipedia."
+type SpexNumber {
+    id: ID!
+    spexId: ID
+    act: Int!
+    position: Int!
+    title: String!
+}
+
+type SpexipediaLinks {
+    albums: [SpexipediaAlbumLink!]!
+    tracks: [SpexipediaTrackLink!]!
+}
+
+type SpexipediaAlbumLink {
+    id: ID!
+    title: String!
+    "The spex asked for that the album is about."
+    spexId: ID
+}
+
+type SpexipediaTrackLink {
+    id: ID!
+    title: String!
+    numberId: ID
+    albumId: ID!
 }
 
 type VideoLink {
@@ -462,7 +502,7 @@ type AuditLogEntry {
 }
 
 """
-A scheduled maintenance job: copying the current spex data from Spexregister (SPEX_REFRESH), removing uploads that
+A scheduled maintenance job: copying the current spex data from Spexipedia in full (SPEX_REFRESH; changes also arrive from its change feed within minutes), removing uploads that
 were never used (UPLOAD_CLEANUP), measuring the loudness of tracks that have none yet, for ReplayGain
 (LOUDNESS_SCAN), and copying everyone's ratings, likes and plays from Navidrome, for averages and top lists
 (LISTENING_SYNC).

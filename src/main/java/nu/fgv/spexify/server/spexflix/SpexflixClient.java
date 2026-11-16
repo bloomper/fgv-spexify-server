@@ -56,7 +56,7 @@ public class SpexflixClient {
 
     private final @Nullable HttpSyncGraphQlClient graphQlClient;
 
-    public SpexflixClient(final SpexifyProperties properties, final OAuth2AuthorizedClientManager spexregisterAuthorizedClientManager) {
+    public SpexflixClient(final SpexifyProperties properties, final OAuth2AuthorizedClientManager serviceAuthorizedClientManager) {
         final String url = properties.spexflix().graphqlUrl();
 
         if (StringUtils.hasText(url)) {
@@ -64,8 +64,8 @@ public class SpexflixClient {
                     .requestFactory(ClientHttpRequestFactoryBuilder.detect().build(HttpClientSettings.defaults()
                             .withConnectTimeout(TIMEOUT)
                             .withReadTimeout(TIMEOUT)))
-                    .requestInterceptor(new OAuth2ClientHttpRequestInterceptor(spexregisterAuthorizedClientManager))
-                    .defaultRequest(request -> request.attributes(clientRegistrationId(nu.fgv.spexify.server.config.SpexregisterClientConfig.REGISTRATION_ID)))
+                    .requestInterceptor(new OAuth2ClientHttpRequestInterceptor(serviceAuthorizedClientManager))
+                    .defaultRequest(request -> request.attributes(clientRegistrationId(nu.fgv.spexify.server.config.SpexipediaClientConfig.REGISTRATION_ID)))
                     .build();
 
             this.graphQlClient = HttpSyncGraphQlClient.builder(restClient).url(url).build();

@@ -16,7 +16,6 @@
 
 package nu.fgv.spexify.server.util.data;
 
-import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.apppassword.AppPasswordService;
 import nu.fgv.spexify.server.audit.AuditEntry;
@@ -30,7 +29,6 @@ import nu.fgv.spexify.server.catalog.AlbumRepository;
 import nu.fgv.spexify.server.catalog.Location;
 import nu.fgv.spexify.server.catalog.SpexRef;
 import nu.fgv.spexify.server.catalog.Track;
-import nu.fgv.spexify.server.config.KeycloakConfig;
 import nu.fgv.spexify.server.config.SpexifyProperties;
 import nu.fgv.spexify.server.listening.ListeningService;
 import nu.fgv.spexify.server.media.AudioPreparer;
@@ -42,17 +40,10 @@ import nu.fgv.spexify.server.navidrome.LibraryScanner;
 import nu.fgv.spexify.server.navidrome.NavidromeClient;
 import nu.fgv.spexify.server.spex.SpexDto;
 import nu.fgv.spexify.server.spex.SpexService;
-import nu.fgv.spexify.server.spex.SpexregisterClient;
+import nu.fgv.spexify.server.spex.NumberDto;
+import nu.fgv.spexify.server.spex.SpexipediaClient;
 import nu.fgv.spexify.server.user.AppUser;
 import nu.fgv.spexify.server.user.AppUserRepository;
-import nu.fgv.spexify.server.util.security.SecurityUtil;
-import org.keycloak.admin.client.Keycloak;
-import org.keycloak.admin.client.resource.ClientResource;
-import org.keycloak.admin.client.resource.RealmResource;
-import org.keycloak.representations.idm.CredentialRepresentation;
-import org.keycloak.representations.idm.RoleRepresentation;
-import org.keycloak.representations.idm.UserRepresentation;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.Ordered;
@@ -62,7 +53,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.FileSystemUtils;
-import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -84,8 +74,9 @@ import java.util.stream.Collectors;
 
 /**
  * Replaces everything with sample data at every start while {@code spexify.data.import-sample-data} is set: the
- * database, the media folder and the sample users in Keycloak. Built on Spexregister's sample spex, so Spexregister must
- * run with its sample data too. Ids are the same on every run, so Navidrome's stars keep pointing at the same tracks.
+ * database and the media folder. The sample users are fgv-infra-deploy's (bin/seed-users.sh), referred to by their
+ * fixed ids without asking Keycloak. Built on Spexipedia's sample spex, so Spexipedia must
+ * run with its sample data too; tracks are linked to the numbers it has. Ids are the same on every run, so Navidrome's stars keep pointing at the same tracks.
  *
  * @author Anders Jacobsson
  * @since 1.0
@@ -94,23 +85,22 @@ import java.util.stream.Collectors;
 @Component
 public class SampleDataImporter {
 
-    // Spexregister's sample users, which its sample data import creates; they get roles here
+    // The sample users of fgv-infra-deploy's bin/seed-users.sh, by their fixed ids (see createUsers)
     static final String ADMIN = "admin@fgv.nu";
     static final String EDITOR = "editor@fgv.nu";
     static final String USER = "user@fgv.nu";
     // The only user of the applications' own, shared by Spexify's and Spexflix's sample data: an account without access
     static final String NO_ACCESS = "no-access@fgv.nu";
-    private static final int SPEXREGISTER_ATTEMPTS = 30;
-    private static final Duration SPEXREGISTER_RETRY_INTERVAL = Duration.ofSeconds(10);
+    private static final int SPEXIPEDIA_ATTEMPTS = 30;
+    private static final Duration SPEXIPEDIA_RETRY_INTERVAL = Duration.ofSeconds(10);
     private static final List<String> TABLES = List.of("audit_entry", "album_collection_album", "album_collection", "track_listening", "album_listening", "api_key", "app_password", "track", "album_spex", "album", "album_kind", "upload_session", "app_user");
 
     private final SpexifyProperties properties;
     private final Environment environment;
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
-    private final SpexregisterClient spexregisterClient;
+    private final SpexipediaClient spexipediaClient;
     private final SpexService spexService;
-    private final Keycloak keycloak;
     private final MediaStorage storage;
     private final Ffmpeg ffmpeg;
     private final AudioPreparer audioPreparer;
@@ -130,8 +120,8 @@ public class SampleDataImporter {
 
     @SuppressWarnings("java:S107")
     public SampleDataImporter(final SpexifyProperties properties, final Environment environment, final JdbcTemplate jdbcTemplate,
-                              final TransactionTemplate transactionTemplate, final SpexregisterClient spexregisterClient,
-                              final SpexService spexService, @Qualifier(KeycloakConfig.ADMIN) final Keycloak keycloak,
+                              final TransactionTemplate transactionTemplate, final SpexipediaClient spexipediaClient,
+                              final SpexService spexService,
                               final MediaStorage storage, final Ffmpeg ffmpeg, final AudioPreparer audioPreparer,
                               final LibraryPlacer placer, final LibraryScanner scanner, final NavidromeClient navidrome,
                               final ListeningService listeningService, final AlbumRepository albumRepository,
@@ -142,9 +132,8 @@ public class SampleDataImporter {
         this.environment = environment;
         this.jdbcTemplate = jdbcTemplate;
         this.transactionTemplate = transactionTemplate;
-        this.spexregisterClient = spexregisterClient;
+        this.spexipediaClient = spexipediaClient;
         this.spexService = spexService;
-        this.keycloak = keycloak;
         this.storage = storage;
         this.ffmpeg = ffmpeg;
         this.audioPreparer = audioPreparer;
@@ -159,12 +148,6 @@ public class SampleDataImporter {
         this.appPasswordService = appPasswordService;
         this.auditRepository = auditRepository;
         this.clock = clock;
-    }
-
-    private static UserRepresentation spexregisterUser(final RealmResource realm, final String email) {
-        return realm.users().searchByEmail(email, true).stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException("Spexregister's sample user " + email
-                        + " is missing; start Spexregister with its sample data first"));
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -198,8 +181,7 @@ public class SampleDataImporter {
         storage.wipe();
 
         final List<SpexDto> spex = spexWithRetry();
-        final RealmResource realm = keycloak.realm(properties.keycloak().realm());
-        final Map<String, AppUser> users = NotificationSuspender.whileSuspended(realm, () -> createUsers(realm));
+        final Map<String, AppUser> users = createUsers();
         final Path clipsFolder = Files.createTempDirectory("spexify-sample-");
 
         try {
@@ -296,104 +278,66 @@ public class SampleDataImporter {
         return Math.min(5, 2 + random.nextInt(3) + random.nextInt(2));
     }
 
+    private List<NumberDto> numbers(final SpexDto spex) {
+        try {
+            return spexipediaClient.numbers(spex.id());
+        } catch (final SpexipediaClient.SpexipediaCallException e) {
+            log.warn("Could not read the numbers of {}: {}", spex.title(), e.getMessage());
+            return List.of();
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------------- users
 
     private List<SpexDto> spexWithRetry() {
         for (int attempt = 1; ; attempt++) {
             try {
-                final List<SpexDto> spex = spexregisterClient.allSpex();
+                final List<SpexDto> spex = spexipediaClient.allSpex().stream().filter(s -> !s.retired()).toList();
 
                 if (spex.isEmpty()) {
-                    throw new IllegalStateException("Spexregister has no spex; import its sample data first");
+                    throw new IllegalStateException("Spexipedia has no spex; import its sample data first");
                 }
                 return spex.stream().sorted(Comparator.comparing((SpexDto s) -> s.year() == null ? 0 : s.year())).toList();
-            } catch (final SpexregisterClient.SpexregisterCallException e) {
-                if (attempt == SPEXREGISTER_ATTEMPTS) {
-                    throw new IllegalStateException("Spexregister is unavailable, so sample data cannot be imported", e);
+            } catch (final SpexipediaClient.SpexipediaCallException e) {
+                if (attempt == SPEXIPEDIA_ATTEMPTS) {
+                    throw new IllegalStateException("Spexipedia is unavailable, so sample data cannot be imported", e);
                 }
-                log.info("Waiting for Spexregister ({}/{})", attempt, SPEXREGISTER_ATTEMPTS);
+                log.info("Waiting for Spexipedia ({}/{})", attempt, SPEXIPEDIA_ATTEMPTS);
                 try {
-                    Thread.sleep(SPEXREGISTER_RETRY_INTERVAL);
+                    Thread.sleep(SPEXIPEDIA_RETRY_INTERVAL);
                 } catch (final InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
-                    throw new IllegalStateException("Interrupted while waiting for Spexregister", interrupted);
+                    throw new IllegalStateException("Interrupted while waiting for Spexipedia", interrupted);
                 }
             }
         }
     }
 
     /**
-     * Gives Spexregister's sample users {@code admin@fgv.nu}, {@code editor@fgv.nu} and {@code user@fgv.nu} the roles
-     * of the same name on this client, and creates {@code no-access@fgv.nu}, without roles, when it is missing. Refuses
-     * without Spexregister's sample users, which keeps the import away from real environments.
+     * The sample users, which fgv-infra-deploy's bin/seed-users.sh creates in Keycloak with fixed ids and their roles on
+     * this client (sample-users.tsv): {@value #ADMIN}, {@value #EDITOR}, {@value #USER}, and {@value #NO_ACCESS} without
+     * roles. They are recorded here by those ids, without asking Keycloak.
      */
-    private Map<String, AppUser> createUsers(final RealmResource realm) {
-        final ClientResource client = realm.clients().get(realm.clients().findByClientId(SecurityUtil.CLIENT_ID).getFirst().getId());
-        final String clientUuid = client.toRepresentation().getId();
+    private Map<String, AppUser> createUsers() {
         final Map<String, AppUser> users = new LinkedHashMap<>();
 
-        users.put(ADMIN, grant(realm, client, clientUuid, spexregisterUser(realm, ADMIN), "USER", "EDITOR", "ADMIN"));
-        users.put(EDITOR, grant(realm, client, clientUuid, spexregisterUser(realm, EDITOR), "USER", "EDITOR"));
-        users.put(USER, grant(realm, client, clientUuid, spexregisterUser(realm, USER), "USER"));
-        users.put(NO_ACCESS, recordUser(noAccessUser(realm)));
+        users.put(ADMIN, recordUser("00000000-0000-4000-8000-000000000001", ADMIN, "Admin"));
+        users.put(EDITOR, recordUser("00000000-0000-4000-8000-000000000002", EDITOR, "Editor"));
+        users.put(USER, recordUser("00000000-0000-4000-8000-000000000003", USER, "User"));
+        users.put(NO_ACCESS, recordUser("00000000-0000-4000-8000-000000000005", NO_ACCESS, "No"));
         return users;
     }
 
-    private AppUser grant(final RealmResource realm, final ClientResource client, final String clientUuid,
-                          final UserRepresentation user, final String... roles) {
-        final List<RoleRepresentation> representations = Arrays.stream(roles)
-                .map(role -> client.roles().get(role).toRepresentation())
-                .toList();
-
-        realm.users().get(user.getId()).roles().clientLevel(clientUuid).add(representations);
-        return recordUser(user);
-    }
-
-    private AppUser recordUser(final UserRepresentation representation) {
+    private AppUser recordUser(final String subject, final String email, final String displayName) {
         final Instant now = clock.instant();
         final AppUser user = new AppUser();
 
-        user.setSubject(representation.getId());
-        user.setUsername(representation.getUsername());
-        user.setDisplayName(representation.getFirstName());
+        user.setSubject(subject);
+        user.setUsername(email);
+        user.setDisplayName(displayName);
         user.setCreatedAt(now);
         user.setLastSeenAt(now);
         return transactionTemplate.execute(_ -> userRepository.save(user));
-    }
-
-    private UserRepresentation noAccessUser(final RealmResource realm) {
-        final List<UserRepresentation> existing = realm.users().searchByEmail(NO_ACCESS, true);
-
-        if (!existing.isEmpty()) {
-            return existing.getFirst();
-        }
-
-        final CredentialRepresentation credential = new CredentialRepresentation();
-        final UserRepresentation user = new UserRepresentation();
-
-        credential.setType(CredentialRepresentation.PASSWORD);
-        if (!StringUtils.hasText(properties.data().sampleUserPassword())) {
-            throw new IllegalStateException("SAMPLE_USER_PASSWORD must be set to import sample data");
-        }
-        credential.setValue(properties.data().sampleUserPassword());
-        credential.setTemporary(false);
-        user.setUsername(NO_ACCESS);
-        user.setEmail(NO_ACCESS);
-        user.setFirstName("No");
-        user.setLastName("Access");
-        user.setEnabled(true);
-        user.setEmailVerified(true);
-        user.setCredentials(List.of(credential));
-
-        try (Response response = realm.users().create(user)) {
-            if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
-                throw new IllegalStateException("Could not create user " + NO_ACCESS + " in Keycloak: " + response.getStatus());
-            }
-
-            final String path = response.getLocation().getPath();
-
-            return realm.users().get(path.substring(path.lastIndexOf('/') + 1)).toRepresentation();
-        }
     }
 
     /**
@@ -539,6 +483,7 @@ public class SampleDataImporter {
         }
 
         final int trackCount = large ? 10 + random.nextInt(6) : 6 + random.nextInt(7);
+        final List<NumberDto> numbers = compilation || medley ? List.of() : numbers(picked);
 
         for (int number = 1; number <= trackCount; number++) {
             final Track track = new Track();
@@ -550,6 +495,13 @@ public class SampleDataImporter {
             track.setDiscNumber(secondDisc ? 2 : 1);
             track.setTrackNumber(secondDisc ? number - trackCount / 2 : number);
             track.setTitle(SampleCatalog.TITLES.get((index * 3 + number) % SampleCatalog.TITLES.size()));
+            if (number <= numbers.size()) {
+                final NumberDto linked = numbers.get(number - 1);
+
+                track.setTitle(linked.title());
+                track.setNumberId(linked.id());
+                track.setNumberTitle(linked.title());
+            }
             track.setPerformers(SampleCatalog.PERFORMERS.get(random.nextInt(SampleCatalog.PERFORMERS.size())));
             if (random.nextInt(3) > 0) {
                 track.setMelody(SampleCatalog.MELODIES.get(random.nextInt(SampleCatalog.MELODIES.size())));

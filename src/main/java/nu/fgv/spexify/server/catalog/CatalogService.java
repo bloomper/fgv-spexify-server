@@ -705,6 +705,35 @@ public class CatalogService {
         return toDto(track);
     }
 
+    /**
+     * EDITOR. Links the track to a number in Spexipedia of one of its album's spex, or unlinks it (null).
+     */
+    @Transactional
+    public TrackDto trackSetNumber(final UUID id, final @Nullable UUID numberId) {
+        callerService.current().requireEditor();
+
+        final Track track = track(id);
+
+        if (numberId == null) {
+            track.setNumberId(null);
+            track.setNumberTitle(null);
+        } else {
+            final nu.fgv.spexify.server.spex.NumberDto number = spexService.number(numberId);
+            final Set<UUID> spex = track.getAlbum().getSpex().stream()
+                    .flatMap(ref -> java.util.stream.Stream.of(ref.getId(), ref.familyId())).collect(Collectors.toSet());
+
+            // A revival's album may have its original's numbers
+            if (number.spexId() == null || !spex.contains(number.spexId())) {
+                throw new BadRequestException("error.track.numberNotOfAlbum");
+            }
+            track.setNumberId(number.id());
+            track.setNumberTitle(number.title());
+        }
+        auditService.record("UPDATE", "TRACK", track.getUuid(), numberId == null
+                ? "Tog bort numret från " + track.getTitle() : "Kopplade " + track.getTitle() + " till numret " + track.getNumberTitle());
+        return toDto(track);
+    }
+
     @Transactional
     public TrackDto trackPublish(final UUID id, final boolean published) {
         callerService.current().requireEditor();
@@ -825,7 +854,8 @@ public class CatalogService {
                 track.getFileFormat(), track.getFileSize(), track.getDurationMs(), track.getBitrate(), track.isPublished(),
                 track.isListed(), track.getTrashedAt(), track.getNavidromeId(), !storage.exists(track),
                 loudness == null ? null : new ReplayGainDto(loudness.gainDb(), loudness.peakAmplitude(),
-                        album == null ? null : album.gainDb(), album == null ? null : album.peakAmplitude()));
+                        album == null ? null : album.gainDb(), album == null ? null : album.peakAmplitude()),
+                track.getNumberId(), track.getNumberTitle());
     }
 
 }

@@ -78,7 +78,8 @@ public final class CatalogDtos {
                            @Nullable String lyricsAuthor, @Nullable String arranger, @Nullable String lyrics,
                            boolean lyricsSynced, String format, double fileSize, double durationMs,
                            @Nullable Integer bitrate, boolean published, boolean listed, @Nullable Instant trashedAt,
-                           @Nullable String navidromeId, boolean fileMissing, @Nullable ReplayGainDto replayGain) {
+                           @Nullable String navidromeId, boolean fileMissing, @Nullable ReplayGainDto replayGain,
+                           @Nullable UUID numberId, @Nullable String numberTitle) {
     }
 
     /**

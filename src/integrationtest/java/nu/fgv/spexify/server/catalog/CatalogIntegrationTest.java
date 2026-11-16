@@ -169,10 +169,10 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void anAlbumNeedsSpexregisterOnlyWhenItIsCreated() throws Exception {
+    void anAlbumNeedsSpexipediaOnlyWhenItIsCreated() throws Exception {
         final String albumId = createAlbum();
 
-        spexregisterDown();
+        spexipediaDown();
         graphQl(EDITOR)
                 .document("query($id: ID!) { album(id: $id) { title spex { title } } }")
                 .variable("id", albumId)
@@ -181,7 +181,7 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
         // A spex that is not cached yet
         expectError(graphQl(EDITOR)
                 .document("mutation { albumCreate(input: {spexIds: [\"00000000-0000-7000-8000-000000000002\"]}) { id } }")
-                .execute(), "SPEXREGISTER_UNAVAILABLE");
+                .execute(), "SPEXIPEDIA_UNAVAILABLE");
     }
 
     @Test

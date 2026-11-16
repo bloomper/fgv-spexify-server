@@ -14,22 +14,17 @@
  * limitations under the License.
  */
 
-package nu.fgv.spexify.server.util.error;
+package nu.fgv.spexify.server.spex;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import org.jspecify.annotations.Nullable;
+
+import java.util.UUID;
 
 /**
- * Spexregister could not be reached when it was needed.
+ * A number (one song) of a spex in Spexipedia, which a track may be a recording of.
  *
  * @author Anders Jacobsson
  * @since 1.0
  */
-public class SpexregisterUnavailableException extends ResponseStatusException {
-
-    public static final String MESSAGE_CODE = "error.spexregister.unavailable";
-
-    public SpexregisterUnavailableException(final Throwable cause) {
-        super(HttpStatus.SERVICE_UNAVAILABLE, MESSAGE_CODE, cause, MESSAGE_CODE, null);
-    }
+public record NumberDto(UUID id, @Nullable UUID spexId, int act, int position, String title) {
 }

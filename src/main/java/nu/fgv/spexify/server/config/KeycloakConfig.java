@@ -19,23 +19,18 @@ package nu.fgv.spexify.server.config;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 
 /**
- * Two Keycloak admin clients. The service client ({@code fgv-spexify-service}, {@code view-users}) checks whether the
- * owners of app passwords still have access. The admin client ({@code fgv-admin}) is used only by the sample data
- * import, which creates users.
+ * Keycloak's admin client as {@code fgv-spexify-service} ({@code view-users}), which checks whether the owners of app
+ * passwords still have access. Spexify never administers Keycloak: the sample users are fgv-infra-deploy's.
  *
  * @author Anders Jacobsson
  * @since 1.0
  */
 @Configuration(proxyBeanMethods = false)
 public class KeycloakConfig {
-
-    public static final String ADMIN = "keycloakAdmin";
 
     private static Keycloak build(final String url, final String realm, final String clientId, final String clientSecret) {
         return KeycloakBuilder.builder()
@@ -48,18 +43,9 @@ public class KeycloakConfig {
     }
 
     @Bean(destroyMethod = "close")
-    @Primary
     public Keycloak keycloakService(final SpexifyProperties properties) {
         final SpexifyProperties.Keycloak keycloak = properties.keycloak();
 
         return build(keycloak.url(), keycloak.realm(), keycloak.serviceClientId(), keycloak.serviceClientSecret());
-    }
-
-    @Bean(name = ADMIN, destroyMethod = "close")
-    @Qualifier(ADMIN)
-    public Keycloak keycloakAdmin(final SpexifyProperties properties) {
-        final SpexifyProperties.Keycloak keycloak = properties.keycloak();
-
-        return build(keycloak.url(), keycloak.realm(), keycloak.adminClientId(), keycloak.adminClientSecret());
     }
 }

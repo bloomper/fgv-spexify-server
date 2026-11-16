@@ -27,5 +27,13 @@ public enum Role {
     USER,
     EDITOR,
     ADMIN,
-    SPEXFLIX
+    SPEXFLIX,
+    /**
+     * Spexipedia's service account: which published albums and tracks belong to spex and numbers.
+     */
+    SPEXIPEDIA,
+    /**
+     * Spexipedia's service account: telling Spexify that its change feed has something new.
+     */
+    NOTIFY
 }

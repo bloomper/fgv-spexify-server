@@ -80,7 +80,7 @@ Subsonic apps use the <<subsonic,Subsonic API>> instead.
 | A cover is larger than 10 MB.
 
 | `503 Service Unavailable`
-| A service the request depends on, such as Spexregister, cannot be reached.
+| A service the request depends on, such as Spexipedia, cannot be reached.
 |===
 
 [[errors]]

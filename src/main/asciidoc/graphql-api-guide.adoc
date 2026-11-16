@@ -33,7 +33,7 @@ The GraphQL API provides the error code in ``extensions.classification`` and a m
 |``NOT_FOUND``|The resource does not exist. Also returned for an album or track the user may not see.
 |``BAD_REQUEST``|The input breaks a rule, e.g. an upload that is not audio.
 |``CONFLICT``|Someone else changed the resource since the user read it. Ask them to reload.
-|``SPEXREGISTER_UNAVAILABLE``|Spexregister cannot be reached. Everything that does not need it keeps working.
+|``SPEXIPEDIA_UNAVAILABLE``|Spexipedia cannot be reached. Everything that does not need it keeps working.
 |``DIRECTORY_UNAVAILABLE``|The FGV realm's users cannot be read in Keycloak.
 
 |===
@@ -81,13 +81,13 @@ Spexify Server uses the following roles, which are client roles on ``fgv-spexify
 
 |===
 
-Every service method resolves the caller and checks the role before it acts; GraphQL operations hold no rules of their own.
+Every service method resolves the caller and checks the role before it acts; GraphQL operations and MCP tools hold no rules of their own.
 ``me`` returns the caller's roles, so clients can show or hide controls; the server enforces every rule anyway.
 
 [[catalogue]]
 == The catalogue
 
-Albums belong to a spex in Spexregister (or none, for compilations) and hold tracks.
+Albums belong to a spex in Spexipedia (or none, for compilations) and hold tracks.
 New albums start unpublished.
 Listeners see published tracks of published albums; editors see everything that is not deleted.
 Trashing is undone from the trash; only an admin deletes for good.
@@ -121,13 +121,18 @@ Editors' changes are recorded in the audit log (``auditLog``): who, when, what a
 Editors see their own changes, admins everyone's.
 ``AuditFilter`` narrows the log by kind of record, action, person (admins only), period, text in the summary or one record (``entityId``); ``auditActors`` lists the people in the log the caller may see.
 
-[[spexregister]]
-== Spexregister
+[[spexipedia]]
+== Spexipedia
 
-Spex, their categories and posters are read from Spexregister, which Spexify Server calls as the service account ``fgv-spexify-service`` with Spexregister's ``MEDIA`` role.
-An album keeps a copy of its spex's title and year, so the catalogue works while Spexregister is down; only ``spexSearch`` and posters fail, with ``SPEXREGISTER_UNAVAILABLE``.
+Spex, their categories, posters and numbers are read from Spexipedia, FGV's source of base data, which Spexify Server calls as the service account ``fgv-spexify-service``.
+An album keeps a copy of its spex's title, year and category, so the catalogue works while Spexipedia is down; only ``spexSearch``, ``spexNumbers``, ``trackSetNumber`` and posters fail, with ``SPEXIPEDIA_UNAVAILABLE``.
+The copies follow Spexipedia's change feed (``SYNC`` on ``fgv-spexipedia``): Spexify pulls it every five minutes and when Spexipedia calls ``POST /api/sync/notify`` (``NOTIFY``); a merge in Spexipedia moves albums and tracks to the record merged into.
+The maintenance job ``SPEX_REFRESH`` copies everything again every night.
+
+A track may be a recording of one of the numbers of its album's spex (``trackSetNumber``, ``spexNumbers``); it then links to the number on Spexipedia's page (``Track.spexipediaUrl``).
+Spexipedia's service account reads which published albums are about given spex and which published tracks record given numbers (``spexipediaLinks``, ``SPEXIPEDIA``), for its *Listen* links.
 An album can be about several spex, e.g. a compilation, or none, e.g. a jubilee recording (``Album.spex`` is a list, the main spex first: the poster, the default title and year, and the category come from it).
-A revival is a spex of its own in Spexregister; each linked spex keeps its original (``AlbumSpex.familyId``), so asking for the albums or tracks of an original (``AlbumFilter.spexId``, ``spexTracks``) also gives those of its revivals, and ``spexSearch`` lists revivals right after their original.
+A revival is a spex of its own in Spexipedia; each linked spex keeps its original (``AlbumSpex.familyId``), so asking for the albums or tracks of an original (``AlbumFilter.spexId``, ``spexTracks``) also gives those of its revivals, and ``spexSearch`` lists revivals right after their original.
 
 [[spexflix]]
 == Spexflix

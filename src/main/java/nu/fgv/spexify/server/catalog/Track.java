@@ -89,6 +89,15 @@ public class Track extends AbstractAuditable {
     @Column(name = "lyrics_synced", nullable = false)
     private boolean lyricsSynced;
 
+    /**
+     * The number in Spexipedia the track is a recording of, with its title copied.
+     */
+    @Column(name = "number_id", length = 36)
+    private @Nullable UUID numberId;
+
+    @Column(name = "number_title")
+    private @Nullable String numberTitle;
+
     @Column(name = "file_extension", nullable = false)
     private String fileExtension;
 

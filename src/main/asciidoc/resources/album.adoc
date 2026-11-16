@@ -23,7 +23,7 @@ operation::album-download-link-get[snippets='security,path-parameters,request-he
 [[cover]]
 == Cover
 
-The album's own cover, else the poster of its spex from Spexregister, else `404 Not Found`.
+The album's own cover, else the poster of its spex from Spexipedia, else `404 Not Found`.
 
 operation::album-cover-get[snippets='security,path-parameters,request-headers,http-request,response-headers']
 
