@@ -56,6 +56,7 @@ repositories {
 }
 
 ext {
+    set('springAiVersion', '2.0.1')
     set('snippetsDir', file('build/generated-snippets'))
 }
 
@@ -82,6 +83,8 @@ dependencies {
     implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'com.graphql-java:graphql-java-extended-scalars:24.0'
     implementation 'io.micrometer:context-propagation:1.2.1'
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+    implementation 'org.springaicommunity:mcp-server-security:0.1.14'
     implementation 'org.keycloak:keycloak-admin-client:26.0.12'
 
     annotationProcessor 'org.projectlombok:lombok'
@@ -116,6 +119,7 @@ dependencies {
 dependencyManagement {
     imports {
         mavenBom 'org.testcontainers:testcontainers-bom:2.0.5'
+        mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
     }
 }
 

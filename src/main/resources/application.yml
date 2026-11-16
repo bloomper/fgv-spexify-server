@@ -50,6 +50,28 @@ spring:
         enabled: false
     http:
       path: /api/graphql
+  ai:
+    mcp:
+      server:
+        name: fgv-spexify
+        version: 1.0.0
+        type: SYNC
+        protocol: STATELESS
+        streamable-http:
+          mcp-endpoint: /api/mcp
+        capabilities:
+          resource: false
+          prompt: false
+          completion: false
+        instructions: >-
+          Spexify is FGV's music service for the songs the spex have recorded over the years. Every call runs with
+          the permissions of the signed-in user and returns only what they may see: published albums and tracks
+          for listeners, also unpublished ones for editors. Every tool only reads; nothing here plays, downloads,
+          uploads or changes anything. An album is a recording of one or more spex (the main one first), in a year,
+          with tracks numbered per disc; a track may be linked to a number of its spex in Spexipedia. Performers,
+          melodies, lyrics authors and arrangers are free text as the album's editors wrote them. Spex are
+          Spexipedia's, as Spexify keeps a copy of them; a revival is a spex of its own, with its original's id.
+          Plays, likes and ratings are everyone's, as Navidrome counts them, never per person.
 
 management:
   server:
@@ -93,6 +115,9 @@ spexify:
     authorized-parties: ${API_SECURITY_AUTHORIZED_PARTIES:fgv-spexify,fgv-spexflix-service,fgv-spexipedia-service,fgv-archive-service}
     # How long a user's access in Keycloak is trusted before it is checked again, for app passwords
     access-cache: 10m
+  mcp:
+    # Only tokens issued to these clients are accepted at /api/mcp, and they are refused everywhere else
+    authorized-parties: ${API_KEYCLOAK_MCP_CLIENT_ID:fgv-spexify-mcp}
   media:
     root: ${API_MEDIA_ROOT:./data/media}
     max-track-size: ${API_MAX_TRACK_SIZE:2GB}

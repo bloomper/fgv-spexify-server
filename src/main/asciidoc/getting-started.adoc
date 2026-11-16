@@ -106,6 +106,7 @@ There are also configuration parameters in ``.env`` that can be tweaked if so de
 |===
 
 Access tokens are only accepted from the Keycloak clients ``fgv-spexify`` and ``fgv-spexflix-service`` (``API_SECURITY_AUTHORIZED_PARTIES``).
+The MCP server accepts only tokens from ``fgv-spexify-mcp`` (``API_KEYCLOAK_MCP_CLIENT_ID``), see <<mcp_server>>.
 
 Add the following to `/etc/hosts` (or the Windows equivalent):
 
@@ -210,7 +211,7 @@ The username is ``KEYCLOAK_ADMIN`` in fgv-infra-deploy's ``local/.env`` and the 
 === Setup
 
 The realm is defined by ``realm/fgv.json`` in fgv-keycloak, whose README describes what it contains.
-Spexify uses its clients ``fgv-spexify`` (the web, and Spexify's roles) and ``fgv-spexify-service`` (calls to Spexipedia and Spexflix, and checking that app password owners still have access).
+Spexify uses its clients ``fgv-spexify`` (the web, and Spexify's roles), ``fgv-spexify-mcp`` (MCP clients) and ``fgv-spexify-service`` (calls to Spexipedia and Spexflix, and checking that app password owners still have access).
 
 The integration tests import a copy of ``fgv.json`` at ``src/integrationtest/resources/realm/fgv.json``.
 After every realm change, replace it with the new ``realm/fgv.json`` from fgv-keycloak and commit it.
@@ -304,5 +305,35 @@ Use the obtained access token when invoking the API, e.g. https://api.spexify.fg
 
 A Subsonic app can be pointed at ``https://api.spexify.fgv.local.nu:8443`` (once it trusts Caddy's root certificate) with ``user@fgv.nu`` and the sample app password.
 Through fgv-spexify-deploy, the apps use the web's address, whose ``/rest/*`` reaches the API.
+
+[[mcp_server]]
+== MCP server
+
+Spexify Server exposes an MCP (Model Context Protocol) server at ``/api/mcp`` (stateless streamable HTTP), letting AI assistants search the catalogue and read albums, tracks, the spex that have music and everyone's most played tracks.
+Every tool only reads: none plays, streams or downloads audio, serves covers, uploads, or touches app passwords, the Subsonic API, Navidrome, settings or maintenance.
+
+|===
+|Tool|Arguments|Returns
+
+|``search_catalog``|``query``|Albums and tracks whose titles, spex, descriptions, performers, melodies or lyrics match, at most 50 of each
+|``list_albums``|``spexId``, ``year``, ``fromYear``, ``toYear``, ``sort``, ``includeUnpublished`` (editors), all optional|Albums with their spex, track count and duration
+|``get_album``|``albumId``|An album with its tracks: titles, disc and track numbers, durations, credits and Spexipedia numbers
+|``get_track``|``trackId``|A published track's metadata, its album's year and spex, and its lyrics
+|``list_spex``|``query``, optional|The spex of the published albums, from Spexify's copy of them, with how many albums each has
+|``list_top_tracks``|``by`` (``PLAYED``, ``LIKED`` or ``RATED``), ``spexId``, ``year``, ``limit``, all optional|The published tracks everyone played, liked or rated most, with the counts
+
+|===
+
+Every tool call runs with the permissions of the signed-in user, through the same services as the GraphQL API: ``USER`` on ``fgv-spexify`` is required, and only editors see unpublished albums and tracks.
+
+Authentication uses OAuth 2.0 against Keycloak with the public client ``fgv-spexify-mcp`` (authorization code with PKCE, redirect URIs ``http://localhost:*`` and ``http://127.0.0.1:*``), which carries the roles of ``fgv-spexify``.
+Only tokens issued to that client are accepted by the MCP endpoint, and they are not accepted by the rest of the API.
+The tokens must also have the MCP endpoint's address as audience, which ``fgv.json`` sets from ``SPEXIFY_MCP_URL``; it must match ``API_PUBLIC_URL`` followed by ``/api/mcp``.
+Users confirm the access once, on Keycloak's consent page.
+MCP clients discover Keycloak through the protected resource metadata at ``/.well-known/oauth-protected-resource/api/mcp``.
+Keycloak does not allow dynamic client registration by default, so configure the MCP client with the client id ``fgv-spexify-mcp``.
+
+Locally, the MCP server is available at ``https://api.spexify.fgv.local.nu:8443/api/mcp``.
+It can for instance be explored with the MCP Inspector (https://github.com/modelcontextprotocol/inspector).
 
 xref:index.adoc[Back to start page]

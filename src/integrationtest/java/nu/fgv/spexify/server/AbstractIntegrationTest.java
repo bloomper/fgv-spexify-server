@@ -95,6 +95,10 @@ public abstract class AbstractIntegrationTest {
     protected static final String PASSWORD = "s3cr3t-s3cr3t";
     protected static final String CLIENT_ID = "fgv-spexify";
     protected static final String SPEXFLIX_SERVICE_CLIENT_ID = "fgv-spexflix-service";
+    protected static final String MCP_CLIENT_ID = "fgv-spexify-mcp";
+    // Accepted as a party by the integration test configuration, but without the MCP audience
+    protected static final String UNBOUND_MCP_CLIENT_ID = "fgv-spexify-mcp-unbound";
+    protected static final String MCP_PATH = "/api/mcp";
     protected static final String SPEX_ID = "00000000-0000-7000-8000-000000000001";
     protected static final String NUMBER_ID = "00000000-0000-7000-8000-0000000000b1";
     protected static final WireMockServer SPEXIPEDIA = new WireMockServer(options().dynamicPort());
@@ -190,6 +194,19 @@ public abstract class AbstractIntegrationTest {
 
             web.setDirectAccessGrantsEnabled(true);
             realm.clients().get(web.getId()).update(web);
+
+            final ClientRepresentation mcp = realm.clients().findByClientId(MCP_CLIENT_ID).getFirst();
+
+            mcp.setDirectAccessGrantsEnabled(true);
+            mcp.setConsentRequired(false);
+            realm.clients().get(mcp.getId()).update(mcp);
+
+            final ClientRepresentation unbound = new ClientRepresentation();
+
+            unbound.setClientId(UNBOUND_MCP_CLIENT_ID);
+            unbound.setPublicClient(true);
+            unbound.setDirectAccessGrantsEnabled(true);
+            realm.clients().create(unbound).close();
 
             createUser(realm, LISTENER, "Lisa", List.of("USER"));
             createUser(realm, EDITOR, "Erik", List.of("USER", "EDITOR"));
@@ -287,6 +304,19 @@ public abstract class AbstractIntegrationTest {
         return TOKENS.computeIfAbsent(CLIENT_ID + ":" + user, _ -> requestToken(Map.of(
                 "grant_type", "password", "client_id", CLIENT_ID, "client_secret", SECRETS.get(CLIENT_ID),
                 "username", user, "password", PASSWORD, "scope", "openid")));
+    }
+
+    /**
+     * A user's access token from the public MCP client {@code fgv-spexify-mcp}, or another public client, by password
+     * grant.
+     */
+    protected static String mcpToken(final String user, final String clientId) {
+        return TOKENS.computeIfAbsent(clientId + ":" + user, _ -> requestToken(Map.of(
+                "grant_type", "password", "client_id", clientId, "username", user, "password", PASSWORD, "scope", "openid")));
+    }
+
+    protected static String mcpToken(final String user) {
+        return mcpToken(user, MCP_CLIENT_ID);
     }
 
     /**

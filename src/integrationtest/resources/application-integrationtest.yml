@@ -3,10 +3,28 @@ logging:
     path: ./build/integrationtest-data/log_data
 
 spexify:
+  # Scheduled jobs never fire on their own in tests: a test that needs one calls it, so a run at
+  # the wrong minute can't hold its lock or change data mid-test
+  jobs:
+    spex-refresh:
+      cron-expression: '-'
+    spexipedia-sync:
+      cron-expression: '-'
+    upload-cleanup:
+      cron-expression: '-'
+    loudness-scan:
+      cron-expression: '-'
+    listening-sync:
+      cron-expression: '-'
   media:
     signing-key: integration-test-signing-key
+    # The MCP endpoint's address, the audience of fgv-spexify-mcp tokens in the realm copy
+    public-url: http://localhost:8082
   crypto:
     app-password-encryption-key: aW50ZWdyYXRpb24tdGVzdC1lbmNyeXB0aW9uLWtleS0x
   security:
     # Access in Keycloak is checked again on every Subsonic request, so revoking it shows at once
     access-cache: 1ms
+  mcp:
+    # fgv-spexify-mcp-unbound is accepted as a party but has no audience mapper, so its tokens are refused
+    authorized-parties: fgv-spexify-mcp,fgv-spexify-mcp-unbound

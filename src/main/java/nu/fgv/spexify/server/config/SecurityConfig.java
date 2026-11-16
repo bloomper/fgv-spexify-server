@@ -17,6 +17,8 @@
 package nu.fgv.spexify.server.config;
 
 import nu.fgv.spexify.server.util.security.KeycloakJwtRolesConverter;
+import org.springaicommunity.mcp.security.server.config.McpServerOAuth2Configurer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
@@ -27,17 +29,30 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtAudienceValidator;
+import org.springframework.security.oauth2.jwt.JwtClaimNames;
 import org.springframework.security.oauth2.jwt.JwtClaimValidator;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.SupplierJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.DelegatingJwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.List;
 
 /**
- * Two stateless chains. The Subsonic API ({@code /rest/**}) is open at HTTP level, because the gateway authenticates
- * app passwords, API keys and tokens itself and answers in the Subsonic format. Everything else is a JWT resource
+ * Three stateless chains. MCP ({@code /api/mcp}) is a JWT resource server bound to {@code fgv-spexify-mcp} tokens with
+ * the MCP URL as audience; those tokens are refused everywhere else. The Subsonic API ({@code /rest/**}) is open at
+ * HTTP level, because the gateway authenticates app passwords, API keys and tokens itself and answers in the Subsonic
+ * format. Everything else is a JWT resource
  * server bound to {@code fgv-spexify} tokens (and Spexflix's service account); GraphQL is open at HTTP level because the
  * services decide access, and so are the signed media links under {@code /media/}, whose signature is the access.
  *
@@ -47,6 +62,52 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    @Bean
+    @Order(0)
+    public SecurityFilterChain mcpSecurityFilterChain(final HttpSecurity http,
+                                                      @Value("${spring.ai.mcp.server.streamable-http.mcp-endpoint}") final String mcpEndpoint,
+                                                      @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") final String issuerUri,
+                                                      @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri:}") final String jwkSetUri,
+                                                      @Value("${spexify.mcp.authorized-parties}") final List<String> authorizedParties,
+                                                      final SpexifyProperties properties,
+                                                      final JwtAuthenticationConverter jwtAuthenticationConverter) {
+        // The API's public address, as the MCP client and Keycloak's audience mapper know it
+        final String resource = UriComponentsBuilder.fromUriString(properties.media().publicUrl()).replacePath(mcpEndpoint).build().toUriString();
+        final JwtDecoder jwtDecoder = new SupplierJwtDecoder(() -> {
+            // Like the rest of the API: the keys from Keycloak's internal address when one is set, as in docker compose
+            final NimbusJwtDecoder decoder = StringUtils.hasText(jwkSetUri)
+                    ? NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build()
+                    : NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
+
+            decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                    JwtValidators.createDefaultWithIssuer(issuerUri),
+                    new JwtAudienceValidator(resource),
+                    new JwtClaimValidator<String>("azp", authorizedParties::contains),
+                    accessTokenTypeValidator(),
+                    new JwtClaimValidator<String>(JwtClaimNames.SUB, StringUtils::hasText)
+            ));
+            return decoder;
+        });
+
+        http
+                .securityMatcher(mcpEndpoint, "/.well-known/oauth-protected-resource/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize ->
+                        authorize
+                                .requestMatchers(HttpMethod.GET, "/.well-known/oauth-protected-resource/**").permitAll()
+                                .anyRequest().authenticated()
+                )
+                .with(McpServerOAuth2Configurer.mcpServerOAuth2(), mcp -> mcp
+                        .authorizationServer(issuerUri)
+                        .resourcePath(mcpEndpoint)
+                        .resourceName("Spexify")
+                        .validateAudienceClaim(false)
+                        .jwtDecoder(jwtDecoder))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
+        return http.build();
+    }
 
     @Bean
     @Order(1)
