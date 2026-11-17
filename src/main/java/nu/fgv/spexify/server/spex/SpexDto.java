@@ -32,16 +32,17 @@ import java.util.UUID;
  * @param categoryName the category's name
  * @param retired      whether Spexipedia no longer offers it for new use
  * @param posterUrl    its poster (a revival without one has its original's), public
+ * @param premiere     the date of its premiere, yyyy-mm-dd, from its published page
  * @author Anders Jacobsson
  * @since 1.0
  */
 public record SpexDto(UUID id, @Nullable String title, @Nullable Integer year, boolean revival,
                       @Nullable UUID parentId, @Nullable UUID categoryId, @Nullable String categoryName,
-                      boolean retired, @Nullable String posterUrl) {
+                      boolean retired, @Nullable String posterUrl, @Nullable String premiere) {
 
     public SpexDto(final UUID id, final @Nullable String title, final @Nullable Integer year, final boolean revival,
                    final @Nullable UUID parentId, final @Nullable UUID categoryId, final @Nullable String categoryName) {
-        this(id, title, year, revival, parentId, categoryId, categoryName, false, null);
+        this(id, title, year, revival, parentId, categoryId, categoryName, false, null, null);
     }
 
     /**

@@ -18,6 +18,10 @@ type Query {
     recentAlbums(limit: Int = 12): [Album!]!
     "USER. The album kinds, in order; the first is the default."
     albumKinds: [AlbumKind!]!
+    "USER. Spexipedia's number kinds (overture, finale…) that listed tracks are recordings of, in Spexipedia's order; empty when Spexipedia is unavailable."
+    numberKinds: [NumberKind!]!
+    "USER. Listed albums about a spex whose premiere was on today's date in an earlier year, oldest first; empty when Spexipedia is unavailable."
+    thisDayAlbums: [Album!]!
     "USER. Published albums by Navidrome's ids, in the given order, for what the caller played; unknown ones are left out."
     albumsByNavidromeIds(ids: [String!]!): [Album!]!
     "USER. The categories of the published albums."
@@ -341,6 +345,8 @@ type Track {
     numberId: ID
     "The number's title, as copied from Spexipedia."
     numberTitle: String
+    "The number's kind in Spexipedia; null when the track is not linked, the number has none or Spexipedia is unavailable."
+    numberKind: NumberKind
     "The number on its spex's page in Spexipedia."
     spexipediaUrl: String
     "Published Spexflix videos with a chapter linked to the track; empty when Spexflix is unavailable."
@@ -352,6 +358,20 @@ type Track {
     likeCount: Int!
     "How often everyone played it."
     totalPlays: Int!
+}
+
+"""
+A kind of number in Spexipedia, e.g. an overture or a finale. Admins keep them in Spexipedia; each track keeps its
+number's kind, refreshed at night.
+"""
+type NumberKind {
+    id: ID!
+    nameSv: String!
+    nameEn: String!
+    "How many listed tracks are recordings of numbers of this kind."
+    trackCount: Int!
+    "Listed tracks of numbers of this kind, newest album first; at most 100."
+    tracks(limit: Int = 20): [Track!]!
 }
 
 "A number (one song) of a spex in Spexipedia."
@@ -506,7 +526,7 @@ type AuditLogEntry {
 }
 
 """
-A scheduled maintenance job: copying the current spex data from Spexipedia in full (SPEX_REFRESH; changes also arrive from its change feed within minutes), removing uploads that
+A scheduled maintenance job: copying the current spex data and the kinds of linked numbers from Spexipedia in full (SPEX_REFRESH; other changes also arrive from its change feed within minutes), removing uploads that
 were never used (UPLOAD_CLEANUP), measuring the loudness of tracks that have none yet, for ReplayGain
 (LOUDNESS_SCAN), and copying everyone's ratings, likes and plays from Navidrome, for averages and top lists
 (LISTENING_SYNC).

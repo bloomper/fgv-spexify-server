@@ -19,6 +19,7 @@ package nu.fgv.spexify.server.maintenance;
 import nu.fgv.spexify.server.imports.ImportFileStore;
 import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.catalog.LoudnessScan;
+import nu.fgv.spexify.server.catalog.NumberKindService;
 import nu.fgv.spexify.server.listening.ListeningService;
 import nu.fgv.spexify.server.navidrome.LibraryScanner;
 import nu.fgv.spexify.server.spex.SpexService;
@@ -54,10 +55,14 @@ public class MaintenanceJobs {
     private final AtomicBoolean syncedAfterStart = new AtomicBoolean();
 
     @Autowired
-    public MaintenanceJobs(final SpexService spexService, final UploadService uploadService, final LoudnessScan loudnessScan,
+    public MaintenanceJobs(final SpexService spexService, final NumberKindService numberKindService,
+                           final UploadService uploadService, final LoudnessScan loudnessScan,
                            final ListeningService listeningService, final ImportFileStore importFiles) {
         this(Map.of(
-                MaintenanceJob.SPEX_REFRESH, spexService::refresh,
+                MaintenanceJob.SPEX_REFRESH, () -> {
+                    spexService.refresh();
+                    numberKindService.refresh();
+                },
                 MaintenanceJob.UPLOAD_CLEANUP, () -> {
                     uploadService.cleanUp();
                     importFiles.cleanUp();

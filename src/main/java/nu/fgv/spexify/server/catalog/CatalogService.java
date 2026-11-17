@@ -230,6 +230,22 @@ public class CatalogService {
                 .stream().map(album -> toDto(album, caller)).toList();
     }
 
+    /**
+     * USER. Listed albums about a spex whose premiere was on today's date in an earlier year, oldest first; empty when
+     * Spexipedia is unavailable.
+     */
+    @Transactional(readOnly = true)
+    public List<AlbumDto> thisDay() {
+        final Caller caller = callerService.current();
+
+        caller.requireUser();
+
+        final Set<UUID> spex = spexService.premieredToday();
+
+        return spex.isEmpty() ? List.of()
+                : albumRepository.findListedAboutSpex(spex).stream().map(album -> toDto(album, caller)).toList();
+    }
+
     @Transactional(readOnly = true)
     public List<CategoryDto> categories() {
         callerService.current().requireUser();
@@ -723,6 +739,7 @@ public class CatalogService {
         if (numberId == null) {
             track.setNumberId(null);
             track.setNumberTitle(null);
+            track.setNumberKindId(null);
         } else {
             final nu.fgv.spexify.server.spex.NumberDto number = spexService.number(numberId);
             final Set<UUID> spex = track.getAlbum().getSpex().stream()
@@ -734,6 +751,7 @@ public class CatalogService {
             }
             track.setNumberId(number.id());
             track.setNumberTitle(number.title());
+            track.setNumberKindId(number.kindId());
         }
         auditService.record("UPDATE", "TRACK", track.getUuid(), numberId == null
                 ? "Tog bort numret från " + track.getTitle() : "Kopplade " + track.getTitle() + " till numret " + track.getNumberTitle());
@@ -980,7 +998,7 @@ public class CatalogService {
                 track.isListed(), track.getTrashedAt(), track.getNavidromeId(), !storage.exists(track),
                 loudness == null ? null : new ReplayGainDto(loudness.gainDb(), loudness.peakAmplitude(),
                         album == null ? null : album.gainDb(), album == null ? null : album.peakAmplitude()),
-                track.getNumberId(), track.getNumberTitle());
+                track.getNumberId(), track.getNumberTitle(), track.getNumberKindId());
     }
 
 }

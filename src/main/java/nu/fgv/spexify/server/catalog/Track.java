@@ -98,6 +98,12 @@ public class Track extends AbstractAuditable {
     @Column(name = "number_title")
     private @Nullable String numberTitle;
 
+    /**
+     * The number's kind in Spexipedia, e.g. an overture.
+     */
+    @Column(name = "number_kind_id", length = 36)
+    private @Nullable UUID numberKindId;
+
     @Column(name = "file_extension", nullable = false)
     private String fileExtension;
 

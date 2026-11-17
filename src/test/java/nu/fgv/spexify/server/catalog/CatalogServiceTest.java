@@ -212,6 +212,18 @@ class CatalogServiceTest {
     }
 
     @Test
+    void thisDayListsTheListedAlbumsOfSpexThatPremieredOnTheDate() {
+        as(TestCallers.listener());
+        when(spexService.premieredToday()).thenReturn(java.util.Set.of(uuid(7)));
+        when(albumRepository.findListedAboutSpex(java.util.Set.of(uuid(7)))).thenReturn(List.of(published));
+
+        assertThat(service.thisDay()).extracting(AlbumDto::title).containsExactly("Cleopatra");
+
+        when(spexService.premieredToday()).thenReturn(java.util.Set.of());
+        assertThat(service.thisDay()).isEmpty();
+    }
+
+    @Test
     void editorsSeeUnpublishedAlbumsWhenTheyAskAndEveryTrackNotInTheTrash() {
         as(TestCallers.editor());
         when(albumRepository.findByTrashedAtIsNullOrderByYearDescTitleAsc()).thenReturn(albums);

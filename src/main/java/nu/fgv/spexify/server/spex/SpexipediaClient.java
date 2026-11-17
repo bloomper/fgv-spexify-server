@@ -29,6 +29,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -36,7 +37,8 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
- * Spexipedia's GraphQL API: its public base data (spex with category and poster, numbers) and, with {@code SYNC},
+ * Spexipedia's GraphQL API: its public base data (spex with category, poster and premiere, numbers with their kinds,
+ * number kinds) and, with {@code SYNC},
  * its change feed. Posters are fetched from Spexipedia's public image addresses.
  *
  * @author Anders Jacobsson
@@ -46,7 +48,7 @@ import java.util.function.Supplier;
 public class SpexipediaClient {
 
     static final int PAGE_SIZE = 500;
-    private static final String SPEX_FIELDS = "id year title revival retired parent { id } category { id name } poster { pageJpegUrl }";
+    private static final String SPEX_FIELDS = "id year title revival retired parent { id } category { id name } poster { pageJpegUrl } page { premiere }";
     private static final String ALL_SPEX = """
             query AllSpex {
                 spexAll(includeRetired: true) { %s }
@@ -57,11 +59,19 @@ public class SpexipediaClient {
             }""".formatted(SPEX_FIELDS);
     private static final String NUMBERS = """
             query SpexNumbers($id: ID!) {
-                spex(id: $id) { numbers { id act position title } }
+                spex(id: $id) { numbers { id act position title kind { id } } }
             }""";
     private static final String NUMBER = """
             query NumberById($id: ID!) {
-                number(id: $id) { id act position title spex { id } }
+                number(id: $id) { id act position title spex { id } kind { id } }
+            }""";
+    private static final String NUMBERS_BY_IDS = """
+            query NumbersByIds($ids: [ID!]!) {
+                numbersByIds(ids: $ids) { id act position title spex { id } kind { id } }
+            }""";
+    private static final String NUMBER_KINDS = """
+            query NumberKinds {
+                kinds(type: NUMBER, includeRetired: true) { id nameSv nameEn position retired }
             }""";
     private static final String CHANGES = """
             query Changes($after: String, $first: Int) {
@@ -155,6 +165,39 @@ public class SpexipediaClient {
     }
 
     /**
+     * Numbers by id, {@value #PAGE_SIZE} at a time as Spexipedia allows; unknown ids are left out.
+     */
+    public List<NumberDto> numbersByIds(final List<UUID> ids) {
+        final List<NumberDto> result = new ArrayList<>();
+
+        for (int from = 0; from < ids.size(); from += PAGE_SIZE) {
+            final List<UUID> page = ids.subList(from, Math.min(ids.size(), from + PAGE_SIZE));
+
+            result.addAll(call(() -> {
+                final ClientGraphQlResponse response = graphQlClient.document(NUMBERS_BY_IDS).variable("ids", page).executeSync();
+
+                requireValid(response);
+                return response.field("numbersByIds").toEntityList(NumberNode.class).stream().filter(Objects::nonNull)
+                        .map(number -> number.toDto(number.spex() == null ? null : UUID.fromString(number.spex().id()))).toList();
+            }));
+        }
+        return result;
+    }
+
+    /**
+     * Spexipedia's number kinds (overture, finale…), retired ones too, in its order.
+     */
+    @Cacheable(cacheNames = CacheConfig.NUMBER_KINDS)
+    public List<NumberKindDto> numberKinds() {
+        return call(() -> {
+            final ClientGraphQlResponse response = graphQlClient.document(NUMBER_KINDS).executeSync();
+
+            requireValid(response);
+            return response.field("kinds").toEntityList(NumberKindDto.class).stream().filter(Objects::nonNull).toList();
+        });
+    }
+
+    /**
      * The changes to base data after the cursor (null for the start).
      */
     public FeedChange.Page changes(final @Nullable String after) {
@@ -189,23 +232,27 @@ public class SpexipediaClient {
     record PosterNode(@Nullable String pageJpegUrl) {
     }
 
+    record PageNode(@Nullable String premiere) {
+    }
+
     record SpexNode(String id, @Nullable String year, @Nullable String title, @Nullable Boolean revival,
                     @Nullable Boolean retired, @Nullable IdRef parent, @Nullable CategoryNode category,
-                    @Nullable PosterNode poster) {
+                    @Nullable PosterNode poster, @Nullable PageNode page) {
 
         SpexDto toDto() {
             return new SpexDto(UUID.fromString(id), title, SpexDto.year(year), Boolean.TRUE.equals(revival),
                     parent == null ? null : UUID.fromString(parent.id()),
                     category == null ? null : UUID.fromString(category.id()),
                     category == null ? null : category.name(),
-                    Boolean.TRUE.equals(retired), poster == null ? null : poster.pageJpegUrl());
+                    Boolean.TRUE.equals(retired), poster == null ? null : poster.pageJpegUrl(),
+                    page == null ? null : page.premiere());
         }
     }
 
-    record NumberNode(String id, int act, int position, String title, @Nullable IdRef spex) {
+    record NumberNode(String id, int act, int position, String title, @Nullable IdRef spex, @Nullable IdRef kind) {
 
         NumberDto toDto(final @Nullable UUID spexId) {
-            return new NumberDto(UUID.fromString(id), spexId, act, position, title);
+            return new NumberDto(UUID.fromString(id), spexId, act, position, title, kind == null ? null : UUID.fromString(kind.id()));
         }
     }
 

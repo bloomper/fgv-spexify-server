@@ -167,4 +167,28 @@ class SpexServiceTest {
 
         assertThat(service.poster(uuid(1))).isEmpty();
     }
+
+    @Test
+    void premieresOnTodaysDateInEarlierYearsAreThisDay() {
+        when(client.allSpex()).thenReturn(List.of(
+                premiere(uuid(1), "1975-11-01"),
+                premiere(uuid(2), "2026-11-01"),
+                premiere(uuid(3), "1990-11-02"),
+                premiere(uuid(4), "1990-11"),
+                premiere(uuid(5), null),
+                premiere(uuid(6), "2001-11-01")));
+
+        assertThat(service.premieredToday()).containsExactlyInAnyOrder(uuid(1), uuid(6));
+    }
+
+    @Test
+    void thisDayIsEmptyWhileSpexipediaIsDown() {
+        when(client.allSpex()).thenThrow(new SpexipediaClient.SpexipediaCallException("down"));
+
+        assertThat(service.premieredToday()).isEmpty();
+    }
+
+    private static SpexDto premiere(final java.util.UUID id, final String date) {
+        return new SpexDto(id, "Spex", 2000, false, null, null, null, false, null, date);
+    }
 }
