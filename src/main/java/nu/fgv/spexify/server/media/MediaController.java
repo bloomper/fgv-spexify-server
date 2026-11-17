@@ -300,6 +300,19 @@ public class MediaController {
                         .body(new FileSystemResource(file));
             }
         }
+        return poster(album);
+    }
+
+    /**
+     * The main spex's poster from Spexipedia, even when the album has a cover of its own, else 404; the album page
+     * shows it blurred behind the cover.
+     */
+    @GetMapping("/api/albums/{id}/poster")
+    public ResponseEntity<?> poster(@PathVariable final UUID id) {
+        return poster(catalogService.visibleAlbum(id));
+    }
+
+    private ResponseEntity<?> poster(final Album album) {
         if (album.mainSpex() != null) {
             return spexService.poster(album.mainSpex().getId())
                     .<ResponseEntity<?>>map(poster -> ResponseEntity.ok()

@@ -246,6 +246,34 @@ class MediaHttpApiTest extends AbstractApiTest {
     }
 
     @Test
+    void servesTheSpexPosterOfAnAlbumWithACoverOfItsOwn() throws Exception {
+        final nu.fgv.spexify.server.catalog.SpexRef spex = new nu.fgv.spexify.server.catalog.SpexRef();
+
+        spex.setId(uuid(7));
+        album.getSpex().add(spex);
+        when(catalogService.visibleAlbum(uuid(1))).thenReturn(album);
+        when(spexService.poster(uuid(7))).thenReturn(java.util.Optional.of(new nu.fgv.spexify.server.spex.SpexipediaClient.Poster(PNG, "image/png")));
+
+        mockMvc
+                .perform(get("/api/albums/{id}/poster", uuid(1)).header(HttpHeaders.AUTHORIZATION, BEARER))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(PNG))
+                .andDo(document(
+                        "album-poster-get",
+                        albumId,
+                        secureRequestHeaders,
+                        responseHeaders(
+                                headerWithName(HttpHeaders.CONTENT_TYPE).description("The image's type"),
+                                headerWithName(HttpHeaders.CACHE_CONTROL).description("Private, for an hour")
+                        ),
+                        security(List.of("USER"))
+                ));
+
+        when(spexService.poster(uuid(7))).thenReturn(java.util.Optional.empty());
+        mockMvc.perform(get("/api/albums/{id}/poster", uuid(1))).andExpect(status().isNotFound());
+    }
+
+    @Test
     void uploadsAnAlbumsCover() throws Exception {
         when(catalogService.albumCover(eq(uuid(1)), any(), eq("png"))).thenReturn(albumDto(true));
 

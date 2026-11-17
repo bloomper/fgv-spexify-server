@@ -27,6 +27,14 @@ The album's own cover, else the poster of its spex from Spexipedia, else `404 No
 
 operation::album-cover-get[snippets='security,path-parameters,request-headers,http-request,response-headers']
 
+[[poster]]
+== Poster
+
+The poster of the album's main spex from Spexipedia, even when the album has a cover of its own, else `404 Not Found`.
+The album page shows it blurred behind the cover.
+
+operation::album-poster-get[snippets='security,path-parameters,request-headers,http-request,response-headers']
+
 [[cover_upload]]
 == Cover upload
 
