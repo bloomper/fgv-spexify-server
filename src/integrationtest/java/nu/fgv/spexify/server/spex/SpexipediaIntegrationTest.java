@@ -50,6 +50,8 @@ class SpexipediaIntegrationTest extends AbstractIntegrationTest {
     private Path folder;
     @Autowired
     private SpexipediaSync sync;
+    @Autowired
+    private java.time.Clock clock;
 
     private String albumId;
     private String trackId;
@@ -168,5 +170,58 @@ class SpexipediaIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(jdbcClient.sql("SELECT spex_id FROM album_spex").query(String.class).single()).isEqualTo(otherSpex.toString());
         assertThat(jdbcClient.sql("SELECT number_id FROM track").query(String.class).single()).isEqualTo(otherNumber.toString());
+    }
+
+    @Test
+    void tracksHaveTheKindsOfTheirNumbersAndEachKindItsTracks() {
+        SPEXIPEDIA.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/api/graphql")
+                .withRequestBody(com.github.tomakehurst.wiremock.client.WireMock.containing("NumberById"))
+                .atPriority(1)
+                .willReturn(com.github.tomakehurst.wiremock.client.WireMock.okJson("""
+                        {"data": {"number": {"id": "00000000-0000-7000-8000-0000000000b1", "act": 1, "position": 1, "title": "Ouvertyr",
+                                             "spex": {"id": "00000000-0000-7000-8000-000000000001"},
+                                             "kind": {"id": "00000000-0000-7000-8000-0000000000c1"}}}}""")));
+        SPEXIPEDIA.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/api/graphql")
+                .withRequestBody(com.github.tomakehurst.wiremock.client.WireMock.containing("NumberKinds"))
+                .willReturn(com.github.tomakehurst.wiremock.client.WireMock.okJson("""
+                        {"data": {"kinds": [
+                            {"id": "00000000-0000-7000-8000-0000000000c1", "nameSv": "Ouvertyr", "nameEn": "Overture", "position": 0, "retired": false},
+                            {"id": "00000000-0000-7000-8000-0000000000c2", "nameSv": "Final", "nameEn": "Finale", "position": 1, "retired": false}]}}""")));
+        linkToTheNumber();
+
+        graphQl(LISTENER).document("{ numberKinds { id nameSv nameEn trackCount tracks(limit: 5) { id } } }")
+                .execute()
+                .path("numberKinds").entityList(Object.class).hasSize(1)
+                .path("numberKinds[0].nameEn").entity(String.class).isEqualTo("Overture")
+                .path("numberKinds[0].trackCount").entity(Integer.class).isEqualTo(1)
+                .path("numberKinds[0].tracks[0].id").entity(String.class).isEqualTo(trackId);
+        graphQl(LISTENER).document("query($id: ID!) { album(id: $id) { tracks { numberKind { id nameSv } } } }")
+                .variable("id", albumId).execute()
+                .path("album.tracks[0].numberKind.nameSv").entity(String.class).isEqualTo("Ouvertyr");
+
+        // A kind whose tracks are no longer listed has no shelf
+        graphQl(EDITOR).document("mutation($id: ID!) { albumPublish(id: $id, published: false) { id } }").variable("id", albumId).execute();
+        graphQl(LISTENER).document("{ numberKinds { id } }").execute()
+                .path("numberKinds").entityList(Object.class).hasSize(0);
+    }
+
+    @Test
+    void thisDayHasTheAlbumsOfSpexThatPremieredOnTodaysDate() {
+        final java.time.LocalDate today = java.time.LocalDate.now(clock);
+
+        SPEXIPEDIA.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/api/graphql")
+                .withRequestBody(com.github.tomakehurst.wiremock.client.WireMock.containing("AllSpex"))
+                .willReturn(com.github.tomakehurst.wiremock.client.WireMock.okJson("""
+                        {"data": {"spexAll": [{"id": "00000000-0000-7000-8000-000000000001", "year": "2024", "title": "Cleopatra",
+                            "revival": false, "retired": false, "parent": null, "poster": null, "category": null,
+                            "page": {"premiere": "%s"}}]}}""".formatted(today.minusYears(2)))));
+
+        graphQl(LISTENER).document("{ thisDayAlbums { id title } }").execute()
+                .path("thisDayAlbums[0].id").entity(String.class).isEqualTo(albumId);
+
+        // Unpublished albums are not shown
+        graphQl(EDITOR).document("mutation($id: ID!) { albumPublish(id: $id, published: false) { id } }").variable("id", albumId).execute();
+        graphQl(LISTENER).document("{ thisDayAlbums { id } }").execute()
+                .path("thisDayAlbums").entityList(Object.class).hasSize(0);
     }
 }

@@ -87,6 +87,11 @@ public class CatalogGraphqlApi {
     }
 
     @QueryMapping
+    public List<AlbumDto> thisDayAlbums() {
+        return service.thisDay();
+    }
+
+    @QueryMapping
     public List<CategoryDto> categories() {
         return service.categories();
     }

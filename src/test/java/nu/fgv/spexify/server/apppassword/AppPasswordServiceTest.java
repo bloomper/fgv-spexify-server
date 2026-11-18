@@ -63,7 +63,7 @@ class AppPasswordServiceTest {
     private final TestClock clock = new TestClock(Instant.parse("2026-11-01T10:00:00Z"));
     private final List<AppPassword> passwords = new ArrayList<>();
     private final List<ApiKey> apiKeys = new ArrayList<>();
-    private final PasswordCrypto crypto = new PasswordCrypto(new SpexifyProperties(null, null, null, null, null,
+    private final PasswordCrypto crypto = new PasswordCrypto(new SpexifyProperties(null, null, null, null, null, null,
             new SpexifyProperties.Crypto(Base64.getEncoder().encodeToString(new byte[32])), null, null, null));
     @Mock
     private AppPasswordRepository passwordRepository;

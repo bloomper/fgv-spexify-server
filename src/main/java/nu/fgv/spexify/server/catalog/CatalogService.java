@@ -16,6 +16,9 @@
 
 package nu.fgv.spexify.server.catalog;
 
+import java.nio.file.StandardCopyOption;
+import java.nio.file.Files;
+import nu.fgv.spexify.server.util.Uuids;
 import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.audit.AuditService;
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumDto;
@@ -89,6 +92,7 @@ public class CatalogService {
     private final LibraryPlacer placer;
     private final MediaStorage storage;
     private final AudioPreparer audioPreparer;
+    private final nu.fgv.spexify.server.media.AudioProbe audioProbe;
     private final UploadService uploadService;
     private final LibraryScanner scanner;
     private final AuditService auditService;
@@ -97,7 +101,8 @@ public class CatalogService {
     public CatalogService(final AlbumRepository albumRepository, final AlbumKindService kindService,
                           final TrackRepository trackRepository,
                           final CallerService callerService, final SpexService spexService, final LibraryPlacer placer,
-                          final MediaStorage storage, final AudioPreparer audioPreparer, final UploadService uploadService,
+                          final MediaStorage storage, final AudioPreparer audioPreparer,
+                          final nu.fgv.spexify.server.media.AudioProbe audioProbe, final UploadService uploadService,
                           final LibraryScanner scanner, final AuditService auditService, final Clock clock) {
         this.albumRepository = albumRepository;
         this.kindService = kindService;
@@ -107,6 +112,7 @@ public class CatalogService {
         this.placer = placer;
         this.storage = storage;
         this.audioPreparer = audioPreparer;
+        this.audioProbe = audioProbe;
         this.uploadService = uploadService;
         this.scanner = scanner;
         this.auditService = auditService;
@@ -222,6 +228,22 @@ public class CatalogService {
         caller.requireUser();
         return albumRepository.findByPublishedTrueAndTrashedAtIsNullOrderByPublishedAtDesc(PageRequest.of(0, Math.clamp(limit, 1, 50)))
                 .stream().map(album -> toDto(album, caller)).toList();
+    }
+
+    /**
+     * USER. Listed albums about a spex whose premiere was on today's date in an earlier year, oldest first; empty when
+     * Spexipedia is unavailable.
+     */
+    @Transactional(readOnly = true)
+    public List<AlbumDto> thisDay() {
+        final Caller caller = callerService.current();
+
+        caller.requireUser();
+
+        final Set<UUID> spex = spexService.premieredToday();
+
+        return spex.isEmpty() ? List.of()
+                : albumRepository.findListedAboutSpex(spex).stream().map(album -> toDto(album, caller)).toList();
     }
 
     @Transactional(readOnly = true)
@@ -717,6 +739,7 @@ public class CatalogService {
         if (numberId == null) {
             track.setNumberId(null);
             track.setNumberTitle(null);
+            track.setNumberKindId(null);
         } else {
             final nu.fgv.spexify.server.spex.NumberDto number = spexService.number(numberId);
             final Set<UUID> spex = track.getAlbum().getSpex().stream()
@@ -728,6 +751,7 @@ public class CatalogService {
             }
             track.setNumberId(number.id());
             track.setNumberTitle(number.title());
+            track.setNumberKindId(number.kindId());
         }
         auditService.record("UPDATE", "TRACK", track.getUuid(), numberId == null
                 ? "Tog bort numret från " + track.getTitle() : "Kopplade " + track.getTitle() + " till numret " + track.getNumberTitle());
@@ -790,6 +814,125 @@ public class CatalogService {
         for (final Album album : albumRepository.findByTrashedAtIsNotNullOrderByTrashedAtDesc()) {
             deleteAlbum(album);
         }
+    }
+
+    // ------------------------------------------------------------------------------------- the import API
+
+    /**
+     * EDITOR (an import, Spexipedia's docs/content-import.md, section 4). A track from a file received through the import
+     * API, prepared as an upload is (WAV to FLAC, loudness), with its fields and number given; an existing track gets the
+     * fields, and the file when its content differs. A track added to a published album waits for its own publishing.
+     * In a dry run only the file is probed.
+     */
+    @Transactional
+    public @Nullable UUID trackImport(final UUID albumId, final @Nullable UUID existing, final Path source, final String fileName,
+                                      final TrackInput input, final @Nullable UUID numberId, final boolean dryRun) {
+        final Caller caller = callerService.current();
+
+        caller.requireEditor();
+        if (dryRun) {
+            audioProbe.probe(source).orElseThrow(() -> new BadRequestException("error.upload.notAudio"));
+            return null;
+        }
+
+        final Album album = editableAlbum(albumId);
+        final Track track = existing == null ? new Track() : track(existing);
+
+        try {
+            final String checksum = AudioPreparer.checksum(source);
+
+            if (existing == null || !checksum.equals(track.getSourceChecksum())) {
+                final Path staged = storage.uploadFile("import-" + Uuids.v7() + "." + extension(fileName));
+
+                Files.createDirectories(staged.getParent());
+                Files.copy(source, staged, StandardCopyOption.REPLACE_EXISTING);
+
+                final PreparedAudio audio = audioPreparer.prepare(staged);
+
+                if (existing == null) {
+                    track.setAlbum(album);
+                    track.setTitle(limit(input.title().strip()));
+                    track.setPublished(!album.isPublished());
+                    setAudio(track, audio);
+                    track.setLocation(Location.UNPUBLISHED);
+                    track.setSourceChecksum(checksum);
+                    trackRepository.save(track);
+                    storage.storeNew(audio.file(), track, staged);
+                    album.getTracks().add(track);
+                } else {
+                    final Path old = storage.trackFile(track);
+
+                    setAudio(track, audio);
+                    track.setSourceChecksum(checksum);
+                    storage.replace(audio.file(), track, old, staged);
+                    track.setTagsHash(null);
+                }
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        trackUpdate(track.getUuid(), input);
+        if (numberId != null) {
+            trackSetNumber(track.getUuid(), numberId);
+        }
+        auditService.record(existing == null ? "CREATE" : "UPDATE", "TRACK", track.getUuid(), "Importerade " + track.getTitle() + " till " + album.getTitle());
+        return track.getUuid();
+    }
+
+    private static String extension(final String fileName) {
+        final int dot = fileName.lastIndexOf('.');
+
+        return dot < 0 ? "bin" : fileName.substring(dot + 1).toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
+
+    /**
+     * EDITOR (an import). The album's cover from a file received through the import API.
+     */
+    @Transactional
+    public void albumImportCover(final UUID albumId, final Path file, final String fileName) {
+        try {
+            albumCover(albumId, Files.readAllBytes(file), extension(fileName).equals("jpeg") ? "jpg" : extension(fileName));
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** The optimistic-lock version of an album or a track, or null when it is gone. */
+    @Transactional(readOnly = true)
+    public @Nullable Long recordVersion(final UUID id) {
+        return albumRepository.findByUuid(id).map(Album::getVersion)
+                .or(() -> trackRepository.findByUuid(id).map(Track::getVersion))
+                .orElse(null);
+    }
+
+    /**
+     * EDITOR (an import's forget). Deletes an imported album or track that nobody has published; returns whether it
+     * was deleted.
+     */
+    @Transactional
+    public boolean forget(final UUID id) {
+        callerService.current().requireEditor();
+
+        final Album album = albumRepository.findByUuid(id).orElse(null);
+
+        if (album != null) {
+            if (album.isPublished()) {
+                return false;
+            }
+            deleteAlbum(album);
+            return true;
+        }
+
+        final Track track = trackRepository.findByUuid(id).orElse(null);
+
+        if (track == null || track.getAlbum().isPublished() && track.isPublished()) {
+            return false;
+        }
+        track.getAlbum().getTracks().remove(track);
+        storage.deleteAfterCommit(track);
+        trackRepository.delete(track);
+        auditService.record("DELETE", "TRACK", id, "Tog bort det importerade spåret " + track.getTitle());
+        return true;
     }
 
     private PreparedAudio prepare(final String uploadId, final Caller caller) {
@@ -855,7 +998,7 @@ public class CatalogService {
                 track.isListed(), track.getTrashedAt(), track.getNavidromeId(), !storage.exists(track),
                 loudness == null ? null : new ReplayGainDto(loudness.gainDb(), loudness.peakAmplitude(),
                         album == null ? null : album.gainDb(), album == null ? null : album.peakAmplitude()),
-                track.getNumberId(), track.getNumberTitle());
+                track.getNumberId(), track.getNumberTitle(), track.getNumberKindId());
     }
 
 }

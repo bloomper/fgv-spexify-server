@@ -73,4 +73,23 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
               AND t.numberId IN :numberIds
             ORDER BY a.year, a.title, t.discNumber, t.trackNumber""")
     List<Track> findListedByNumber(@Param("numberIds") Collection<UUID> numberIds);
+
+    @Query("""
+            SELECT t FROM Track t JOIN FETCH t.album a
+            WHERE a.published = TRUE AND a.trashedAt IS NULL AND t.published = TRUE AND t.trashedAt IS NULL
+              AND t.numberKindId = :kindId
+            ORDER BY a.year DESC, a.title ASC, t.discNumber ASC, t.trackNumber ASC""")
+    List<Track> findListedByNumberKind(@Param("kindId") UUID kindId, org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * How many listed tracks there are of each number kind, as pairs of the kind's id and the count.
+     */
+    @Query("""
+            SELECT t.numberKindId, COUNT(t) FROM Track t JOIN t.album a
+            WHERE a.published = TRUE AND a.trashedAt IS NULL AND t.published = TRUE AND t.trashedAt IS NULL
+              AND t.numberKindId IS NOT NULL
+            GROUP BY t.numberKindId""")
+    List<Object[]> countListedByNumberKind();
+
+    List<Track> findByNumberIdIsNotNull();
 }

@@ -48,7 +48,7 @@ class MediaStorageTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        storage = new MediaStorage(new SpexifyProperties(null, null, null, new SpexifyProperties.Media(root, DataSize.ofMegabytes(1), null, null, null),
+        storage = new MediaStorage(new SpexifyProperties(null, null, null, null, new SpexifyProperties.Media(root, DataSize.ofMegabytes(1), null, null, null),
                 null, null, null, null, null));
         album = new Album();
         album.setCoverExtension("png");

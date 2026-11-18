@@ -29,6 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
+import java.time.LocalDate;
+import java.time.MonthDay;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -44,7 +47,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Picking the spex of an album, posters, and the daily refresh of the spex titles, years, originals and categories
+ * Picking the spex of an album, posters, premieres, and the daily refresh of the spex titles, years, originals and categories
  * copied onto albums.
  *
  * @author Anders Jacobsson
@@ -138,6 +141,33 @@ public class SpexService {
             return client.poster(spexId);
         } catch (final SpexipediaClient.SpexipediaCallException e) {
             log.debug("Could not read the poster of spex {}", spexId, e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * The spex whose premiere was on today's date, in Spexify's time zone, in an earlier year; empty when Spexipedia is
+     * unavailable. Only published pages in Spexipedia have a premiere.
+     */
+    public Set<UUID> premieredToday() {
+        final LocalDate today = LocalDate.now(clock);
+
+        try {
+            return client.allSpex().stream()
+                    .filter(spex -> premiereOf(spex).filter(date -> date.getYear() < today.getYear()
+                            && MonthDay.from(date).equals(MonthDay.from(today))).isPresent())
+                    .map(SpexDto::id)
+                    .collect(Collectors.toSet());
+        } catch (final SpexipediaClient.SpexipediaCallException e) {
+            log.debug("Could not read the premieres from Spexipedia", e);
+            return Set.of();
+        }
+    }
+
+    private static Optional<LocalDate> premiereOf(final SpexDto spex) {
+        try {
+            return Optional.ofNullable(spex.premiere()).map(LocalDate::parse);
+        } catch (final DateTimeParseException _) {
             return Optional.empty();
         }
     }

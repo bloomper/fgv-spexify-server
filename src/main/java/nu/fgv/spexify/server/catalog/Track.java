@@ -98,6 +98,12 @@ public class Track extends AbstractAuditable {
     @Column(name = "number_title")
     private @Nullable String numberTitle;
 
+    /**
+     * The number's kind in Spexipedia, e.g. an overture.
+     */
+    @Column(name = "number_kind_id", length = 36)
+    private @Nullable UUID numberKindId;
+
     @Column(name = "file_extension", nullable = false)
     private String fileExtension;
 
@@ -106,6 +112,10 @@ public class Track extends AbstractAuditable {
 
     @Column(name = "file_size", nullable = false)
     private long fileSize;
+
+    /** The SHA-256 of the file an import brought, before any conversion. */
+    @Column(name = "source_checksum")
+    private @org.jspecify.annotations.Nullable String sourceChecksum;
 
     @Column(name = "file_checksum", nullable = false)
     private String fileChecksum;

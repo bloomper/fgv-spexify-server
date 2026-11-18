@@ -501,6 +501,7 @@ public class SampleDataImporter {
                 track.setTitle(linked.title());
                 track.setNumberId(linked.id());
                 track.setNumberTitle(linked.title());
+                track.setNumberKindId(linked.kindId());
             }
             track.setPerformers(SampleCatalog.PERFORMERS.get(random.nextInt(SampleCatalog.PERFORMERS.size())));
             if (random.nextInt(3) > 0) {

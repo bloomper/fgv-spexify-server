@@ -126,7 +126,7 @@ class MediaHttpApiTest extends AbstractApiTest {
     }
 
     private static AlbumDto albumDto(final boolean hasCover) {
-        return new AlbumDto(uuid(1), "Cleopatra", 2024, new AlbumKindService.AlbumKindDto(uuid(101), "Föreställning", "Show", 1), null, null,
+        return new AlbumDto(uuid(1), "Cleopatra", 2024, new AlbumKindService.AlbumKindDto(uuid(101), "Föreställning", "Show", java.util.List.of(), 1), null, null,
                 hasCover, true, Instant.parse("2026-10-01T10:00:00Z"), null, null, 12, 2_400_000, Instant.parse("2026-09-30T10:00:00Z"), null);
     }
 
@@ -243,6 +243,34 @@ class MediaHttpApiTest extends AbstractApiTest {
                         ),
                         security(List.of("USER"))
                 ));
+    }
+
+    @Test
+    void servesTheSpexPosterOfAnAlbumWithACoverOfItsOwn() throws Exception {
+        final nu.fgv.spexify.server.catalog.SpexRef spex = new nu.fgv.spexify.server.catalog.SpexRef();
+
+        spex.setId(uuid(7));
+        album.getSpex().add(spex);
+        when(catalogService.visibleAlbum(uuid(1))).thenReturn(album);
+        when(spexService.poster(uuid(7))).thenReturn(java.util.Optional.of(new nu.fgv.spexify.server.spex.SpexipediaClient.Poster(PNG, "image/png")));
+
+        mockMvc
+                .perform(get("/api/albums/{id}/poster", uuid(1)).header(HttpHeaders.AUTHORIZATION, BEARER))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(PNG))
+                .andDo(document(
+                        "album-poster-get",
+                        albumId,
+                        secureRequestHeaders,
+                        responseHeaders(
+                                headerWithName(HttpHeaders.CONTENT_TYPE).description("The image's type"),
+                                headerWithName(HttpHeaders.CACHE_CONTROL).description("Private, for an hour")
+                        ),
+                        security(List.of("USER"))
+                ));
+
+        when(spexService.poster(uuid(7))).thenReturn(java.util.Optional.empty());
+        mockMvc.perform(get("/api/albums/{id}/poster", uuid(1))).andExpect(status().isNotFound());
     }
 
     @Test

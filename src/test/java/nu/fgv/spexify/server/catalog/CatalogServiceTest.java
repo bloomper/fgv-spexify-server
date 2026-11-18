@@ -97,6 +97,8 @@ class CatalogServiceTest {
     @Mock
     private AudioPreparer audioPreparer;
     @Mock
+    private AudioProbe audioProbe;
+    @Mock
     private UploadService uploadService;
     @Mock
     private LibraryScanner scanner;
@@ -162,7 +164,7 @@ class CatalogServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CatalogService(albumRepository, kindService, trackRepository, callerService, spexService, placer, storage, audioPreparer,
+        service = new CatalogService(albumRepository, kindService, trackRepository, callerService, spexService, placer, storage, audioPreparer, audioProbe,
                 uploadService, scanner, auditService, Clock.fixed(NOW, ZoneOffset.UTC));
         lenient().when(kindService.kindOrDefault(null)).thenReturn(SHOW);
         lenient().when(kindService.kindOrDefault(STUDIO.getUuid())).thenReturn(STUDIO);
@@ -207,6 +209,18 @@ class CatalogServiceTest {
         final Map<UUID, List<TrackDto>> tracks = service.tracksOf(List.of(uuid(1), uuid(2)));
         assertThat(tracks.get(uuid(1))).extracting(TrackDto::title).containsExactly("Ouvertyr");
         assertThat(tracks.get(uuid(2))).isEmpty();
+    }
+
+    @Test
+    void thisDayListsTheListedAlbumsOfSpexThatPremieredOnTheDate() {
+        as(TestCallers.listener());
+        when(spexService.premieredToday()).thenReturn(java.util.Set.of(uuid(7)));
+        when(albumRepository.findListedAboutSpex(java.util.Set.of(uuid(7)))).thenReturn(List.of(published));
+
+        assertThat(service.thisDay()).extracting(AlbumDto::title).containsExactly("Cleopatra");
+
+        when(spexService.premieredToday()).thenReturn(java.util.Set.of());
+        assertThat(service.thisDay()).isEmpty();
     }
 
     @Test

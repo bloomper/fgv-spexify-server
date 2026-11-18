@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.graphql.client.HttpSyncGraphQlClient;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
+
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -67,13 +69,13 @@ class SpexipediaClientTest {
                 {"data": {"spexAll": [
                     {"id": "00000000-0000-7000-8000-000000000001", "year": "1975", "title": "Nobel", "revival": false, "retired": false,
                      "parent": null, "category": {"id": "00000000-0000-7000-8000-000000000003", "name": "Chalmersspexet"},
-                     "poster": {"pageJpegUrl": "https://spexipedia.test/media/images/x/page.jpg"}},
+                     "poster": {"pageJpegUrl": "https://spexipedia.test/media/images/x/page.jpg"}, "page": {"premiere": "1975-11-21"}},
                     {"id": "00000000-0000-7000-8000-000000000002", "year": "okänt", "title": "Nobel", "revival": true, "retired": true,
                      "parent": {"id": "00000000-0000-7000-8000-000000000001"}, "category": null, "poster": null}]}}""");
 
         assertThat(client.allSpex()).containsExactly(
-                new SpexDto(uuid(1), "Nobel", 1975, false, null, uuid(3), "Chalmersspexet", false, "https://spexipedia.test/media/images/x/page.jpg"),
-                new SpexDto(uuid(2), "Nobel", null, true, uuid(1), null, null, true, null));
+                new SpexDto(uuid(1), "Nobel", 1975, false, null, uuid(3), "Chalmersspexet", false, "https://spexipedia.test/media/images/x/page.jpg", "1975-11-21"),
+                new SpexDto(uuid(2), "Nobel", null, true, uuid(1), null, null, true, null, null));
     }
 
     @Test
@@ -105,6 +107,20 @@ class SpexipediaClientTest {
 
         assertThat(client.numbers(uuid(1))).containsExactly(new NumberDto(uuid(11), uuid(1), 1, 1, "Ouvertyr"));
         assertThat(client.number(uuid(11))).contains(new NumberDto(uuid(11), uuid(1), 1, 1, "Ouvertyr"));
+    }
+
+    @Test
+    void numbersComeWithTheirKindsAndTheKindsFromSpexipedia() {
+        graphql("NumbersByIds", """
+                {"data": {"numbersByIds": [{"id": "00000000-0000-7000-8000-00000000000b", "act": 1, "position": 1, "title": "Ouvertyr",
+                                            "spex": {"id": "00000000-0000-7000-8000-000000000001"},
+                                            "kind": {"id": "00000000-0000-7000-8000-000000000015"}}]}}""");
+        graphql("NumberKinds", """
+                {"data": {"kinds": [{"id": "00000000-0000-7000-8000-000000000015", "nameSv": "Ouvertyr", "nameEn": "Overture",
+                                     "position": 0, "retired": false}]}}""");
+
+        assertThat(client.numbersByIds(List.of(uuid(11)))).containsExactly(new NumberDto(uuid(11), uuid(1), 1, 1, "Ouvertyr", uuid(21)));
+        assertThat(client.numberKinds()).containsExactly(new NumberKindDto(uuid(21), "Ouvertyr", "Overture", 0, false));
     }
 
     @Test

@@ -28,7 +28,7 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * Caches for what other services answer: spex posters from Spexipedia and video links from Spexflix.
+ * Caches for what other services answer: spex, posters and number kinds from Spexipedia and video links from Spexflix.
  *
  * @author Anders Jacobsson
  * @since 1.0
@@ -40,6 +40,7 @@ public class CacheConfig {
     public static final String SPEX_POSTERS = "spexPosters";
     public static final String VIDEO_LINKS = "videoLinks";
     public static final String ALL_SPEX = "allSpex";
+    public static final String NUMBER_KINDS = "numberKinds";
     private static final long POSTER_CACHE_BYTES = 64L * 1024 * 1024;
 
     @Bean
@@ -55,6 +56,10 @@ public class CacheConfig {
                 .build());
         // Editors search the spex as they type; Spexipedia is asked once every few minutes, not on every key
         cacheManager.registerCustomCache(ALL_SPEX, Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofMinutes(5))
+                .maximumSize(1)
+                .build());
+        cacheManager.registerCustomCache(NUMBER_KINDS, Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMinutes(5))
                 .maximumSize(1)
                 .build());

@@ -21,10 +21,14 @@ import org.jspecify.annotations.Nullable;
 import java.util.UUID;
 
 /**
- * A number (one song) of a spex in Spexipedia, which a track may be a recording of.
+ * A number (one song) of a spex in Spexipedia, which a track may be a recording of, with its number kind.
  *
  * @author Anders Jacobsson
  * @since 1.0
  */
-public record NumberDto(UUID id, @Nullable UUID spexId, int act, int position, String title) {
+public record NumberDto(UUID id, @Nullable UUID spexId, int act, int position, String title, @Nullable UUID kindId) {
+
+    public NumberDto(final UUID id, final @Nullable UUID spexId, final int act, final int position, final String title) {
+        this(id, spexId, act, position, title, null);
+    }
 }

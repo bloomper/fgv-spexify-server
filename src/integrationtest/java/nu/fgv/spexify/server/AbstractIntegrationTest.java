@@ -407,7 +407,7 @@ public abstract class AbstractIntegrationTest {
     @BeforeEach
     void resetState() throws IOException {
         jdbcClient.sql("SET FOREIGN_KEY_CHECKS = 0").update();
-        for (final String table : List.of("audit_entry", "api_key", "app_password", "track", "album_spex", "album", "upload_session", "app_user", "spexipedia_category")) {
+        for (final String table : List.of("import_key", "audit_entry", "api_key", "app_password", "track", "album_spex", "album", "upload_session", "app_user", "spexipedia_category")) {
             jdbcClient.sql("TRUNCATE TABLE " + table).update();
         }
         jdbcClient.sql("SET FOREIGN_KEY_CHECKS = 1").update();
@@ -419,6 +419,8 @@ public abstract class AbstractIntegrationTest {
                        ('00000000-0000-7000-8000-00000000a002', 'Studio', 'Studio', 2, 'system', NOW(6)),
                        ('00000000-0000-7000-8000-00000000a003', 'Samlingsalbum', 'Compilation', 3, 'system', NOW(6)),
                        ('00000000-0000-7000-8000-00000000a004', 'Övrigt', 'Other', 4, 'system', NOW(6))""").update();
+        // And their aliases, as V1_10 gives them
+        jdbcClient.sql("UPDATE album_kind SET aliases = 'studio\\nstudioinspelning\\nskiva\\ninternskiva' WHERE uuid = '00000000-0000-7000-8000-00000000a002'").update();
         // Back to the defaults, which an admin test may have changed
         jdbcClient.sql("DELETE FROM settings").update();
         storage.wipe();
