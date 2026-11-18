@@ -68,8 +68,38 @@ jobs:
       # Lint, unit and integration tests on pull requests and pushes alike.
       # Only this repository is checked out: the realm is the committed copy in src/integrationtest/resources.
       # The media tests run ffmpeg
+      # The runners' Ubuntu mirror is sometimes very slow (a few kB/s), so ffmpeg's packages are kept in the Actions cache
+      # and downloaded only when it has none for this runner image; bump the key's version if the cached ones stop fitting
+      - name: Cache ffmpeg packages
+        uses: actions/cache@v6
+        with:
+          path: ~/ffmpeg-debs
+          key: ${{ runner.os }}-${{ env.ImageOS }}-ffmpeg-debs-v1
       - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        timeout-minutes: 25
+        run: |
+          debs="$HOME/ffmpeg-debs"
+          if compgen -G "$debs/*.deb" > /dev/null && sudo dpkg -i "$debs"/*.deb; then
+            ffmpeg -version | head -1
+            exit 0
+          fi
+          echo "No usable cached packages: downloading"
+          # The runners' own mirror (e.g. us-east-2.ec2.archive.ubuntu.com) has crawled at a few kB/s while Azure's
+          # gave 15 MB/s: download from Azure's, with Ubuntu's as the fallback
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' http://azure.archive.ubuntu.com/ubuntu/ http://archive.ubuntu.com/ubuntu/ | sudo tee /etc/apt/apt-mirrors.txt
+          fi
+          apt=(sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60)
+          for attempt in 1 2 3; do
+            timeout 180 "${apt[@]}" update && break
+            echo "apt-get update failed (attempt $attempt)"
+          done
+          rm -rf "$debs" && mkdir -p "$debs/partial"
+          "${apt[@]}" -o Dir::Cache::archives="$debs" install -y --download-only ffmpeg
+          sudo rm -rf "$debs/partial" "$debs/lock"
+          sudo chmod -R a+rX "$debs"
+          sudo dpkg -i "$debs"/*.deb
+          ffmpeg -version | head -1
       - name: Build and test
         run: ./gradlew check
       - name: Publish test results
