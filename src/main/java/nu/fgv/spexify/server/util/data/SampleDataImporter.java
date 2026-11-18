@@ -93,7 +93,7 @@ public class SampleDataImporter {
     static final String NO_ACCESS = "no-access@fgv.nu";
     private static final int SPEXIPEDIA_ATTEMPTS = 30;
     private static final Duration SPEXIPEDIA_RETRY_INTERVAL = Duration.ofSeconds(10);
-    private static final List<String> TABLES = List.of("audit_entry", "album_collection_album", "album_collection", "track_listening", "album_listening", "api_key", "app_password", "track", "album_spex", "album", "album_kind", "upload_session", "app_user");
+    private static final List<String> TABLES = List.of("audit_entry", "album_collection_album", "album_collection", "track_listening", "album_listening", "api_key", "app_password", "track", "album_spex", "album", "upload_session", "app_user");
 
     private final SpexifyProperties properties;
     private final Environment environment;
@@ -297,7 +297,15 @@ public class SampleDataImporter {
                 if (spex.isEmpty()) {
                     throw new IllegalStateException("Spexipedia has no spex; import its sample data first");
                 }
-                return spex.stream().sorted(Comparator.comparing((SpexDto s) -> s.year() == null ? 0 : s.year())).toList();
+
+                final List<SpexDto> sorted = spex.stream().sorted(Comparator.comparing((SpexDto s) -> s.year() == null ? 0 : s.year())).toList();
+
+                // The spex are there as soon as Spexipedia starts (a migration seeds them); its sample numbers, on the
+                // earliest spex too, only once its sample data is made
+                if (spexipediaClient.numbers(sorted.getFirst().id()).isEmpty()) {
+                    throw new SpexipediaClient.SpexipediaCallException("Spexipedia's sample data is not made yet: the first spex has no numbers");
+                }
+                return sorted;
             } catch (final SpexipediaClient.SpexipediaCallException e) {
                 if (attempt == SPEXIPEDIA_ATTEMPTS) {
                     throw new IllegalStateException("Spexipedia is unavailable, so sample data cannot be imported", e);
@@ -413,23 +421,12 @@ public class SampleDataImporter {
     }
 
     /**
-     * The kinds a new database starts with, as in the migration: show (the default), studio, compilation and other.
+     * The kinds the migrations seed, with the aliases the content migration uses: show (the default), studio,
+     * compilation and other; kinds an admin added are removed.
      */
     private List<AlbumKind> createKinds() {
-        final String[][] names = {{"Föreställning", "Show"}, {"Studio", "Studio"}, {"Samlingsalbum", "Compilation"}, {"Övrigt", "Other"}};
-        final List<AlbumKind> kinds = new ArrayList<>();
-
-        for (int i = 0; i < names.length; i++) {
-            final AlbumKind kind = new AlbumKind();
-
-            kind.setUuid(UUID.fromString("00000000-0000-7000-8000-00000000a00" + (i + 1)));
-            kind.setNameSv(names[i][0]);
-            kind.setNameEn(names[i][1]);
-            kind.setPosition(i + 1);
-            kind.setCreatedBy("system");
-            kinds.add(albumKindRepository.save(kind));
-        }
-        return kinds;
+        jdbcTemplate.update("DELETE FROM album_kind WHERE created_by <> 'system'");
+        return albumKindRepository.findAllByOrderByPositionAscIdAsc();
     }
 
     private void createAlbum(final int index, final List<SpexDto> spex, final List<AlbumKind> kinds,
@@ -461,9 +458,13 @@ public class SampleDataImporter {
 
             spexService.copy(picked, ref);
             album.getSpex().add(ref);
-            album.setTitle(index >= spex.size() ? picked.title() + " – studioinspelning" : String.valueOf(picked.title()));
+            // Every fifth a studio recording, as the content migration brings in the records, so every kind has albums
+            final boolean other = index % 7 == 6;
+            final boolean studio = !other && (index >= spex.size() || index % 5 == 4);
+
+            album.setTitle(studio ? picked.title() + " – studioinspelning" : String.valueOf(picked.title()));
             album.setYear(picked.year());
-            album.setKind(kinds.get(index >= spex.size() ? 1 : index % 7 == 6 ? 3 : 0));
+            album.setKind(kinds.get(other ? 3 : studio ? 1 : 0));
             album.setDescription("Inspelat under föreställningarna " + picked.year() + ". Exempeldata.");
         }
         album.setPublished(index != 3 && index != 5);
