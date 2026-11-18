@@ -297,7 +297,15 @@ public class SampleDataImporter {
                 if (spex.isEmpty()) {
                     throw new IllegalStateException("Spexipedia has no spex; import its sample data first");
                 }
-                return spex.stream().sorted(Comparator.comparing((SpexDto s) -> s.year() == null ? 0 : s.year())).toList();
+
+                final List<SpexDto> sorted = spex.stream().sorted(Comparator.comparing((SpexDto s) -> s.year() == null ? 0 : s.year())).toList();
+
+                // The spex are there as soon as Spexipedia starts (a migration seeds them); its sample numbers, on the
+                // earliest spex too, only once its sample data is made
+                if (spexipediaClient.numbers(sorted.getFirst().id()).isEmpty()) {
+                    throw new SpexipediaClient.SpexipediaCallException("Spexipedia's sample data is not made yet: the first spex has no numbers");
+                }
+                return sorted;
             } catch (final SpexipediaClient.SpexipediaCallException e) {
                 if (attempt == SPEXIPEDIA_ATTEMPTS) {
                     throw new IllegalStateException("Spexipedia is unavailable, so sample data cannot be imported", e);
