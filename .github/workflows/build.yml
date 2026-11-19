@@ -69,12 +69,13 @@ jobs:
       # Only this repository is checked out: the realm is the committed copy in src/integrationtest/resources.
       # The media tests run ffmpeg
       # The runners' Ubuntu mirror is sometimes very slow (a few kB/s), so ffmpeg's packages are kept in the Actions cache
-      # and downloaded only when it has none for this runner image; bump the key's version if the cached ones stop fitting
+      # and downloaded only when it has none for this runner image. The key names the image's version, since packages
+      # cached for an older image can need libraries a newer one no longer has; bump its version if they stop fitting
       - name: Cache ffmpeg packages
         uses: actions/cache@v6
         with:
           path: ~/ffmpeg-debs
-          key: ${{ runner.os }}-${{ env.ImageOS }}-ffmpeg-debs-v1
+          key: ${{ runner.os }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-ffmpeg-debs-v2
       - name: Install ffmpeg
         timeout-minutes: 25
         run: |
@@ -94,6 +95,13 @@ jobs:
             timeout 180 "${apt[@]}" update && break
             echo "apt-get update failed (attempt $attempt)"
           done
+          # A failed install of cached packages leaves them half installed, and apt refuses to install anything until
+          # that is repaired: this puts back the image's own versions of what they replaced
+          "${apt[@]}" -f install -y
+          if ffmpeg -version > /dev/null 2>&1; then
+            ffmpeg -version | head -1
+            exit 0
+          fi
           rm -rf "$debs" && mkdir -p "$debs/partial"
           "${apt[@]}" -o Dir::Cache::archives="$debs" install -y --download-only ffmpeg
           sudo rm -rf "$debs/partial" "$debs/lock"
