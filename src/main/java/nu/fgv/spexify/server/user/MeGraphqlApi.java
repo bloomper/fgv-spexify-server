@@ -44,9 +44,10 @@ public class MeGraphqlApi {
         if (caller.isUser()) {
             callerService.record(caller);
         }
-        return new MeDto(caller.username(), caller.displayName(), caller.roles().stream().map(Enum::name).sorted().toList(), caller.spexflixUser());
+        return new MeDto(caller.username(), caller.displayName(), caller.roles().stream().map(Enum::name).sorted().toList(), caller.spexflixUser(), caller.archiveUser());
     }
 
-    public record MeDto(String username, @Nullable String displayName, List<String> roles, boolean spexflixUser) {
+    public record MeDto(String username, @Nullable String displayName, List<String> roles, boolean spexflixUser,
+                        boolean archiveUser) {
     }
 }

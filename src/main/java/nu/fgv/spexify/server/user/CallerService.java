@@ -48,6 +48,7 @@ public class CallerService {
 
     private static final String PREFIX = "ROLE_" + SecurityUtil.CLIENT_ID + "_";
     private static final String SPEXFLIX_USER = "ROLE_fgv-spexflix_USER";
+    private static final String ARCHIVE_USER = "ROLE_fgv-archive_USER";
     private static final Duration LAST_SEEN_RESOLUTION = Duration.ofMinutes(10);
 
     private final AppUserRepository repository;
@@ -80,7 +81,8 @@ public class CallerService {
         final String username = firstText(jwt.getClaimAsString("preferred_username"), jwt.getClaimAsString("email"), subject);
 
         return new Caller(java.util.Objects.requireNonNull(subject), username == null ? subject : username,
-                firstText(jwt.getClaimAsString("name"), username), roles, authorities.contains(SPEXFLIX_USER));
+                firstText(jwt.getClaimAsString("name"), username), roles, authorities.contains(SPEXFLIX_USER),
+                authorities.contains(ARCHIVE_USER));
     }
 
     private static @Nullable String firstText(final @Nullable String... candidates) {
@@ -118,7 +120,7 @@ public class CallerService {
         final java.util.Set<Role> roles = java.util.EnumSet.copyOf(caller.roles());
 
         roles.addAll(java.util.List.of(Role.USER, Role.EDITOR));
-        return new Caller(caller.subject(), caller.username(), caller.displayName(), roles, caller.spexflixUser());
+        return new Caller(caller.subject(), caller.username(), caller.displayName(), roles, caller.spexflixUser(), caller.archiveUser());
     }
 
     /**

@@ -29,10 +29,18 @@ import java.util.Set;
  * @since 1.0
  */
 public record Caller(String subject, String username, @Nullable String displayName, Set<Role> roles,
-                     boolean spexflixUser) {
+                     boolean spexflixUser, boolean archiveUser) {
 
     public Caller {
         roles = Set.copyOf(roles);
+    }
+
+    /**
+     * A caller without access to Spexarkivet.
+     */
+    public Caller(final String subject, final String username, final @Nullable String displayName, final Set<Role> roles,
+                  final boolean spexflixUser) {
+        this(subject, username, displayName, roles, spexflixUser, false);
     }
 
     public boolean isImport() {
