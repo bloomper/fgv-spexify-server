@@ -57,7 +57,8 @@ public class MaintenanceJobs {
     @Autowired
     public MaintenanceJobs(final SpexService spexService, final NumberKindService numberKindService,
                            final UploadService uploadService, final LoudnessScan loudnessScan,
-                           final ListeningService listeningService, final ImportFileStore importFiles) {
+                           final ListeningService listeningService, final ImportFileStore importFiles,
+                           final nu.fgv.spexify.server.scoresync.ScoreAlignJob scoreAlignJob) {
         this(Map.of(
                 MaintenanceJob.SPEX_REFRESH, () -> {
                     spexService.refresh();
@@ -68,7 +69,8 @@ public class MaintenanceJobs {
                     importFiles.cleanUp();
                 },
                 MaintenanceJob.LOUDNESS_SCAN, loudnessScan::run,
-                MaintenanceJob.LISTENING_SYNC, listeningService::sync
+                MaintenanceJob.LISTENING_SYNC, listeningService::sync,
+                MaintenanceJob.SCORE_ALIGN, scoreAlignJob::run
         ));
     }
 
@@ -94,6 +96,11 @@ public class MaintenanceJobs {
     @Scheduled(cron = "${spexify.jobs.listening-sync.cron-expression}", zone = "${spexify.time-zone}")
     void listeningSync() {
         run(MaintenanceJob.LISTENING_SYNC);
+    }
+
+    @Scheduled(cron = "${spexify.jobs.score-align.cron-expression}", zone = "${spexify.time-zone}")
+    void scoreAlign() {
+        run(MaintenanceJob.SCORE_ALIGN);
     }
 
     /**

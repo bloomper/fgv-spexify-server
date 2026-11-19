@@ -47,7 +47,8 @@ class MaintenanceServiceTest {
                 .withProperty(MaintenanceJob.SPEX_REFRESH.cronProperty(), " 0 15 3 * * * ")
                 .withProperty(MaintenanceJob.UPLOAD_CLEANUP.cronProperty(), "-")
                 .withProperty(MaintenanceJob.LOUDNESS_SCAN.cronProperty(), "0 45 3 * * *")
-                .withProperty(MaintenanceJob.LISTENING_SYNC.cronProperty(), "0 15 4 * * *");
+                .withProperty(MaintenanceJob.LISTENING_SYNC.cronProperty(), "0 15 4 * * *")
+                .withProperty(MaintenanceJob.SCORE_ALIGN.cronProperty(), "0 30 4 * * *");
 
         assertThat(service(environment).statuses())
                 .extracting(MaintenanceService.MaintenanceJobStatus::job, MaintenanceService.MaintenanceJobStatus::schedule)
@@ -55,6 +56,7 @@ class MaintenanceServiceTest {
                         tuple(MaintenanceJob.SPEX_REFRESH, "0 15 3 * * *"),
                         tuple(MaintenanceJob.UPLOAD_CLEANUP, null),
                         tuple(MaintenanceJob.LOUDNESS_SCAN, "0 45 3 * * *"),
-                        tuple(MaintenanceJob.LISTENING_SYNC, "0 15 4 * * *"));
+                        tuple(MaintenanceJob.LISTENING_SYNC, "0 15 4 * * *"),
+                        tuple(MaintenanceJob.SCORE_ALIGN, "0 30 4 * * *"));
     }
 }
