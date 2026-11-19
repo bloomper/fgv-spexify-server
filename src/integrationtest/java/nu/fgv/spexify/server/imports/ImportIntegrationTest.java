@@ -88,12 +88,13 @@ class ImportIntegrationTest extends AbstractIntegrationTest {
         final String album = batch(input, false).path("importBatch.created").entity(Integer.class).isEqualTo(2)
                 .path("importBatch.items[0].id").entity(String.class).get();
 
-        graphQl(EDITOR).document("query($id: ID!) { album(id: $id) { published kind { nameSv } tracks { title format melody numberId } } }")
+        graphQl(EDITOR).document("query($id: ID!) { album(id: $id) { published kind { nameSv } tracks { title format melody creditsFromNumber numberId } } }")
                 .variable("id", album).execute()
                 .path("album.published").entity(Boolean.class).isEqualTo(false)
                 .path("album.kind.nameSv").entity(String.class).isEqualTo("Studio")
                 .path("album.tracks[0].format").entity(String.class).isEqualTo("FLAC")
-                .path("album.tracks[0].melody").entity(String.class).isEqualTo("Dancing Queen (ABBA)")
+                // A track of a number takes the melody and credits from the number in Spexipedia, not from the import
+                .path("album.tracks[0].creditsFromNumber").entity(Boolean.class).isEqualTo(true)
                 .path("album.tracks[0].numberId").entity(String.class).isEqualTo(NUMBER_ID);
 
         // The same file again changes nothing, though the stored file is a conversion of it

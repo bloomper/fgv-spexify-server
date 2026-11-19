@@ -20,6 +20,8 @@ type Query {
     recentAlbums(limit: Int = 12): [Album!]!
     "USER. The album kinds, in order; the first is the default."
     albumKinds: [AlbumKind!]!
+    "USER. The album media (LP, EP, CD, digital …), in order."
+    albumMedia: [AlbumMedium!]!
     "USER. Spexipedia's number kinds (overture, finale…) that listed tracks are recordings of, in Spexipedia's order; empty when Spexipedia is unavailable."
     numberKinds: [NumberKind!]!
     "USER. Listed albums about a spex whose premiere was on today's date in an earlier year, oldest first; empty when Spexipedia is unavailable."
@@ -48,6 +50,8 @@ type Query {
     spexNumbers(spexId: ID!): [SpexNumber!]!
     "SPEXIPEDIA. The published albums about the spex (or revivals of them), and the published tracks of the numbers. At most 500 ids each."
     spexipediaLinks(spexIds: [ID!]!, numberIds: [ID!]!): SpexipediaLinks!
+    "SPEXIPEDIA. The discography of the spex (or revivals of them): published albums with every published track, also those without audio, and signed links to the covers. At most 500 ids."
+    spexipediaDiscography(spexIds: [ID!]!): [DiscographyAlbum!]!
     "USER. The caller's app passwords that are not revoked."
     appPasswords: [AppPassword!]!
     "USER. The caller's API keys that are not revoked."
@@ -87,14 +91,18 @@ type Mutation {
     albumDelete(id: ID!): Void
     "EDITOR. The spex poster is shown instead."
     albumCoverRemove(id: ID!): Album!
+    "EDITOR. Removes the back of the sleeve (uploaded at /api/albums/{id}/back-cover)."
+    albumBackCoverRemove(id: ID!): Album!
     "EDITOR. Links the track to a number in Spexipedia of one of its album's spex; null unlinks it."
     trackSetNumber(id: ID!, numberId: ID): Track!
     "EDITOR. Numbers the album's tracks in the given order, per disc."
     tracksReorder(albumId: ID!, trackIds: [ID!]!): Album!
     "EDITOR. A track from a finished upload; tags in the file pre-fill its fields."
     trackCreate(albumId: ID!, uploadId: String!): Track!
-    "EDITOR."
+    "EDITOR. The melody, lyrics author and arranger are taken only for a track without a Spexipedia number."
     trackUpdate(id: ID!, input: TrackInput!): Track!
+    "EDITOR. A track without audio, for the discography of a record that is not digitised yet; its audio is uploaded later with trackReplaceAudio."
+    trackAdd(albumId: ID!, input: TrackInput!): Track!
     "EDITOR. Saves the lyrics alone and keeps the earlier version in the history. Fails with CONFLICT when someone saved them after baseRevisionId (null: when there were no saved versions)."
     trackLyricsUpdate(id: ID!, lyrics: String, synced: Boolean!, baseRevisionId: ID): Track!
     "EDITOR. Restores a saved version of the lyrics, as a new version."
@@ -139,6 +147,14 @@ type Mutation {
     albumKindsReorder(ids: [ID!]!): [AlbumKind!]!
     "ADMIN. Only a kind no album uses, trashed ones included, and not the last one."
     albumKindDelete(id: ID!): Void
+    "ADMIN. Added last."
+    albumMediumCreate(input: AlbumMediumInput!): AlbumMedium!
+    "ADMIN."
+    albumMediumUpdate(id: ID!, input: AlbumMediumInput!): AlbumMedium!
+    "ADMIN. Every medium, in the new order."
+    albumMediaReorder(ids: [ID!]!): [AlbumMedium!]!
+    "ADMIN. Only a medium no album uses, trashed ones included."
+    albumMediumDelete(id: ID!): Void
     "EDITOR. The albums are kept in the given order."
     collectionCreate(input: CollectionInput!): Collection!
     "EDITOR. Replaces the title, description and albums."
@@ -189,6 +205,25 @@ type AlbumKind {
     isDefault: Boolean!
     "Albums of this kind, trashed ones included."
     albumCount: Int!
+}
+
+"What a released album came out on, e.g. LP, EP, CD or digital, for the discography. Configured by admins."
+type AlbumMedium {
+    id: ID!
+    nameSv: String!
+    nameEn: String!
+    "Other spellings the import recognises."
+    aliases: [String!]!
+    position: Int!
+    "Albums on this medium, trashed ones included."
+    albumCount: Int!
+}
+
+input AlbumMediumInput {
+    nameSv: String!
+    nameEn: String!
+    "Null leaves them as they are."
+    aliases: [String!]
 }
 
 input AlbumKindInput {
@@ -255,6 +290,15 @@ input AlbumInput {
     "An album kind; defaults to the first one for a new album and to the current one for an existing album."
     kindId: ID
     description: String
+    "For a released record, e.g. 'CEP 019'."
+    catalogueNumber: String
+    "An album medium; none for an album that was never released."
+    mediumId: ID
+    "As precise as known: '1987', '1987-04' or '1987-04-12'."
+    released: String
+    recorded: String
+    "Free text, as on the record."
+    conductor: String
 }
 
 input TrackInput {
@@ -268,6 +312,8 @@ input TrackInput {
     lyrics: String
     "Whether the lyrics are LRC with timestamps."
     lyricsSynced: Boolean!
+    "The side of a record, e.g. 'A'."
+    side: String
 }
 
 type Category {
@@ -309,6 +355,16 @@ type Album {
     spex: [AlbumSpex!]!
     "Whether the album has its own cover; otherwise the main spex's poster is used."
     hasCover: Boolean!
+    "Whether the album has the back of its sleeve (at /api/albums/{id}/back-cover)."
+    hasBackCover: Boolean!
+    "The discography: the catalogue number of a released record, e.g. 'CEP 019'."
+    catalogueNumber: String
+    medium: AlbumMedium
+    "As precise as known: '1987', '1987-04' or '1987-04-12'."
+    released: String
+    recorded: String
+    "Free text, as on the record."
+    conductor: String
     published: Boolean!
     publishedAt: Instant
     trashedAt: Instant
@@ -336,14 +392,26 @@ type Track {
     albumTitle: String!
     discNumber: Int!
     trackNumber: Int!
+    "The side of a record, e.g. 'A'."
+    side: String
     title: String!
     performers: String
+    "For a track that is a recording of a number, the number's original song from Spexipedia."
     melody: String
+    "For a track that is a recording of a number, the number's lyrics credits from Spexipedia."
     lyricsAuthor: String
+    "For a track that is a recording of a number, the number's arrangement credits from Spexipedia."
     arranger: String
+    "Whether the melody and credits are the number's, from Spexipedia, and edited there."
+    creditsFromNumber: Boolean!
+    "Every credit of the number the track is a recording of, by kind, from Spexipedia; empty for other tracks and when Spexipedia is unavailable."
+    credits: [TrackCredit!]!
     lyrics: String
     lyricsSynced: Boolean!
-    format: String!
+    "Whether the track has its audio; one without it is an entry of the discography only."
+    hasAudio: Boolean!
+    "Null for a track without audio."
+    format: String
     fileSize: Float!
     durationMs: Float!
     bitrate: Int
@@ -384,6 +452,16 @@ type Track {
     totalPlays: Int!
 }
 
+"A credit of the number a track is a recording of: the credit kind and the person, as Spexipedia shows them."
+type TrackCredit {
+    kindId: ID!
+    kindNameSv: String!
+    kindNameEn: String!
+    "The spexare in Spexregister; null for someone outside FGV."
+    spexareId: ID
+    name: String!
+}
+
 """
 A kind of number in Spexipedia, e.g. an overture or a finale. Admins keep them in Spexipedia; each track keeps its
 number's kind, refreshed at night.
@@ -405,6 +483,39 @@ type SpexNumber {
     act: Int!
     position: Int!
     title: String!
+}
+
+"An album of the discography, for Spexipedia's spex pages."
+type DiscographyAlbum {
+    id: ID!
+    title: String!
+    year: Int
+    kindNameSv: String!
+    kindNameEn: String!
+    mediumNameSv: String
+    mediumNameEn: String
+    catalogueNumber: String
+    released: String
+    recorded: String
+    conductor: String
+    "The spex asked for that the album is about."
+    spexId: ID
+    "A signed link to the front cover, valid for some hours; null without one."
+    coverUrl: String
+    backCoverUrl: String
+    tracks: [DiscographyTrack!]!
+}
+
+type DiscographyTrack {
+    id: ID!
+    side: String
+    discNumber: Int!
+    trackNumber: Int!
+    title: String!
+    "The number in Spexipedia the track is a recording of."
+    numberId: ID
+    "Whether it can be listened to in Spexify."
+    hasAudio: Boolean!
 }
 
 type SpexipediaLinks {
@@ -793,9 +904,18 @@ input ImportAlbumInput {
     year: Int
     description: String
     cover: ImportFileRefInput
+    "The discography: the catalogue number of a released record."
+    catalogueNumber: String
+    "An album medium by name or alias (LP, EP, CD …)."
+    medium: String
+    "As precise as known: '1987', '1987-04' or '1987-04-12'."
+    released: String
+    recorded: String
+    conductor: String
+    backCover: ImportFileRefInput
 }
 
-"A track of an album imported with albumSourceKey, with its audio file; WAV and AIFF become FLAC. numberId links it to a number in Spexipedia."
+"A track of an album imported with albumSourceKey, with its audio file when there is one; WAV and AIFF become FLAC. numberId links it to a number in Spexipedia, which then gives the melody and credits."
 input ImportTrackInput {
     sourceKey: String!
     albumSourceKey: String!
@@ -809,7 +929,10 @@ input ImportTrackInput {
     arranger: String
     lyrics: String
     lyricsSynced: Boolean
-    file: ImportFileRefInput!
+    "Without a file the track is an entry of the discography only, until its audio comes."
+    file: ImportFileRefInput
+    "The side of a record, e.g. 'A'."
+    side: String
 }
 
 type ImportResult {

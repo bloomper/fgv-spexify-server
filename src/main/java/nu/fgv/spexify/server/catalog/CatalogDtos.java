@@ -61,11 +61,16 @@ public final class CatalogDtos {
         PLAYS
     }
 
+    /**
+     * An album. The catalogue number, medium, dates, conductor and back cover make it an entry of the discography.
+     */
     public record AlbumDto(UUID id, String title, @Nullable Integer year, AlbumKindService.AlbumKindDto kind,
                            @Nullable String description, List<AlbumSpexDto> spex, boolean hasCover,
                            boolean published, @Nullable Instant publishedAt, @Nullable Instant trashedAt,
                            @Nullable String navidromeId, int trackCount, double durationMs, Instant createdAt,
-                           @Nullable Instant lastModifiedAt) {
+                           @Nullable Instant lastModifiedAt, @Nullable String catalogueNumber,
+                           AlbumMediumService.@Nullable AlbumMediumDto medium, @Nullable String released,
+                           @Nullable String recorded, @Nullable String conductor, boolean hasBackCover) {
     }
 
     public record AlbumSpexDto(UUID id, @Nullable String title, @Nullable Integer year, @Nullable Boolean revival,
@@ -73,13 +78,26 @@ public final class CatalogDtos {
                                @Nullable String categoryName) {
     }
 
+    /**
+     * A track. For a track that is a recording of a Spexipedia number, the melody, lyrics author and arranger are the
+     * number's ({@code creditsFromNumber}), and {@code credits} lists all of the number's credits; they are edited in
+     * Spexipedia. A track without audio ({@code hasAudio} false) is an entry of the discography only.
+     */
     public record TrackDto(UUID id, UUID albumId, String albumTitle, int discNumber, int trackNumber,
                            String title, @Nullable String performers, @Nullable String melody,
                            @Nullable String lyricsAuthor, @Nullable String arranger, @Nullable String lyrics,
-                           boolean lyricsSynced, String format, double fileSize, double durationMs,
+                           boolean lyricsSynced, @Nullable String format, double fileSize, double durationMs,
                            @Nullable Integer bitrate, boolean published, boolean listed, @Nullable Instant trashedAt,
                            @Nullable String navidromeId, boolean fileMissing, @Nullable ReplayGainDto replayGain,
-                           @Nullable UUID numberId, @Nullable String numberTitle, @Nullable UUID numberKindId) {
+                           @Nullable UUID numberId, @Nullable String numberTitle, @Nullable UUID numberKindId,
+                           @Nullable String side, boolean hasAudio, boolean creditsFromNumber,
+                           List<TrackCreditDto> credits) {
+    }
+
+    /**
+     * One credit of the number a track is a recording of, from Spexipedia.
+     */
+    public record TrackCreditDto(UUID kindId, String kindNameSv, String kindNameEn, @Nullable UUID spexareId, String name) {
     }
 
     /**
@@ -121,11 +139,27 @@ public final class CatalogDtos {
 
     public record AlbumInput(@Nullable List<UUID> spexIds, @Nullable String title, @Nullable Integer year,
                              @Nullable UUID kindId,
-                             @Nullable String description) {
+                             @Nullable String description, @Nullable String catalogueNumber, @Nullable UUID mediumId,
+                             @Nullable String released, @Nullable String recorded, @Nullable String conductor) {
+
+        public AlbumInput(final @Nullable List<UUID> spexIds, final @Nullable String title, final @Nullable Integer year,
+                          final @Nullable UUID kindId, final @Nullable String description) {
+            this(spexIds, title, year, kindId, description, null, null, null, null, null);
+        }
     }
 
+    /**
+     * A track's fields. The melody, lyrics author and arranger are taken only for a track that is no recording of a
+     * Spexipedia number; a number's are edited in Spexipedia.
+     */
     public record TrackInput(int discNumber, int trackNumber, String title, @Nullable String performers,
                              @Nullable String melody, @Nullable String lyricsAuthor, @Nullable String arranger,
-                             @Nullable String lyrics, boolean lyricsSynced) {
+                             @Nullable String lyrics, boolean lyricsSynced, @Nullable String side) {
+
+        public TrackInput(final int discNumber, final int trackNumber, final String title, final @Nullable String performers,
+                          final @Nullable String melody, final @Nullable String lyricsAuthor, final @Nullable String arranger,
+                          final @Nullable String lyrics, final boolean lyricsSynced) {
+            this(discNumber, trackNumber, title, performers, melody, lyricsAuthor, arranger, lyrics, lyricsSynced, null);
+        }
     }
 }

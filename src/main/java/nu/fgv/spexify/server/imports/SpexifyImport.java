@@ -18,6 +18,8 @@ package nu.fgv.spexify.server.imports;
 
 import nu.fgv.spexify.server.catalog.AlbumKind;
 import nu.fgv.spexify.server.catalog.AlbumKindService;
+import nu.fgv.spexify.server.catalog.AlbumMedium;
+import nu.fgv.spexify.server.catalog.AlbumMediumService;
 import nu.fgv.spexify.server.catalog.CatalogDtos;
 import nu.fgv.spexify.server.catalog.CatalogService;
 import nu.fgv.spexify.server.imports.ImportEngine.Batch;
@@ -53,8 +55,11 @@ public class SpexifyImport {
     private final ImportFileStore files;
     private final CatalogService catalog;
     private final AlbumKindService kinds;
+    private final AlbumMediumService media;
 
-    public SpexifyImport(final ImportEngine engine, final ImportFileStore files, final CatalogService catalog, final AlbumKindService kinds) {
+    public SpexifyImport(final ImportEngine engine, final ImportFileStore files, final CatalogService catalog, final AlbumKindService kinds,
+                         final AlbumMediumService media) {
+        this.media = media;
         this.engine = engine;
         this.files = files;
         this.catalog = catalog;
@@ -78,6 +83,20 @@ public class SpexifyImport {
 
     public int forget(final String sourcePrefix) {
         return engine.forget(sourcePrefix, List.of(trackHandler, albumHandler));
+    }
+
+    private @Nullable UUID albumMedium(final @Nullable String name, final Batch batch) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        return media.match(name).map(AlbumMedium::getUuid).orElseGet(() -> {
+            if (batch.createMissingKinds()) {
+                batch.warn("Nytt albummedium: " + name.strip());
+                return media.createForImport(name.strip()).getUuid();
+            }
+            throw new BadRequestException("error.kind.unknown", name,
+                    media.media().stream().map(AlbumMediumService.AlbumMediumDto::nameSv).collect(Collectors.joining(", ")));
+        });
     }
 
     private @Nullable UUID albumKind(final @Nullable String name, final Batch batch) {
@@ -109,7 +128,8 @@ public class SpexifyImport {
         @Override
         public UUID apply(final ImportAlbum record, final @Nullable UUID existing, final Batch batch) {
             final CatalogDtos.AlbumInput input = new CatalogDtos.AlbumInput(record.spexIds(), record.title(), record.year(),
-                    albumKind(record.kind(), batch), record.description());
+                    albumKind(record.kind(), batch), record.description(), record.catalogueNumber(),
+                    albumMedium(record.medium(), batch), record.released(), record.recorded(), record.conductor());
             final UUID id = existing == null ? catalog.albumCreate(input).id() : catalog.albumUpdate(existing, input).id();
 
             if (record.cover() != null) {
@@ -117,6 +137,13 @@ public class SpexifyImport {
 
                 if (!batch.dryRun()) {
                     catalog.albumImportCover(id, cover, Objects.requireNonNullElse(record.cover().name(), "cover.jpg"));
+                }
+            }
+            if (record.backCover() != null) {
+                final java.nio.file.Path back = files.require(record.backCover().sha256());
+
+                if (!batch.dryRun()) {
+                    catalog.albumImportBackCover(id, back, Objects.requireNonNullElse(record.backCover().name(), "back.jpg"));
                 }
             }
             return id;
@@ -147,12 +174,26 @@ public class SpexifyImport {
 
         @Override
         public UUID apply(final ImportTrack record, final @Nullable UUID existing, final Batch batch) {
-            final java.nio.file.Path file = files.require(record.file().sha256());
             final UUID album = engine.recordOf(ALBUM, record.albumSourceKey());
-            final String name = Objects.requireNonNullElse(record.file().name(), record.title());
             final CatalogDtos.TrackInput input = new CatalogDtos.TrackInput(record.discNumber() == null ? 1 : record.discNumber(),
                     record.trackNumber() == null ? 1 : record.trackNumber(), record.title(), record.performers(), record.melody(),
-                    record.lyricsAuthor(), record.arranger(), record.lyrics(), Boolean.TRUE.equals(record.lyricsSynced()));
+                    record.lyricsAuthor(), record.arranger(), record.lyrics(), Boolean.TRUE.equals(record.lyricsSynced()),
+                    record.side());
+
+            if (record.file() == null) {
+                if (album == null) {
+                    if (batch.dryRun() && batch.planned(record.albumSourceKey())) {
+                        return Uuids.v7();
+                    }
+                    throw new BadRequestException("error.field.invalid", "albumSourceKey");
+                }
+                final UUID id = catalog.trackImportWithoutAudio(album, existing, input, record.numberId(), batch.dryRun());
+
+                return id == null ? Uuids.v7() : id;
+            }
+
+            final java.nio.file.Path file = files.require(record.file().sha256());
+            final String name = Objects.requireNonNullElse(record.file().name(), record.title());
 
             if (album == null) {
                 if (batch.dryRun() && batch.planned(record.albumSourceKey())) {

@@ -94,7 +94,7 @@ class CollectionServiceTest {
             final Album album = invocation.getArgument(0);
 
             return new CatalogDtos.AlbumDto(album.getUuid(), album.getTitle(), null, null, null, List.of(), false,
-                    album.isPublished(), null, null, null, 0, 0, Instant.EPOCH, null);
+                    album.isPublished(), null, null, null, 0, 0, Instant.EPOCH, null, null, null, null, null, null, false);
         });
 
         assertThat(service.collections()).singleElement().satisfies(collection -> {

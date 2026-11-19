@@ -16,6 +16,7 @@
 
 package nu.fgv.spexify.server.config;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.unit.DataSize;
 
@@ -63,8 +64,12 @@ public record SpexifyProperties(String timeZone,
      * @param graphqlUrl  Spexipedia's GraphQL API, e.g. {@code http://spexipedia-api:8080/api/graphql}
      * @param webUrl      Spexipedia's web, for links to its pages; empty for none
      * @param syncEnabled whether to follow its change feed
+     * @param lyricsCreditKind      the credit kind whose credits are a track's lyrics author for browsing (by default
+     *                              Spexipedia's default kind Lyrics); a number's other credits are shown by their kind
+     * @param arrangementCreditKind the credit kind whose credits are a track's arranger (by default Arrangement)
      */
-    public record Spexipedia(String graphqlUrl, String webUrl, boolean syncEnabled) {
+    public record Spexipedia(String graphqlUrl, String webUrl, boolean syncEnabled, @Nullable String lyricsCreditKind,
+                             @Nullable String arrangementCreditKind) {
     }
 
     public record Spexflix(String graphqlUrl) {

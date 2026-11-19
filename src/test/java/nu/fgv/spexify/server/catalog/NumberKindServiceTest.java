@@ -74,7 +74,7 @@ class NumberKindServiceTest {
 
     private static TrackDto trackDto(final UUID id, final UUID kindId) {
         return new TrackDto(id, uuid(1), "Album", 1, 1, "Titel", null, null, null, null, null, false, "flac", 1, 1000,
-                null, true, true, null, null, false, null, kindId == null ? null : uuid(30), null, kindId);
+                null, true, true, null, null, false, null, kindId == null ? null : uuid(30), null, kindId, null, true, false, java.util.List.of());
     }
 
     @Test

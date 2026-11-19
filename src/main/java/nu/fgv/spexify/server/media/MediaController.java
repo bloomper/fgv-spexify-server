@@ -50,6 +50,7 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
@@ -247,6 +248,10 @@ public class MediaController {
     }
 
     private Path existingFile(final Track track) {
+        if (!track.hasAudio()) {
+            throw new ResourceNotFoundException("error.track.noAudio", track.getUuid());
+        }
+
         final Path file = storage.trackFile(track);
 
         if (!Files.isRegularFile(file)) {
@@ -287,8 +292,10 @@ public class MediaController {
      */
     @GetMapping("/api/albums/{id}/cover")
     public ResponseEntity<?> cover(@PathVariable final UUID id) {
-        final Album album = catalogService.visibleAlbum(id);
+        return cover(catalogService.visibleAlbum(id));
+    }
 
+    private ResponseEntity<?> cover(final Album album) {
         if (album.getCoverExtension() != null) {
             final Path file = storage.coverFile(album);
 
@@ -327,6 +334,22 @@ public class MediaController {
 
     @PostMapping("/api/albums/{id}/cover")
     public AlbumDto uploadCover(@PathVariable final UUID id, @RequestParam("file") final MultipartFile file) throws IOException {
+        final byte[] content = coverContent(file);
+
+        return catalogService.albumCover(id, content, Objects.requireNonNull(imageExtension(content)));
+    }
+
+    /**
+     * The back of a record's sleeve, for the discography.
+     */
+    @PostMapping("/api/albums/{id}/back-cover")
+    public AlbumDto uploadBackCover(@PathVariable final UUID id, @RequestParam("file") final MultipartFile file) throws IOException {
+        final byte[] content = coverContent(file);
+
+        return catalogService.albumBackCover(id, content, Objects.requireNonNull(imageExtension(content)));
+    }
+
+    private static byte[] coverContent(final MultipartFile file) throws IOException {
         if (file.isEmpty() || file.getSize() > MAX_COVER) {
             throw new BadRequestException("error.cover.invalid");
         }
@@ -336,12 +359,47 @@ public class MediaController {
         try (InputStream in = file.getInputStream()) {
             content = in.readAllBytes();
         }
-
-        final String extension = imageExtension(content);
-
-        if (extension == null) {
+        if (imageExtension(content) == null) {
             throw new BadRequestException("error.cover.invalid");
         }
-        return catalogService.albumCover(id, content, extension);
+        return content;
+    }
+
+    @GetMapping("/api/albums/{id}/back-cover")
+    public ResponseEntity<?> backCover(@PathVariable final UUID id) {
+        return backCover(catalogService.visibleAlbum(id));
+    }
+
+    /**
+     * The covers of an album of the discography, through links Spexify gives Spexipedia (spexipediaDiscography), so
+     * that its spex pages can show them without a token.
+     */
+    @GetMapping("/media/{expires}/{signature}/albums/{id}/cover")
+    public ResponseEntity<?> signedCover(@PathVariable final long expires, @PathVariable final String signature,
+                                         @PathVariable final UUID id) {
+        verify(expires, signature, "albums/%s/cover".formatted(id));
+        return cover(catalogService.linkedAlbum(id));
+    }
+
+    @GetMapping("/media/{expires}/{signature}/albums/{id}/back-cover")
+    public ResponseEntity<?> signedBackCover(@PathVariable final long expires, @PathVariable final String signature,
+                                             @PathVariable final UUID id) {
+        verify(expires, signature, "albums/%s/back-cover".formatted(id));
+        return backCover(catalogService.linkedAlbum(id));
+    }
+
+    private ResponseEntity<?> backCover(final Album album) {
+        if (album.getBackCoverExtension() != null) {
+            final Path file = storage.backCoverFile(album);
+
+            if (Files.isRegularFile(file)) {
+                return ResponseEntity.ok()
+                        .contentType(imageType(album.getBackCoverExtension()))
+                        .header(NOSNIFF_HEADER, NOSNIFF)
+                        .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
+                        .body(new FileSystemResource(file));
+            }
+        }
+        return ResponseEntity.notFound().build();
     }
 }

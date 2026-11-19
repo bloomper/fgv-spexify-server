@@ -143,6 +143,9 @@ spexify:
     graphql-url: ${API_SPEXIPEDIA_GRAPHQL_URL:https://api.spexipedia.fgv.local.nu:8443/api/graphql}
     web-url: ${SPEXIPEDIA_WEB_URL:}
     sync-enabled: ${API_SPEXIPEDIA_SYNC_ENABLED:true}
+    # The credit kinds that are a track's lyrics author and arranger (Spexipedia's default kinds Lyrics and Arrangement)
+    lyrics-credit-kind: ${API_SPEXIPEDIA_LYRICS_CREDIT_KIND:01900000-0000-7000-8000-000000000201}
+    arrangement-credit-kind: ${API_SPEXIPEDIA_ARRANGEMENT_CREDIT_KIND:01900000-0000-7000-8000-000000000203}
   spexflix:
     graphql-url: ${API_SPEXFLIX_GRAPHQL_URL:}
   archive:

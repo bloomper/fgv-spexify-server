@@ -627,6 +627,59 @@ class CatalogServiceTest {
     }
 
     @Test
+    void aTrackOfTheDiscographyHasNoAudioAndIsNotListed() {
+        as(TestCallers.editor());
+
+        final TrackDto added = service.trackAdd(uuid(1), new TrackInput(1, 3, " Finalen ", null, "Final (Okänd)", null, null, null, false, " B "));
+
+        assertThat(added.title()).isEqualTo("Finalen");
+        assertThat(added.side()).isEqualTo("B");
+        assertThat(added.hasAudio()).isFalse();
+        assertThat(added.listed()).isFalse();
+        assertThat(added.fileMissing()).isFalse();
+        assertThat(added.format()).isNull();
+        assertThat(published.getTracks()).extracting(Track::getTitle).containsExactly("Ouvertyr", "Duetten", "Finalen");
+        // Placing the album never touches a track without a file
+        assertThat(published.getTracks().getLast().hasAudio()).isFalse();
+    }
+
+    @Test
+    void theDiscographyFieldsOfAnAlbumAreValidated() {
+        as(TestCallers.editor());
+
+        final AlbumDto album = service.albumCreate(new AlbumInput(null, "Alexander", 1987, null, null, " CEP 019 ", null,
+                "1987-04", "1987", " Dirigenten "));
+
+        assertThat(album.catalogueNumber()).isEqualTo("CEP 019");
+        assertThat(album.released()).isEqualTo("1987-04");
+        assertThat(album.recorded()).isEqualTo("1987");
+        assertThat(album.conductor()).isEqualTo("Dirigenten");
+        assertThatThrownBy(() -> service.albumCreate(new AlbumInput(null, "Alexander", 1987, null, null, null, null,
+                "april 1987", null, null))).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.albumCreate(new AlbumInput(null, "Alexander", 1987, null, null, null, null,
+                "1987-13", null, null))).isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void aTrackOfANumberKeepsNoCreditsOfItsOwn() {
+        as(TestCallers.editor());
+
+        final Track track = published.getTracks().getFirst();
+
+        track.setNumberId(uuid(500));
+        track.setMelody("Gammal melodi");
+
+        final TrackDto updated = service.trackUpdate(uuid(11), new TrackInput(1, 1, "Ouvertyr", "Kören", "Ny melodi", "Någon", "Annan", null, false));
+
+        // The number's melody and credits are Spexipedia's; without Spexipedia's answer the track shows none
+        assertThat(track.getMelody()).isEqualTo("Gammal melodi");
+        assertThat(track.getLyricsAuthor()).isNull();
+        assertThat(updated.creditsFromNumber()).isTrue();
+        assertThat(updated.melody()).isNull();
+        assertThat(updated.performers()).isEqualTo("Kören");
+    }
+
+    @Test
     void tracksInTheTrashCannotBeEditedButCanBeRestored() {
         as(TestCallers.editor());
         published.getTracks().getFirst().setTrashedAt(NOW);
