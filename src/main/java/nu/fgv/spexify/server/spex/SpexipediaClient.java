@@ -69,6 +69,10 @@ public class SpexipediaClient {
             query NumbersByIds($ids: [ID!]!) {
                 numbersByIds(ids: $ids) { id act position title spex { id } kind { id } }
             }""";
+    private static final String CHARACTERS = """
+            query SpexCharacters($id: ID!) {
+                spex(id: $id) { characters { id name retired } }
+            }""";
     private static final String NUMBER_KINDS = """
             query NumberKinds {
                 kinds(type: NUMBER, includeRetired: true) { id nameSv nameEn position retired }
@@ -182,6 +186,24 @@ public class SpexipediaClient {
             }));
         }
         return result;
+    }
+
+    /**
+     * The characters of a spex as its page shows them, a revival's after its changes, retired ones left out; empty for
+     * an unknown spex.
+     */
+    @Cacheable(cacheNames = CacheConfig.SPEX_CHARACTERS)
+    public List<String> characters(final UUID spexId) {
+        return call(() -> {
+            final ClientGraphQlResponse response = graphQlClient.document(CHARACTERS).variable("id", spexId).executeSync();
+
+            requireValid(response);
+            return response.field("spex.characters").toEntityList(CharacterNode.class).stream()
+                    .filter(Objects::nonNull).filter(character -> !character.retired()).map(CharacterNode::name).toList();
+        });
+    }
+
+    record CharacterNode(String id, String name, boolean retired) {
     }
 
     /**
