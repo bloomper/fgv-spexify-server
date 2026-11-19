@@ -31,7 +31,7 @@ class MaintenanceIntegrationTest extends AbstractIntegrationTest {
     @Test
     void adminsSeeAndRunTheJobs() {
         graphQl(ADMIN).document(JOBS).execute()
-                .path("maintenanceJobs[*].job").entityList(String.class).containsExactly("SPEX_REFRESH", "UPLOAD_CLEANUP", "LOUDNESS_SCAN", "LISTENING_SYNC")
+                .path("maintenanceJobs[*].job").entityList(String.class).containsExactly("SPEX_REFRESH", "UPLOAD_CLEANUP", "LOUDNESS_SCAN", "LISTENING_SYNC", "SCORE_ALIGN")
                 // The tests turn every schedule off (application-integrationtest.yml), so none is shown;
                 // MaintenanceServiceTest covers how a configured one is
                 .path("maintenanceJobs[0].schedule").valueIsNull();

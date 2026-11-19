@@ -41,6 +41,11 @@ public class CacheConfig {
     public static final String VIDEO_LINKS = "videoLinks";
     public static final String ALL_SPEX = "allSpex";
     public static final String NUMBER_KINDS = "numberKinds";
+    public static final String SHEET_MUSIC = "sheetMusic";
+    public static final String SHEET_FILES = "sheetFiles";
+    public static final String SPEX_CHARACTERS = "spexCharacters";
+    public static final String WAVEFORMS = "waveforms";
+    private static final long SHEET_FILE_CACHE_BYTES = 128L * 1024 * 1024;
     private static final long POSTER_CACHE_BYTES = 64L * 1024 * 1024;
 
     @Bean
@@ -66,6 +71,26 @@ public class CacheConfig {
         cacheManager.registerCustomCache(VIDEO_LINKS, Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMinutes(5))
                 .maximumSize(5_000)
+                .build());
+        // Which numbers have sheet music in Spexarkivet, by number id
+        cacheManager.registerCustomCache(SHEET_MUSIC, Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofMinutes(5))
+                .maximumSize(5_000)
+                .build());
+        // The score files themselves, by archive file id and checksum: they change only when replaced
+        cacheManager.registerCustomCache(SHEET_FILES, Caffeine.newBuilder()
+                .expireAfterAccess(Duration.ofHours(1))
+                .maximumWeight(SHEET_FILE_CACHE_BYTES)
+                .weigher((_, value) -> value instanceof byte[] content ? content.length + 64 : 64)
+                .build());
+        cacheManager.registerCustomCache(SPEX_CHARACTERS, Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofMinutes(10))
+                .maximumSize(2_000)
+                .build());
+        // The lyrics editor's waveforms, by track and file checksum
+        cacheManager.registerCustomCache(WAVEFORMS, Caffeine.newBuilder()
+                .expireAfterAccess(Duration.ofHours(1))
+                .maximumSize(200)
                 .build());
         return cacheManager;
     }

@@ -109,6 +109,8 @@ spexify:
       cron-expression: 0 45 3 * * * # Every day at 03:45
     listening-sync:
       cron-expression: 0 15 4 * * * # Every day at 04:15
+    score-align:
+      cron-expression: 0 30 4 * * * # Every day at 04:30
   keycloak:
     url: ${API_KEYCLOAK_URL:https://auth.fgv.local.nu:8443/auth}
     realm: ${API_KEYCLOAK_REALM:fgv}
@@ -143,6 +145,10 @@ spexify:
     sync-enabled: ${API_SPEXIPEDIA_SYNC_ENABLED:true}
   spexflix:
     graphql-url: ${API_SPEXFLIX_GRAPHQL_URL:}
+  archive:
+    # Spexarkivet, for the sheet music of tracks' numbers; empty leaves sheet music out
+    graphql-url: ${API_ARCHIVE_GRAPHQL_URL:}
+    web-url: ${ARCHIVE_WEB_URL:}
   data:
     import-sample-data: ${API_IMPORT_SAMPLE_DATA:false}
     sample-data-size: ${API_SAMPLE_DATA_SIZE:small}

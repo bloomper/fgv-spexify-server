@@ -43,3 +43,10 @@ A link whose signature does not match is answered `403 Forbidden`, and an expire
 operation::track-audio-signed-get[snippets='security,http-request,response-headers']
 
 xref:../api-guide.adoc[Back to API guide]
+
+[[sheet_music]]
+== Sheet music
+
+`GET /api/tracks/{id}/sheet-music/{fileId}` passes on a file of the track's sheet music from Spexarkivet: a file of an open version of the arrangement of the track's number, as `Track.sheetMusic` lists them.
+With `download=true` it is an attachment.
+The caller needs access to the track, as for its audio, and `USER` on `fgv-archive`; `403 Forbidden` without the latter, `404 Not Found` when the file is not the track's or Spexarkivet does not hand it out.

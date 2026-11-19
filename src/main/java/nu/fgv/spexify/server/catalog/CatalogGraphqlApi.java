@@ -82,6 +82,11 @@ public class CatalogGraphqlApi {
     }
 
     @QueryMapping
+    public @Nullable TrackDto track(@Argument final UUID id) {
+        return service.trackDto(id);
+    }
+
+    @QueryMapping
     public List<AlbumDto> recentAlbums(@Argument final @Nullable Integer limit) {
         return service.recent(limit == null ? 12 : limit);
     }

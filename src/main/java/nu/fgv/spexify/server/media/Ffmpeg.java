@@ -99,6 +99,45 @@ public class Ffmpeg {
         return run(command, true);
     }
 
+    /**
+     * Decodes an audio file to mono samples, for analysis: at most {@code maxSeconds} of it, at {@code sampleRate}.
+     */
+    public float[] decode(final java.nio.file.Path file, final int sampleRate, final int maxSeconds) throws IOException {
+        final List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error"));
+
+        command.addAll(AUDIO_INPUT);
+        command.addAll(List.of("-i", file.toString(), "-t", String.valueOf(maxSeconds), "-vn", "-ac", "1", "-ar", String.valueOf(sampleRate),
+                "-f", "f32le", "-"));
+
+        final Process process = new ProcessBuilder(command).redirectErrorStream(false).start();
+        final CompletableFuture<String> stderr = read(process.getErrorStream());
+        final byte[] bytes;
+
+        try (InputStream stdout = process.getInputStream()) {
+            bytes = stdout.readAllBytes();
+        }
+        try {
+            if (!process.waitFor(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                throw new IOException("ffmpeg timed out");
+            }
+            if (process.exitValue() != 0) {
+                throw new IOException("ffmpeg failed: " + stderr.join().strip());
+            }
+        } catch (final InterruptedException e) {
+            process.destroyForcibly();
+            Thread.currentThread().interrupt();
+            throw new IOException("ffmpeg was interrupted", e);
+        }
+
+        final java.nio.FloatBuffer floats = java.nio.ByteBuffer.wrap(bytes, 0, bytes.length - bytes.length % 4)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+        final float[] samples = new float[floats.remaining()];
+
+        floats.get(samples);
+        return samples;
+    }
+
     public void ffmpeg(final List<String> arguments) throws IOException {
         final List<String> command = new ArrayList<>(List.of("ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y"));
 

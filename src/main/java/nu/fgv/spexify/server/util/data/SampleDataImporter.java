@@ -93,7 +93,7 @@ public class SampleDataImporter {
     static final String NO_ACCESS = "no-access@fgv.nu";
     private static final int SPEXIPEDIA_ATTEMPTS = 30;
     private static final Duration SPEXIPEDIA_RETRY_INTERVAL = Duration.ofSeconds(10);
-    private static final List<String> TABLES = List.of("audit_entry", "album_collection_album", "album_collection", "track_listening", "album_listening", "api_key", "app_password", "track", "album_spex", "album", "upload_session", "app_user");
+    private static final List<String> TABLES = List.of("audit_entry", "score_sync", "lyrics_revision", "album_collection_album", "album_collection", "track_listening", "album_listening", "api_key", "app_password", "track", "album_spex", "album", "upload_session", "app_user");
 
     private final SpexifyProperties properties;
     private final Environment environment;

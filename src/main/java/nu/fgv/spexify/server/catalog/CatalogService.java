@@ -98,6 +98,16 @@ public class CatalogService {
     private final AuditService auditService;
     private final Clock clock;
 
+    /**
+     * Keeps every saved version of the lyrics; set by Spring, absent in some unit tests.
+     */
+    private nu.fgv.spexify.server.lyrics.@Nullable LyricsHistory lyricsHistory;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setLyricsHistory(final nu.fgv.spexify.server.lyrics.LyricsHistory lyricsHistory) {
+        this.lyricsHistory = lyricsHistory;
+    }
+
     public CatalogService(final AlbumRepository albumRepository, final AlbumKindService kindService,
                           final TrackRepository trackRepository,
                           final CallerService callerService, final SpexService spexService, final LibraryPlacer placer,
@@ -400,6 +410,20 @@ public class CatalogService {
         }
         track.getAlbum().getTitle();
         return track;
+    }
+
+    /**
+     * A track the caller may play, or null: listed for listeners, any but trashed for editors.
+     */
+    @Transactional(readOnly = true)
+    public @Nullable TrackDto trackDto(final UUID id) {
+        final Caller caller = callerService.current();
+
+        caller.requireUser();
+        return trackRepository.findByUuid(id)
+                .filter(track -> caller.isEditor() ? !track.isTrashed() && !track.getAlbum().isTrashed() : track.isListed())
+                .map(this::toDto)
+                .orElse(null);
     }
 
     /**
@@ -720,11 +744,47 @@ public class CatalogService {
         track.setMelody(blankToNull(input.melody()));
         track.setLyricsAuthor(blankToNull(input.lyricsAuthor()));
         track.setArranger(blankToNull(input.arranger()));
-        track.setLyrics(StringUtils.hasText(input.lyrics()) ? input.lyrics() : null);
-        track.setLyricsSynced(StringUtils.hasText(input.lyrics()) && input.lyricsSynced());
+        setLyrics(track, input.lyrics(), input.lyricsSynced());
         place(track.getAlbum());
         auditService.record("UPDATE", "TRACK", track.getUuid(), "Ändrade " + track.getTitle());
         return toDto(track);
+    }
+
+    private void setLyrics(final Track track, final @Nullable String lyrics, final boolean synced) {
+        final String before = track.getLyrics();
+        final boolean beforeSynced = track.isLyricsSynced();
+
+        track.setLyrics(StringUtils.hasText(lyrics) ? lyrics : null);
+        track.setLyricsSynced(StringUtils.hasText(lyrics) && synced);
+        if (lyricsHistory != null) {
+            lyricsHistory.changed(track, before, beforeSynced);
+        }
+    }
+
+    /**
+     * EDITOR. Changes the lyrics alone, writes them beside the file and keeps the earlier version in the history.
+     */
+    @Transactional
+    public TrackDto trackSetLyrics(final UUID id, final @Nullable String lyrics, final boolean synced) {
+        callerService.current().requireEditor();
+
+        final Track track = track(id);
+
+        setLyrics(track, lyrics, synced);
+        place(track.getAlbum());
+        auditService.record("UPDATE", "TRACK", track.getUuid(), "Ändrade texten till " + track.getTitle());
+        return toDto(track);
+    }
+
+    /**
+     * A track that is not in the trash, for other services that have checked the caller.
+     */
+    @Transactional(readOnly = true)
+    public Track editableTrack(final UUID id) {
+        final Track track = track(id);
+
+        track.getAlbum().getTitle();
+        return track;
     }
 
     /**
