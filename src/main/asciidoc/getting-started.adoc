@@ -100,6 +100,8 @@ There are also configuration parameters in ``.env`` that can be tweaked if so de
 |API_KEYCLOAK_REALM|The Keycloak realm of Spexify Server|fgv
 |API_KEYCLOAK_CLIENT_CLIENT_ID|The Keycloak client id of Spexify Web|fgv-spexify
 |API_SPEXFLIX_GRAPHQL_URL|Spexflix's GraphQL endpoint, for the links to Spexflix; empty for none|(empty); ``http://spexflix-api:8080/api/graphql`` when Spexflix runs too
+|API_ARCHIVE_GRAPHQL_URL|Spexarkivet's GraphQL endpoint, for the sheet music of tracks' numbers; its files are read beside it, at ``.../api/files/{id}``; empty for none|(empty); ``http://archive-api:8080/api/graphql`` when Spexarkivet runs too
+|ARCHIVE_WEB_URL|Spexarkivet's web, for links to arrangements|(empty)
 |API_IMPORT_SAMPLE_DATA|A flag determining whether to import sample data or not|false
 |API_SAMPLE_DATA_SIZE|``small`` (20 albums) or ``large`` (about 300)|small
 
@@ -211,7 +213,7 @@ The username is ``KEYCLOAK_ADMIN`` in fgv-infra-deploy's ``local/.env`` and the 
 === Setup
 
 The realm is defined by ``realm/fgv.json`` in fgv-keycloak, whose README describes what it contains.
-Spexify uses its clients ``fgv-spexify`` (the web, and Spexify's roles), ``fgv-spexify-mcp`` (MCP clients) and ``fgv-spexify-service`` (calls to Spexipedia and Spexflix, and checking that app password owners still have access).
+Spexify uses its clients ``fgv-spexify`` (the web, and Spexify's roles), ``fgv-spexify-mcp`` (MCP clients) and ``fgv-spexify-service`` (calls to Spexipedia, Spexflix and Spexarkivet, and checking that app password owners still have access).
 
 The integration tests import a copy of ``fgv.json`` at ``src/integrationtest/resources/realm/fgv.json``.
 After every realm change, replace it with the new ``realm/fgv.json`` from fgv-keycloak and commit it.
@@ -248,7 +250,7 @@ There are two types of tests:
 Unit tests do not require any external dependencies, such as a database, and are therefore quicker to run; the media tests run ffmpeg.
 Among them are the API tests, which are used to generate the xref:api-guide.adoc[HTTP API documentation].
 
-Integration tests start MySQL, Keycloak and Navidrome with Testcontainers, so they need Docker, and use WireMock as a stand-in for Spexregister and Spexflix.
+Integration tests start MySQL, Keycloak and Navidrome with Testcontainers, so they need Docker, and use WireMock as a stand-in for Spexregister, Spexflix and Spexarkivet.
 They generate audio with ffmpeg and go through the real HTTP endpoints, the Subsonic gateway included.
 
 [source,bash]

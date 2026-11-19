@@ -141,6 +141,19 @@ Tracks show where they are performed in Spexflix (``Track.videoLinks``), read fr
 Spexflix in turn reads ``spexTracks`` and ``tracksByIds`` with the ``SPEXFLIX`` role.
 Without ``API_SPEXFLIX_GRAPHQL_URL`` there are no links.
 
+[[archive]]
+== Spexarkivet
+
+Tracks show the sheet music of their number (``Track.sheetMusic``), read from Spexarkivet's ``spexifySheetMusic`` as ``fgv-spexify-service`` with the archive's ``SPEXIFY`` role, for users who also have ``USER`` on ``fgv-archive``; the files are passed on by the xref:resources/track.adoc#sheet_music[HTTP API].
+``Track.scoreSyncs`` are the maps that make a cursor follow a MusicXML score while the recording plays: made by hand (``scoreSyncSave``) or found by aligning the recording with the score (``scoreAlign``, and the ``SCORE_ALIGN`` maintenance job).
+Without ``API_ARCHIVE_GRAPHQL_URL`` there is no sheet music.
+
+[[lyrics]]
+== Lyrics
+
+``trackLyricsUpdate`` and ``trackLyricsRestore`` save the lyrics alone and keep every version (``Track.lyricsRevisions``); ``Track.waveform`` is the recording's loudness for the timing editor.
+``Track.singers`` resolves singer labels at the start of lyric lines to the spex's characters in Spexipedia.
+
 [[file_handling]]
 == File handling
 

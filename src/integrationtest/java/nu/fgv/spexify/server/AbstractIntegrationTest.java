@@ -103,6 +103,9 @@ public abstract class AbstractIntegrationTest {
     protected static final String NUMBER_ID = "00000000-0000-7000-8000-0000000000b1";
     protected static final WireMockServer SPEXIPEDIA = new WireMockServer(options().dynamicPort());
     protected static final WireMockServer SPEXFLIX = new WireMockServer(options().dynamicPort());
+    protected static final WireMockServer ARCHIVE = new WireMockServer(options().dynamicPort());
+    // An editor who also has access to Spexarkivet, and so sees sheet music
+    protected static final String ARCHIVE_EDITOR = "noter" + DOMAIN;
     protected static final Path MEDIA = Path.of("build/integrationtest-data/media").toAbsolutePath();
     private static final String REALM = "fgv";
     private static final JacksonJsonParser JSON = new JacksonJsonParser();
@@ -131,6 +134,7 @@ public abstract class AbstractIntegrationTest {
         Startables.deepStart(MYSQL, KEYCLOAK, NAVIDROME).join();
         SPEXIPEDIA.start();
         SPEXFLIX.start();
+        ARCHIVE.start();
         prepareKeycloak();
     }
 
@@ -158,6 +162,8 @@ public abstract class AbstractIntegrationTest {
         // Tests pull the feed themselves
         registry.add("spexify.spexipedia.sync-enabled", () -> "false");
         registry.add("spexify.spexflix.graphql-url", () -> SPEXFLIX.baseUrl() + "/api/graphql");
+        registry.add("spexify.archive.graphql-url", () -> ARCHIVE.baseUrl() + "/api/graphql");
+        registry.add("spexify.archive.web-url", () -> "https://arkiv.test");
     }
 
     private static String musicFolder() {
@@ -213,7 +219,11 @@ public abstract class AbstractIntegrationTest {
             createUser(realm, ADMIN, "Anna", List.of("USER", "ADMIN"));
             createUser(realm, NO_ACCESS, "Nils", List.of());
             createUser(realm, REVOKED, "Rut", List.of("USER"));
-            grantClientRoles(realm, createUser(realm, BOTH, "Bodil", List.of("USER")), "fgv-spexflix", List.of("USER"));
+            final String both = createUser(realm, BOTH, "Bodil", List.of("USER"));
+
+            grantClientRoles(realm, both, "fgv-spexflix", List.of("USER"));
+            grantClientRoles(realm, both, "fgv-archive", List.of("USER"));
+            grantClientRoles(realm, createUser(realm, ARCHIVE_EDITOR, "Nora", List.of("USER", "EDITOR")), "fgv-archive", List.of("USER"));
         }
     }
 
@@ -389,6 +399,16 @@ public abstract class AbstractIntegrationTest {
                                              "spex": {"id": "00000000-0000-7000-8000-000000000001"}}}}""")));
     }
 
+    /**
+     * Spexarkivet answering that no number has sheet music.
+     */
+    protected static void archiveUp() {
+        ARCHIVE.resetAll();
+        ARCHIVE.stubFor(post(urlEqualTo("/api/graphql"))
+                .withRequestBody(containing("SheetMusic"))
+                .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("{\"data\": {\"spexifySheetMusic\": []}}")));
+    }
+
     protected static void spexipediaDown() {
         SPEXIPEDIA.resetAll();
         SPEXIPEDIA.stubFor(post(urlEqualTo("/api/graphql")).willReturn(aResponse().withStatus(503)));
@@ -407,7 +427,7 @@ public abstract class AbstractIntegrationTest {
     @BeforeEach
     void resetState() throws IOException {
         jdbcClient.sql("SET FOREIGN_KEY_CHECKS = 0").update();
-        for (final String table : List.of("import_key", "audit_entry", "api_key", "app_password", "track", "album_spex", "album", "upload_session", "app_user", "spexipedia_category")) {
+        for (final String table : List.of("import_key", "audit_entry", "score_sync", "lyrics_revision", "api_key", "app_password", "track", "album_spex", "album", "upload_session", "app_user", "spexipedia_category")) {
             jdbcClient.sql("TRUNCATE TABLE " + table).update();
         }
         jdbcClient.sql("SET FOREIGN_KEY_CHECKS = 1").update();
@@ -427,6 +447,7 @@ public abstract class AbstractIntegrationTest {
         cacheManager.getCacheNames().forEach(name -> Objects.requireNonNull(cacheManager.getCache(name)).clear());
         spexipediaUp();
         spexflixUp();
+        archiveUp();
     }
 
     protected HttpGraphQlTester graphQl(final @Nullable String user) {

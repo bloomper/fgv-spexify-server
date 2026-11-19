@@ -14,6 +14,8 @@ type Query {
     topTracks(by: TopBy = RATED, filter: AlbumFilter, limit: Int = 20): [Track!]!
     "USER. An album; unpublished or trashed ones only for EDITOR."
     album(id: ID!): Album
+    "USER. A track the caller may play: listed ones, any for EDITOR; null otherwise."
+    track(id: ID!): Track
     "USER. The most recently published albums."
     recentAlbums(limit: Int = 12): [Album!]!
     "USER. The album kinds, in order; the first is the default."
@@ -93,6 +95,16 @@ type Mutation {
     trackCreate(albumId: ID!, uploadId: String!): Track!
     "EDITOR."
     trackUpdate(id: ID!, input: TrackInput!): Track!
+    "EDITOR. Saves the lyrics alone and keeps the earlier version in the history. Fails with CONFLICT when someone saved them after baseRevisionId (null: when there were no saved versions)."
+    trackLyricsUpdate(id: ID!, lyrics: String, synced: Boolean!, baseRevisionId: ID): Track!
+    "EDITOR. Restores a saved version of the lyrics, as a new version."
+    trackLyricsRestore(id: ID!, revisionId: ID!): Track!
+    "EDITOR, with access to Spexarkivet. Saves a map made by hand for a MusicXML file of the track's sheet music; it wins over the automatic one. Fails with CONFLICT when the map was saved by someone else after version (null for a new one)."
+    scoreSyncSave(trackId: ID!, fileId: ID!, input: ScoreSyncInput!, version: Float): ScoreSync!
+    "EDITOR. Removes the map made by hand, so that the automatic one is used; returns whether there was one."
+    scoreSyncDelete(trackId: ID!, fileId: ID!): Boolean!
+    "EDITOR, with access to Spexarkivet. Aligns the recording with the score in the background; the map is PENDING until it is DONE or FAILED."
+    scoreAlign(trackId: ID!, fileId: ID!): ScoreSync!
     "EDITOR. Replaces the audio file with a finished upload."
     trackReplaceAudio(id: ID!, uploadId: String!): Track!
     "EDITOR."
@@ -145,6 +157,8 @@ type Me {
     roles: [String!]!
     "Whether the caller also has access to Spexflix, for showing links there."
     spexflixUser: Boolean!
+    "Whether the caller also has access to Spexarkivet, for showing sheet music and links there."
+    archiveUser: Boolean!
 }
 
 type Settings {
@@ -351,6 +365,16 @@ type Track {
     spexipediaUrl: String
     "Published Spexflix videos with a chapter linked to the track; empty when Spexflix is unavailable."
     videoLinks: [VideoLink!]!
+    "Sheet music in Spexarkivet: the arrangement of the number the track is a recording of, with its open versions. Only for users with access to the archive; null for others, without a number or arrangement, or when the archive is unavailable."
+    sheetMusic: SheetMusic
+    "Where in each MusicXML score of the sheet music each moment of the recording is, for the cursor that follows the notes. USER sees each score's map that is done, the one made by hand before the automatic one; EDITOR sees every map. Only for users with access to the archive."
+    scoreSyncs: [ScoreSync!]!
+    "The singer labels at the start of lyric lines, such as 'Ph:' or 'Ph/Pa:', with the names of the spex's characters in Spexipedia they stand for. Choir labels such as 'Kör' are given as they are; labels that name no one, or more than one, are left out."
+    singers: [SingerLabel!]!
+    "EDITOR. Every saved version of the lyrics, newest first; empty for others."
+    lyricsRevisions: [LyricsRevision!]!
+    "EDITOR. The loudest sample in each of points equal slices of the recording, from 0 to 1, for the lyrics editor. At most 4000 points."
+    waveform(points: Int = 1000): [Float!]!
     "Everyone's average rating, or null when nobody rated it."
     averageRating: Float
     ratingCount: Int!
@@ -400,6 +424,144 @@ type SpexipediaTrackLink {
     title: String!
     numberId: ID
     albumId: ID!
+}
+
+"An arrangement in Spexarkivet, with the versions every reader may open."
+type SheetMusic {
+    arrangementId: ID!
+    "The arrangement's page in Spexarkivet."
+    archiveUrl: String
+    "The recommended version first, then the newest."
+    versions: [SheetMusicVersion!]!
+}
+
+type SheetMusicVersion {
+    id: ID!
+    label: String!
+    arranger: String
+    recommended: Boolean!
+    "The concert key, in Swedish, e.g. Fiss-moll."
+    key: String
+    tempo: String
+    "In the archive's order. Open one at /api/tracks/{trackId}/sheet-music/{fileId}."
+    files: [SheetMusicFile!]!
+}
+
+type SheetMusicFile {
+    id: ID!
+    title: String!
+    "The name it was uploaded with."
+    name: String!
+    extension: String!
+    contentType: String!
+    size: Float!
+    pages: Int
+    "Its role in the archive, e.g. Partitur or Stämma."
+    roleSv: String!
+    roleEn: String!
+    instrumentsSv: [String!]!
+    instrumentsEn: [String!]!
+    "Which desk or voice a part is, e.g. 1 or 1–2."
+    desk: String
+    kind: SheetFileKind!
+}
+
+"What the web can do with a sheet music file."
+enum SheetFileKind {
+    "Read it."
+    PDF
+    "Draw it as notes, follow the recording with a cursor, or play it."
+    MUSIC_XML
+    "Play it."
+    MIDI
+    "Download it."
+    OTHER
+}
+
+"Where in a MusicXML score each moment of a recording is."
+type ScoreSync {
+    "The score's file in Spexarkivet."
+    fileId: ID!
+    method: ScoreSyncMethod!
+    status: ScoreSyncStatus!
+    "In the order of the recording, seconds strictly increasing; empty unless DONE."
+    points: [SyncPoint!]!
+    "How the recording walks through the written score, when it differs from the repeat signs; maps made by hand only."
+    jumps: [SyncJump!]!
+    "From 0 (useless) to 1; 1 for maps made by hand."
+    quality: Float
+    "Why it FAILED."
+    error: String
+    "Whether the recording was replaced since the map was made."
+    stale: Boolean!
+    updatedAt: Instant
+    "For scoreSyncSave, which refuses to overwrite a newer map."
+    version: Float
+}
+
+type SyncPoint {
+    "Into the recording."
+    seconds: Float!
+    "The measure's place in the written score, from 0."
+    measure: Int!
+    "Quarter notes from the measure's start."
+    beat: Float!
+}
+
+"After measure after is played (its nth play, from 0; the first unused jump when null), the recording goes on at measure to."
+type SyncJump {
+    after: Int!
+    to: Int!
+    nth: Int
+}
+
+input ScoreSyncInput {
+    "At most 5000, seconds strictly increasing."
+    points: [SyncPointInput!]!
+    jumps: [SyncJumpInput!]
+}
+
+input SyncPointInput {
+    seconds: Float!
+    measure: Int!
+    beat: Float!
+}
+
+input SyncJumpInput {
+    after: Int!
+    to: Int!
+    nth: Int
+}
+
+enum ScoreSyncMethod {
+    "Made by an editor; wins over the automatic one."
+    MANUAL
+    "Found by aligning the recording with the score."
+    AUTOMATIC
+}
+
+enum ScoreSyncStatus {
+    PENDING
+    RUNNING
+    DONE
+    FAILED
+}
+
+type SingerLabel {
+    "As written in the lyrics, e.g. Ph/Pa."
+    label: String!
+    "The names it stands for, e.g. Philip & Pamela."
+    name: String!
+}
+
+"A saved version of a track's lyrics."
+type LyricsRevision {
+    id: ID!
+    lyrics: String
+    synced: Boolean!
+    createdAt: Instant!
+    "Who saved it; null for the lyrics from before the first change in Spexify (an upload or an import)."
+    createdBy: String
 }
 
 type VideoLink {
@@ -528,14 +690,16 @@ type AuditLogEntry {
 """
 A scheduled maintenance job: copying the current spex data and the kinds of linked numbers from Spexipedia in full (SPEX_REFRESH; other changes also arrive from its change feed within minutes), removing uploads that
 were never used (UPLOAD_CLEANUP), measuring the loudness of tracks that have none yet, for ReplayGain
-(LOUDNESS_SCAN), and copying everyone's ratings, likes and plays from Navidrome, for averages and top lists
-(LISTENING_SYNC).
+(LOUDNESS_SCAN), copying everyone's ratings, likes and plays from Navidrome, for averages and top lists
+(LISTENING_SYNC), and aligning recordings with the MusicXML scores of their sheet music in Spexarkivet that have no
+automatic map for that score and recording yet, so that the cursor follows the notes (SCORE_ALIGN).
 """
 enum MaintenanceJob {
     SPEX_REFRESH
     UPLOAD_CLEANUP
     LOUDNESS_SCAN
     LISTENING_SYNC
+    SCORE_ALIGN
 }
 
 "A maintenance job and how its latest run went. Runs are remembered until the server restarts."
