@@ -75,6 +75,19 @@ class LoginThrottleTest {
     }
 
     @Test
+    void everySpellingOfAUsernameCountsAsTheSameOne() {
+        throttle.failed("lisa", "10.0.0.1");
+        throttle.failed("Lisa", "10.0.0.2");
+        throttle.failed("LISA ", "10.0.0.3");
+
+        assertThat(throttle.isUsernameLocked("lisa")).isTrue();
+        assertThat(throttle.isLocked("LiSa", "10.0.0.4")).isTrue();
+
+        throttle.unlock("Lisa");
+        assertThat(throttle.isUsernameLocked("lisa")).isFalse();
+    }
+
+    @Test
     void badApiKeysLockOnlyTheirAddress() {
         for (int i = 0; i < 15; i++) {
             throttle.failedAddress("10.0.0.9");
