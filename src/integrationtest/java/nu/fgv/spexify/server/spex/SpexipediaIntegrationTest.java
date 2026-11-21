@@ -197,11 +197,12 @@ class SpexipediaIntegrationTest extends AbstractIntegrationTest {
         final UUID number = UUID.fromString(NUMBER_ID);
         final UUID otherSpex = UUID.fromString("00000000-0000-7000-8000-000000000005");
         final UUID otherNumber = UUID.fromString("00000000-0000-7000-8000-0000000000b5");
+        final UUID kind = UUID.fromString("00000000-0000-7000-8000-0000000000c7");
 
         sync.applyAll(List.of(
                 new FeedChange("1", "SPEX_CATEGORY", category, "UPSERT", null, new FeedChange.SpexCategory(category, "Chalmersspexet!"), null, null),
                 new FeedChange("2", "SPEX", spex, "UPSERT", null, null, new FeedChange.Spex(spex, "2025", "Kleopatra", category, null, false), null),
-                new FeedChange("3", "NUMBER", number, "UPSERT", null, null, null, new FeedChange.Number(number, spex, "Uvertyr"))));
+                new FeedChange("3", "NUMBER", number, "UPSERT", null, null, null, new FeedChange.Number(number, spex, "Uvertyr", kind))));
 
         graphQl(EDITOR).document("query($id: ID!) { album(id: $id) { spex { title year categoryName } tracks { numberTitle } } }")
                 .variable("id", albumId).execute()
@@ -209,6 +210,9 @@ class SpexipediaIntegrationTest extends AbstractIntegrationTest {
                 .path("album.spex[0].year").entity(Integer.class).isEqualTo(2025)
                 .path("album.spex[0].categoryName").entity(String.class).isEqualTo("Chalmersspexet!")
                 .path("album.tracks[0].numberTitle").entity(String.class).isEqualTo("Uvertyr");
+        // The number's kind follows the feed too
+        assertThat(jdbcClient.sql("SELECT number_kind_id FROM track WHERE number_id = :n").param("n", number.toString())
+                .query(String.class).single()).isEqualTo(kind.toString());
 
         sync.applyAll(List.of(
                 new FeedChange("4", "SPEX", spex, "MERGE", otherSpex, null, null, null),
@@ -216,6 +220,23 @@ class SpexipediaIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(jdbcClient.sql("SELECT spex_id FROM album_spex").query(String.class).single()).isEqualTo(otherSpex.toString());
         assertThat(jdbcClient.sql("SELECT number_id FROM track").query(String.class).single()).isEqualTo(otherNumber.toString());
+
+        // An album about both spex names the surviving one once, and the positions close up
+        final UUID third = UUID.fromString("00000000-0000-7000-8000-000000000006");
+        final UUID duplicate = UUID.fromString("00000000-0000-7000-8000-000000000007");
+
+        jdbcClient.sql("""
+                        INSERT INTO album_spex (album_id, position, spex_id, title)
+                        SELECT album_id, position + 1, :duplicate, 'Dubblett' FROM album_spex WHERE spex_id = :other""")
+                .param("duplicate", duplicate.toString()).param("other", otherSpex.toString()).update();
+        jdbcClient.sql("""
+                        INSERT INTO album_spex (album_id, position, spex_id, title)
+                        SELECT album_id, position + 2, :third, 'Tredje' FROM album_spex WHERE spex_id = :other""")
+                .param("third", third.toString()).param("other", otherSpex.toString()).update();
+        sync.applyAll(List.of(new FeedChange("9", "SPEX", duplicate, "MERGE", otherSpex, null, null, null)));
+        assertThat(jdbcClient.sql("SELECT spex_id FROM album_spex ORDER BY position").query(String.class).list())
+                .containsExactly(otherSpex.toString(), third.toString());
+        assertThat(jdbcClient.sql("SELECT MAX(position) - MIN(position) FROM album_spex").query(Integer.class).single()).isEqualTo(1);
     }
 
     @Test

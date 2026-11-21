@@ -28,9 +28,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -159,6 +162,7 @@ public class SpexipediaSync {
                 case "SPEX" -> {
                     jdbc.sql("UPDATE album_spex SET spex_id = :into WHERE spex_id = :from").param("into", into).param("from", id).update();
                     jdbc.sql("UPDATE album_spex SET parent_id = :into WHERE parent_id = :from").param("into", into).param("from", id).update();
+                    dropRepeated(into);
                 }
                 case "SPEX_CATEGORY" -> jdbc.sql("""
                                 UPDATE album_spex SET category_id = :into,
@@ -196,10 +200,46 @@ public class SpexipediaSync {
                         .param("category", spex.categoryId() == null ? null : spex.categoryId().toString())
                         .param("at", now()).param("id", id).update();
             }
-            case "NUMBER" -> jdbc.sql("UPDATE track SET number_title = :title WHERE number_id = :id")
-                    .param("title", Objects.requireNonNull(change.number()).title()).param("id", id).update();
+            case "NUMBER" -> {
+                final FeedChange.Number number = Objects.requireNonNull(change.number());
+
+                jdbc.sql("UPDATE track SET number_title = :title, number_kind_id = :kind WHERE number_id = :id")
+                        .param("title", number.title())
+                        .param("kind", number.kindId() == null ? null : number.kindId().toString())
+                        .param("id", id).update();
+            }
             default -> {
                 // Kinds Spexify does not keep
+            }
+        }
+    }
+
+    /**
+     * After a merge an album about both spex would name the same one twice: the first stays and the positions close up.
+     */
+    private void dropRepeated(final String spexId) {
+        final List<Long> owners = jdbc.sql("SELECT album_id FROM album_spex WHERE spex_id = :spex GROUP BY album_id HAVING COUNT(*) > 1")
+                .param("spex", spexId).query(Long.class).list();
+
+        for (final Long owner : owners) {
+            final List<Map<String, Object>> rows = jdbc.sql("SELECT position, spex_id FROM album_spex WHERE album_id = :owner ORDER BY position")
+                    .param("owner", owner).query().listOfRows();
+            final Set<String> seen = new HashSet<>();
+            int next = ((Number) rows.getFirst().get("position")).intValue();
+
+            for (final Map<String, Object> row : rows) {
+                final int position = ((Number) row.get("position")).intValue();
+
+                if (!seen.add((String) row.get("spex_id"))) {
+                    jdbc.sql("DELETE FROM album_spex WHERE album_id = :owner AND position = :position")
+                            .param("owner", owner).param("position", position).update();
+                    continue;
+                }
+                if (position != next) {
+                    jdbc.sql("UPDATE album_spex SET position = :next WHERE album_id = :owner AND position = :position")
+                            .param("next", next).param("owner", owner).param("position", position).update();
+                }
+                next++;
             }
         }
     }
