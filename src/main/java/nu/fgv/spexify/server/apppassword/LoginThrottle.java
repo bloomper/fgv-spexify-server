@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Locale;
 
 /**
  * Limits failed Subsonic logins per username and per IP address. After the configured number of failures within the
@@ -49,8 +50,15 @@ public class LoginThrottle {
         this.clock = clock;
     }
 
+    /**
+     * The key of a username: usernames are found without regard to case, so every spelling counts as the same one.
+     */
+    private static String user(final String username) {
+        return "u:" + username.strip().toLowerCase(Locale.ROOT);
+    }
+
     public boolean isLocked(final String username, final String address) {
-        return locked("u:" + username) || locked("a:" + address);
+        return locked(user(username)) || locked("a:" + address);
     }
 
     /**
@@ -61,13 +69,13 @@ public class LoginThrottle {
     }
 
     public boolean isUsernameLocked(final String username) {
-        return locked("u:" + username);
+        return locked(user(username));
     }
 
     public void failed(final String username, final String address) {
         final var settings = settingsService.current();
 
-        record("u:" + username, settings.getLockoutAttempts(), settings.getLockoutMinutes());
+        record(user(username), settings.getLockoutAttempts(), settings.getLockoutMinutes());
         record("a:" + address, settings.getLockoutAttempts() * ADDRESS_FACTOR, settings.getLockoutMinutes());
     }
 
@@ -78,12 +86,12 @@ public class LoginThrottle {
     }
 
     public void succeeded(final String username) {
-        failures.invalidate("u:" + username);
+        failures.invalidate(user(username));
     }
 
     public void unlock(final String username) {
-        failures.invalidate("u:" + username);
-        locks.invalidate("u:" + username);
+        failures.invalidate(user(username));
+        locks.invalidate(user(username));
     }
 
     private boolean locked(final String key) {

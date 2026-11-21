@@ -92,7 +92,7 @@ public class SpexipediaClient {
                         sequence kind id change mergedIntoId
                         spexCategory { id name }
                         spex { id year title categoryId parentId retired }
-                        number { id spexId title }
+                        number { id spexId title kindId }
                     }
                 }
             }""";

@@ -37,7 +37,7 @@ public record FeedChange(String sequence, String kind, UUID id, String change, @
                        boolean retired) {
     }
 
-    public record Number(UUID id, UUID spexId, String title) {
+    public record Number(UUID id, UUID spexId, String title, @Nullable UUID kindId) {
     }
 
     public record Page(List<FeedChange> changes, @Nullable String cursor, boolean hasMore) {

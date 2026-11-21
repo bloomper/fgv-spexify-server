@@ -16,16 +16,34 @@
 
 package nu.fgv.spexify.server.config;
 
+import net.javacrumbs.shedlock.core.LockProvider;
+import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
+import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * Turns on scheduled jobs: the daily deletion of participants' data that is no longer needed.
+ * Turns on the scheduled jobs (see {@code MaintenanceJobs}).
+ *
+ * <p>Jobs that must not run twice at once, e.g. while a new API container starts next to the old one, take a ShedLock
+ * lock in the {@code shedlock} table. The database's clock decides when a lock expires, so the containers' clocks
+ * don't matter.</p>
  *
  * @author Anders Jacobsson
  * @since 1.0
  */
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
+@EnableSchedulerLock(defaultLockAtMostFor = "PT30M")
 public class SchedulingConfig {
+
+    @Bean
+    public LockProvider lockProvider(final JdbcTemplate jdbcTemplate) {
+        return new JdbcTemplateLockProvider(JdbcTemplateLockProvider.Configuration.builder()
+                .withJdbcTemplate(jdbcTemplate)
+                .usingDbTime()
+                .build());
+    }
 }
