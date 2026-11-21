@@ -16,6 +16,7 @@
 
 package nu.fgv.spexify.server.maintenance;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import nu.fgv.spexify.server.imports.ImportFileStore;
 import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.catalog.LoudnessScan;
@@ -79,26 +80,31 @@ public class MaintenanceJobs {
     }
 
     @Scheduled(cron = "${spexify.jobs.spex-refresh.cron-expression}", zone = "${spexify.time-zone}")
+    @SchedulerLock(name = "spex-refresh", lockAtMostFor = "PT30M")
     void spexRefresh() {
         run(MaintenanceJob.SPEX_REFRESH);
     }
 
     @Scheduled(cron = "${spexify.jobs.upload-cleanup.cron-expression}", zone = "${spexify.time-zone}")
+    @SchedulerLock(name = "upload-cleanup", lockAtMostFor = "PT30M")
     void uploadCleanup() {
         run(MaintenanceJob.UPLOAD_CLEANUP);
     }
 
     @Scheduled(cron = "${spexify.jobs.loudness-scan.cron-expression}", zone = "${spexify.time-zone}")
+    @SchedulerLock(name = "loudness-scan", lockAtMostFor = "PT30M")
     void loudnessScan() {
         run(MaintenanceJob.LOUDNESS_SCAN);
     }
 
     @Scheduled(cron = "${spexify.jobs.listening-sync.cron-expression}", zone = "${spexify.time-zone}")
+    @SchedulerLock(name = "listening-sync", lockAtMostFor = "PT30M")
     void listeningSync() {
         run(MaintenanceJob.LISTENING_SYNC);
     }
 
     @Scheduled(cron = "${spexify.jobs.score-align.cron-expression}", zone = "${spexify.time-zone}")
+    @SchedulerLock(name = "score-align", lockAtMostFor = "PT30M")
     void scoreAlign() {
         run(MaintenanceJob.SCORE_ALIGN);
     }
