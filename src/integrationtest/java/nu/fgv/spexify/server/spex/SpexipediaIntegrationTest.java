@@ -118,6 +118,52 @@ class SpexipediaIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void spexipediaReadsTheDiscographyWithTracksWithoutAudioAndSignedCovers() {
+        linkToTheNumber();
+        graphQl(EDITOR).document("""
+                        mutation($id: ID!) { albumUpdate(id: $id, input: {spexIds: ["%s"], catalogueNumber: "CEP 019",
+                            mediumId: "00000000-0000-7000-8000-00000000b002", released: "1987-04", conductor: "Dirigenten"}) {
+                            catalogueNumber medium { nameEn } released conductor } }""".formatted(SPEX_ID))
+                .variable("id", albumId)
+                .execute()
+                .path("albumUpdate.catalogueNumber").entity(String.class).isEqualTo("CEP 019")
+                .path("albumUpdate.medium.nameEn").entity(String.class).isEqualTo("EP");
+
+        final String withoutAudio = graphQl(EDITOR).document("""
+                        mutation($album: ID!) { trackAdd(albumId: $album, input: {discNumber: 1, trackNumber: 2, title: "Finalen",
+                            side: "B", lyricsSynced: false}) { id hasAudio listed } }""")
+                .variable("album", albumId)
+                .execute()
+                .path("trackAdd.hasAudio").entity(Boolean.class).isEqualTo(false)
+                .path("trackAdd.id").entity(String.class).get();
+
+        graphQl(EDITOR).document("mutation($id: ID!) { trackPublish(id: $id, published: true) { id } }").variable("id", withoutAudio).execute();
+        graphQlWithToken(serviceToken(SPEXIPEDIA_SERVICE)).document("""
+                        query($spex: [ID!]!) { spexipediaDiscography(spexIds: $spex) {
+                            id catalogueNumber mediumNameSv released conductor spexId coverUrl
+                            tracks { id side title numberId hasAudio } } }""")
+                .variable("spex", List.of(SPEX_ID))
+                .execute()
+                .path("spexipediaDiscography[0].id").entity(String.class).isEqualTo(albumId)
+                .path("spexipediaDiscography[0].catalogueNumber").entity(String.class).isEqualTo("CEP 019")
+                .path("spexipediaDiscography[0].mediumNameSv").entity(String.class).isEqualTo("EP")
+                .path("spexipediaDiscography[0].spexId").entity(String.class).isEqualTo(SPEX_ID)
+                .path("spexipediaDiscography[0].tracks[0].numberId").entity(String.class).isEqualTo(NUMBER_ID)
+                .path("spexipediaDiscography[0].tracks[0].hasAudio").entity(Boolean.class).isEqualTo(true)
+                .path("spexipediaDiscography[0].tracks[1].id").entity(String.class).isEqualTo(withoutAudio)
+                .path("spexipediaDiscography[0].tracks[1].side").entity(String.class).isEqualTo("B")
+                .path("spexipediaDiscography[0].tracks[1].hasAudio").entity(Boolean.class).isEqualTo(false);
+
+        // A track without audio is not in the links for listening
+        graphQlWithToken(serviceToken(SPEXIPEDIA_SERVICE)).document(LINKS)
+                .variables(Map.of("spex", List.of(SPEX_ID), "numbers", List.of(NUMBER_ID)))
+                .execute()
+                .path("spexipediaLinks.tracks").entityList(Object.class).hasSize(1);
+        expectError(graphQl(EDITOR).document("query($spex: [ID!]!) { spexipediaDiscography(spexIds: $spex) { id } }")
+                .variable("spex", List.of(SPEX_ID)).execute(), "FORBIDDEN");
+    }
+
+    @Test
     void onlySpexipediaReadsItsLinks() {
         expectError(graphQl(EDITOR).document(LINKS).variables(Map.of("spex", List.of(SPEX_ID), "numbers", List.of())).execute(), "FORBIDDEN");
         expectError(graphQlWithToken(spexflixServiceToken()).document(LINKS)

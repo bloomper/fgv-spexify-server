@@ -39,13 +39,23 @@ public final class ImportRecords {
     public record Batch(@Nullable Boolean createMissingKinds, @Nullable List<ImportAlbum> albums, @Nullable List<ImportTrack> tracks) {
     }
 
+    /**
+     * An album. The catalogue number, medium (by name or alias), dates, conductor and back cover make it an entry of the
+     * discography.
+     */
     public record ImportAlbum(String sourceKey, @Nullable List<UUID> spexIds, @Nullable String kind, @Nullable String title,
-                              @Nullable Integer year, @Nullable String description, @Nullable FileRef cover) {
+                              @Nullable Integer year, @Nullable String description, @Nullable FileRef cover,
+                              @Nullable String catalogueNumber, @Nullable String medium, @Nullable String released,
+                              @Nullable String recorded, @Nullable String conductor, @Nullable FileRef backCover) {
     }
 
+    /**
+     * A track. Without a file it is an entry of the discography only, until its audio is imported or uploaded. The
+     * melody, lyrics author and arranger are taken only for a track without a Spexipedia number.
+     */
     public record ImportTrack(String sourceKey, String albumSourceKey, @Nullable Integer discNumber, @Nullable Integer trackNumber,
                               String title, @Nullable UUID numberId, @Nullable String performers, @Nullable String melody,
                               @Nullable String lyricsAuthor, @Nullable String arranger, @Nullable String lyrics,
-                              @Nullable Boolean lyricsSynced, FileRef file) {
+                              @Nullable Boolean lyricsSynced, @Nullable FileRef file, @Nullable String side) {
     }
 }

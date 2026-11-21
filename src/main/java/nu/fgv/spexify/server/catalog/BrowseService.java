@@ -76,9 +76,32 @@ public class BrowseService {
     }
 
     /**
-     * The names a track is credited to for the kind, as written, without blanks or duplicates.
+     * The credits of the number a track is a recording of; set by Spring, absent in some unit tests.
      */
-    static List<String> names(final Track track, final CreditKind kind) {
+    private nu.fgv.spexify.server.spex.@Nullable NumberCredits numberCredits;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setNumberCredits(final nu.fgv.spexify.server.spex.NumberCredits numberCredits) {
+        this.numberCredits = numberCredits;
+    }
+
+    /**
+     * The names a track is credited to for the kind, as written, without blanks or duplicates. A track that is a recording of a Spexipedia number has the number's melody,
+     * lyrics authors and arrangers; its performers are its own.
+     */
+    List<String> names(final Track track, final CreditKind kind) {
+        if (track.getNumberId() != null && numberCredits != null && kind != CreditKind.PERFORMER) {
+            final nu.fgv.spexify.server.spex.NumberCredits.Info info = numberCredits.of(track.getNumberId());
+            final String melody = info == null ? null : info.melody();
+
+            return switch (kind) {
+                case LYRICS_AUTHOR -> numberCredits.lyricsAuthors(info);
+                case ARRANGER -> numberCredits.arrangers(info);
+                case MELODY -> StringUtils.hasText(melody) ? List.of(melody.strip()) : List.of();
+                case ORIGINAL_ARTIST -> originalArtist(melody);
+                case PERFORMER -> List.of();
+            };
+        }
         return switch (kind) {
             case PERFORMER -> split(track.getPerformers());
             case LYRICS_AUTHOR -> split(track.getLyricsAuthor());
@@ -124,7 +147,7 @@ public class BrowseService {
      * How well a track goes with the seed: the same melody counts most, then the same original artist, shared
      * performers, authors and arrangers, and the same spex.
      */
-    static int score(final Track seed, final Track track) {
+    int score(final Track seed, final Track track) {
         int score = 0;
 
         if (shares(seed, track, CreditKind.MELODY)) {
@@ -152,7 +175,7 @@ public class BrowseService {
         return a.getSpex().stream().anyMatch(ref -> b.isAbout(ref.familyId()));
     }
 
-    private static boolean shares(final Track a, final Track b, final CreditKind kind) {
+    private boolean shares(final Track a, final Track b, final CreditKind kind) {
         final Set<String> names = new HashSet<>(names(a, kind).stream().map(BrowseService::key).toList());
 
         return names(b, kind).stream().map(BrowseService::key).anyMatch(names::contains);

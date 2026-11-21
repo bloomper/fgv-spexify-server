@@ -69,6 +69,13 @@ public class SpexipediaClient {
             query NumbersByIds($ids: [ID!]!) {
                 numbersByIds(ids: $ids) { id act position title spex { id } kind { id } }
             }""";
+    private static final String NUMBER_CREDITS = """
+            query NumberCredits($ids: [ID!]!) {
+                numbersByIds(ids: $ids) {
+                    id originalTitle originalArtist
+                    credits { kind { id nameSv nameEn position } position credit { person { id name nickname } name } }
+                }
+            }""";
     private static final String CHARACTERS = """
             query SpexCharacters($id: ID!) {
                 spex(id: $id) { characters { id name retired } }
@@ -186,6 +193,42 @@ public class SpexipediaClient {
             }));
         }
         return result;
+    }
+
+    /**
+     * The original song and the credits of numbers by id, {@value #PAGE_SIZE} at a time; unknown ids are left out. The
+     * names of spexare are Spexregister's, as Spexipedia shows them to a logged-in user; they are never stored.
+     */
+    public List<NumberCreditsNode> numberCredits(final List<UUID> ids) {
+        final List<NumberCreditsNode> result = new ArrayList<>();
+
+        for (int from = 0; from < ids.size(); from += PAGE_SIZE) {
+            final List<UUID> page = ids.subList(from, Math.min(ids.size(), from + PAGE_SIZE));
+
+            result.addAll(call(() -> {
+                final ClientGraphQlResponse response = graphQlClient.document(NUMBER_CREDITS).variable("ids", page).executeSync();
+
+                requireValid(response);
+                return response.field("numbersByIds").toEntityList(NumberCreditsNode.class).stream().filter(Objects::nonNull).toList();
+            }));
+        }
+        return result;
+    }
+
+    public record NumberCreditsNode(String id, @Nullable String originalTitle, @Nullable String originalArtist,
+                                    @Nullable List<CreditNode> credits) {
+    }
+
+    public record CreditNode(KindNode kind, int position, CreditValue credit) {
+    }
+
+    public record KindNode(String id, String nameSv, String nameEn, int position) {
+    }
+
+    public record CreditValue(@Nullable PersonNode person, @Nullable String name) {
+    }
+
+    public record PersonNode(@Nullable String id, @Nullable String name, @Nullable String nickname) {
     }
 
     /**

@@ -57,10 +57,13 @@ public class SpexipediaLinksGraphqlApi {
     private final SpexService spexService;
     private final CallerService callerService;
     private final SpexifyProperties properties;
+    private final nu.fgv.spexify.server.media.MediaLinkSigner signer;
 
     public SpexipediaLinksGraphqlApi(final AlbumRepository albumRepository, final TrackRepository trackRepository,
                                      final CatalogService catalogService, final SpexService spexService,
-                                     final CallerService callerService, final SpexifyProperties properties) {
+                                     final CallerService callerService, final SpexifyProperties properties,
+                                     final nu.fgv.spexify.server.media.MediaLinkSigner signer) {
+        this.signer = signer;
         this.albumRepository = albumRepository;
         this.trackRepository = trackRepository;
         this.catalogService = catalogService;
@@ -86,6 +89,38 @@ public class SpexipediaLinksGraphqlApi {
                 .toList();
 
         return new SpexipediaLinks(albums, tracks);
+    }
+
+    /**
+     * SPEXIPEDIA. The discography of spex (fgv-infra-deploy docs/data-ownership.md): their published albums with the
+     * catalogue number, medium, dates and conductor, signed links to the covers, and every published track, also
+     * those without audio, with the number it is a recording of. Spexipedia shows it on its spex pages.
+     */
+    @QueryMapping
+    @Transactional(readOnly = true)
+    public List<DiscographyAlbum> spexipediaDiscography(@Argument final List<UUID> spexIds) {
+        if (!callerService.current().isSpexipediaService()) {
+            throw new AccessDeniedException("SPEXIPEDIA required");
+        }
+
+        final Set<UUID> spex = new HashSet<>(spexIds.subList(0, Math.min(spexIds.size(), MAX_IDS)));
+
+        if (spex.isEmpty()) {
+            return List.of();
+        }
+        return albumRepository.findListedBySpex(spex).stream().map(album -> new DiscographyAlbum(album.getUuid(), album.getTitle(),
+                        album.getYear(), album.getKind().getNameSv(), album.getKind().getNameEn(),
+                        album.getMedium() == null ? null : album.getMedium().getNameSv(),
+                        album.getMedium() == null ? null : album.getMedium().getNameEn(),
+                        album.getCatalogueNumber(), album.getReleased(), album.getRecorded(), album.getConductor(),
+                        matching(album, spex),
+                        album.getCoverExtension() == null ? null : signer.sign("albums/%s/cover".formatted(album.getUuid())).url(),
+                        album.getBackCoverExtension() == null ? null : signer.sign("albums/%s/back-cover".formatted(album.getUuid())).url(),
+                        album.getTracks().stream().filter(nu.fgv.spexify.server.catalog.Track::isInDiscography)
+                                .map(track -> new DiscographyTrack(track.getUuid(), track.getSide(), track.getDiscNumber(),
+                                        track.getTrackNumber(), track.getTitle(), track.getNumberId(), track.hasAudio()))
+                                .toList()))
+                .toList();
     }
 
     /**
@@ -134,5 +169,16 @@ public class SpexipediaLinksGraphqlApi {
     }
 
     public record SpexipediaLinks(List<AlbumLink> albums, List<TrackLink> tracks) {
+    }
+
+    public record DiscographyAlbum(UUID id, String title, @Nullable Integer year, String kindNameSv, String kindNameEn,
+                                   @Nullable String mediumNameSv, @Nullable String mediumNameEn,
+                                   @Nullable String catalogueNumber, @Nullable String released, @Nullable String recorded,
+                                   @Nullable String conductor, @Nullable UUID spexId, @Nullable String coverUrl,
+                                   @Nullable String backCoverUrl, List<DiscographyTrack> tracks) {
+    }
+
+    public record DiscographyTrack(UUID id, @Nullable String side, int discNumber, int trackNumber, String title,
+                                   @Nullable UUID numberId, boolean hasAudio) {
     }
 }

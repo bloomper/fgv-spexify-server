@@ -43,7 +43,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The songs of a recording, usually of one spex but possibly of several or none. Its uuid names its folders and is written into the tags as
+ * The songs of a recording, usually of one spex but possibly of several or none. The albums are FGV's discography: a
+ * released record has its catalogue number, medium and dates, and may be here before its audio is. Its uuid names its folders and is written into the tags as
  * MusicBrainz album id, which Navidrome derives its persistent album id from.
  *
  * @author Anders Jacobsson
@@ -80,11 +81,42 @@ public class Album extends AbstractAuditable {
     @JoinColumn(name = "kind_id", nullable = false)
     private AlbumKind kind;
 
+    /**
+     * The catalogue number of a released record, e.g. "CEP 019".
+     */
+    @Column(name = "catalogue_number")
+    private @Nullable String catalogueNumber;
+
+    /**
+     * What a released record came out on; none for an album that was never released.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "medium_id")
+    private @Nullable AlbumMedium medium;
+
+    /**
+     * When it was released and recorded, as precise as known: "1987", "1987-04" or "1987-04-12".
+     */
+    @Column(name = "released")
+    private @Nullable String released;
+
+    @Column(name = "recorded")
+    private @Nullable String recorded;
+
+    /**
+     * Free text, as on the record.
+     */
+    @Column(name = "conductor")
+    private @Nullable String conductor;
+
     @Column(name = "description")
     private @Nullable String description;
 
     @Column(name = "cover_extension")
     private @Nullable String coverExtension;
+
+    @Column(name = "back_cover_extension")
+    private @Nullable String backCoverExtension;
 
     @Column(name = "published", nullable = false)
     private boolean published;

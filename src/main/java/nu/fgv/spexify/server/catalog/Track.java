@@ -65,6 +65,12 @@ public class Track extends AbstractAuditable {
     @Column(name = "disc_number", nullable = false)
     private int discNumber = 1;
 
+    /**
+     * The side of a record, e.g. "A", for records that have sides.
+     */
+    @Column(name = "side")
+    private @Nullable String side;
+
     @Column(name = "track_number", nullable = false)
     private int trackNumber;
 
@@ -104,11 +110,14 @@ public class Track extends AbstractAuditable {
     @Column(name = "number_kind_id", length = 36)
     private @Nullable UUID numberKindId;
 
-    @Column(name = "file_extension", nullable = false)
-    private String fileExtension;
+    /**
+     * Null until the track has audio: a track of the discography may wait for its file.
+     */
+    @Column(name = "file_extension")
+    private @Nullable String fileExtension;
 
-    @Column(name = "file_format", nullable = false)
-    private String fileFormat;
+    @Column(name = "file_format")
+    private @Nullable String fileFormat;
 
     @Column(name = "file_size", nullable = false)
     private long fileSize;
@@ -117,8 +126,8 @@ public class Track extends AbstractAuditable {
     @Column(name = "source_checksum")
     private @org.jspecify.annotations.Nullable String sourceChecksum;
 
-    @Column(name = "file_checksum", nullable = false)
-    private String fileChecksum;
+    @Column(name = "file_checksum")
+    private @Nullable String fileChecksum;
 
     @Column(name = "duration_ms", nullable = false)
     private long durationMs;
@@ -153,6 +162,13 @@ public class Track extends AbstractAuditable {
     }
 
     /**
+     * Whether the track has its audio file; one without it is only an entry of the discography.
+     */
+    public boolean hasAudio() {
+        return fileExtension != null;
+    }
+
+    /**
      * Where the file belongs: the trash when the track or its album is trashed, the music folder when both are
      * published, otherwise outside Navidrome's sight.
      */
@@ -164,10 +180,17 @@ public class Track extends AbstractAuditable {
     }
 
     /**
-     * Visible to listeners: in the music folder.
+     * Visible to listeners: with audio, in the music folder.
      */
     public boolean isListed() {
-        return desiredLocation() == Location.MUSIC;
+        return hasAudio() && desiredLocation() == Location.MUSIC;
+    }
+
+    /**
+     * Shown in the discography: published and not trashed, with or without audio.
+     */
+    public boolean isInDiscography() {
+        return published && !isTrashed() && album.isListed();
     }
 
     /**

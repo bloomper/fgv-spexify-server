@@ -58,6 +58,11 @@ public class LibraryPlacer {
         final String coverChecksum = coverChecksum(album);
 
         for (final Track track : album.getTracks()) {
+            // A track of the discography without audio has no file to place
+            if (!track.hasAudio()) {
+                continue;
+            }
+
             final Location current = track.getLocation();
             final Location desired = track.desiredLocation();
 

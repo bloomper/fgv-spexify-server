@@ -107,11 +107,48 @@ public class MediaStorage {
         return root.resolve("covers").resolve(album.getUuid() + "." + album.getCoverExtension());
     }
 
+    /**
+     * The back of a record's sleeve, for the discography; Navidrome never sees it.
+     */
+    public Path backCoverFile(final Album album) {
+        return backCoverFile(album, album.getBackCoverExtension());
+    }
+
+    private Path backCoverFile(final Album album, final @Nullable String extension) {
+        return root.resolve("covers").resolve(album.getUuid() + "-back." + extension);
+    }
+
+    /**
+     * Gives the album the back cover {@code content} with the extension it now has (or none, for {@code null}), in
+     * place of the one with {@code oldExtension}. A replaced file is deleted when the transaction commits; on a
+     * rollback a new file of another extension is removed.
+     */
+    public void replaceBackCover(final Album album, final @Nullable String oldExtension, final byte @Nullable [] content) throws IOException {
+        final Path old = oldExtension == null ? null : backCoverFile(album, oldExtension);
+        final Path current = content == null ? null : backCoverFile(album);
+
+        if (current != null) {
+            Files.createDirectories(current.getParent());
+            Files.write(current, content);
+        }
+        afterCompletion(committed -> {
+            if (committed && old != null && !old.equals(current)) {
+                Files.deleteIfExists(old);
+            }
+            if (!committed && current != null && !current.equals(old)) {
+                Files.deleteIfExists(current);
+            }
+        });
+    }
+
     public Path uploadFile(final String uploadId) {
         return root.resolve("uploads").resolve(uploadId);
     }
 
     public boolean exists(final Track track) {
+        if (!track.hasAudio()) {
+            return false;
+        }
         return Files.isRegularFile(trackFile(track));
     }
 
@@ -264,6 +301,9 @@ public class MediaStorage {
         }
         if (album.getCoverExtension() != null) {
             Files.deleteIfExists(coverFile(album));
+        }
+        if (album.getBackCoverExtension() != null) {
+            Files.deleteIfExists(backCoverFile(album));
         }
     }
 

@@ -59,7 +59,7 @@ public class LoudnessScan {
     }
 
     public void run() {
-        final List<Long> ids = trackRepository.findByLoudnessLufsIsNullAndTrashedAtIsNull().stream().map(Track::getId).toList();
+        final List<Long> ids = trackRepository.findByLoudnessLufsIsNullAndTrashedAtIsNullAndFileExtensionIsNotNull().stream().map(Track::getId).toList();
         int measured = 0;
 
         for (final Long id : ids) {

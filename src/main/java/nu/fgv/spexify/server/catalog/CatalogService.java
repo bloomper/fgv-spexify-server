@@ -108,6 +108,27 @@ public class CatalogService {
         this.lyricsHistory = lyricsHistory;
     }
 
+    /**
+     * The credits of Spexipedia's numbers, which tracks that are recordings of them show; set by Spring, absent in some
+     * unit tests.
+     */
+    private nu.fgv.spexify.server.spex.@Nullable NumberCredits numberCredits;
+
+    /**
+     * The album media; set by Spring, absent in some unit tests (albums then keep their medium).
+     */
+    private @Nullable AlbumMediumService mediumService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setNumberCredits(final nu.fgv.spexify.server.spex.NumberCredits numberCredits) {
+        this.numberCredits = numberCredits;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setMediumService(final AlbumMediumService mediumService) {
+        this.mediumService = mediumService;
+    }
+
     public CatalogService(final AlbumRepository albumRepository, final AlbumKindService kindService,
                           final TrackRepository trackRepository,
                           final CallerService callerService, final SpexService spexService, final LibraryPlacer placer,
@@ -408,6 +429,9 @@ public class CatalogService {
         if (!track.isListed() && !caller.isEditor()) {
             throw new ResourceNotFoundException("error.track.notFound", id);
         }
+        if (!track.hasAudio()) {
+            throw new ResourceNotFoundException("error.track.noAudio", id);
+        }
         track.getAlbum().getTitle();
         return track;
     }
@@ -445,6 +469,17 @@ public class CatalogService {
         final Album album = albumRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
 
         album.getTracks().size();
+        return album;
+    }
+
+    /**
+     * An album behind a signed link, without its tracks.
+     */
+    @Transactional(readOnly = true)
+    public Album linkedAlbum(final UUID id) {
+        final Album album = albumRepository.findByUuid(id).orElseThrow(() -> new ResourceNotFoundException("error.album.notFound", id));
+
+        album.getSpex().size();
         return album;
     }
 
@@ -532,6 +567,38 @@ public class CatalogService {
         album.setYear(input.year() != null ? input.year() : main != null ? main.getYear() : null);
         album.setKind(input.kindId() == null && album.getKind() != null ? album.getKind() : kindService.kindOrDefault(input.kindId()));
         album.setDescription(StringUtils.hasText(input.description()) ? input.description().strip() : null);
+        album.setCatalogueNumber(text(input.catalogueNumber(), 50));
+        if (mediumService != null) {
+            album.setMedium(mediumService.mediumOrNone(input.mediumId()));
+        }
+        album.setReleased(partialDate(input.released()));
+        album.setRecorded(partialDate(input.recorded()));
+        album.setConductor(text(input.conductor(), MAX_TITLE));
+    }
+
+    private static @Nullable String text(final @Nullable String value, final int max) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        if (value.strip().length() > max) {
+            throw new BadRequestException("error.album.fieldTooLong");
+        }
+        return value.strip();
+    }
+
+    /**
+     * A date as precise as known: a year, a year and month, or a whole date.
+     */
+    static @Nullable String partialDate(final @Nullable String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        final String date = value.strip();
+
+        if (!date.matches("\\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\\d|3[01]))?)?")) {
+            throw new BadRequestException("error.album.date");
+        }
+        return date;
     }
 
     // ---------------------------------------------------------------------------------------------------- tracks
@@ -612,6 +679,32 @@ public class CatalogService {
         }
         place(album);
         auditService.record("UPDATE", "ALBUM", album.getUuid(), "Bytte omslag på albumet " + album.getTitle());
+        return toDto(album, caller);
+    }
+
+    /**
+     * EDITOR. The back of a record's sleeve, for the discography; null removes it.
+     */
+    @Transactional
+    public AlbumDto albumBackCover(final UUID id, final byte @Nullable [] content, final @Nullable String extension) {
+        final Caller caller = callerService.current();
+
+        caller.requireEditor();
+
+        final Album album = editableAlbum(id);
+        final String oldExtension = album.getBackCoverExtension();
+
+        if (content == null && oldExtension == null) {
+            return toDto(album, caller);
+        }
+        album.setBackCoverExtension(content == null ? null : extension);
+        try {
+            storage.replaceBackCover(album, oldExtension, content);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        auditService.record("UPDATE", "ALBUM", album.getUuid(), (content == null ? "Tog bort baksidan på albumet " : "Bytte baksida på albumet ")
+                + album.getTitle());
         return toDto(album, caller);
     }
 
@@ -709,12 +802,17 @@ public class CatalogService {
         final Track track = track(id);
         final PreparedAudio audio = prepare(uploadId, caller);
         final boolean wasInMusic = track.getLocation() == Location.MUSIC;
-
-        final Path old = storage.trackFile(track);
+        final boolean first = !track.hasAudio();
+        final Path old = first ? null : storage.trackFile(track);
 
         setAudio(track, audio);
         try {
-            storage.replace(audio.file(), track, old, storage.uploadFile(uploadId));
+            if (old == null) {
+                track.setLocation(Location.UNPUBLISHED);
+                storage.storeNew(audio.file(), track, storage.uploadFile(uploadId));
+            } else {
+                storage.replace(audio.file(), track, old, storage.uploadFile(uploadId));
+            }
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -724,7 +822,7 @@ public class CatalogService {
         if (wasInMusic) {
             scanner.requestScan();
         }
-        auditService.record("UPDATE", "TRACK", track.getUuid(), "Bytte ljudfil för " + track.getTitle());
+        auditService.record("UPDATE", "TRACK", track.getUuid(), (first ? "Laddade upp ljudfil för " : "Bytte ljudfil för ") + track.getTitle());
         return toDto(track);
     }
 
@@ -741,12 +839,50 @@ public class CatalogService {
         track.setDiscNumber(input.discNumber());
         track.setTrackNumber(input.trackNumber());
         track.setPerformers(blankToNull(input.performers()));
-        track.setMelody(blankToNull(input.melody()));
-        track.setLyricsAuthor(blankToNull(input.lyricsAuthor()));
-        track.setArranger(blankToNull(input.arranger()));
+        track.setSide(blankToNull(input.side()));
+        // A number's melody and credits are Spexipedia's
+        if (track.getNumberId() == null) {
+            track.setMelody(blankToNull(input.melody()));
+            track.setLyricsAuthor(blankToNull(input.lyricsAuthor()));
+            track.setArranger(blankToNull(input.arranger()));
+        }
         setLyrics(track, input.lyrics(), input.lyricsSynced());
         place(track.getAlbum());
         auditService.record("UPDATE", "TRACK", track.getUuid(), "Ändrade " + track.getTitle());
+        return toDto(track);
+    }
+
+    /**
+     * EDITOR. A track without audio, for the discography of a record that is not digitised yet; its audio can be
+     * uploaded later ({@link #trackReplaceAudio}).
+     */
+    @Transactional
+    public TrackDto trackAdd(final UUID albumId, final TrackInput input) {
+        callerService.current().requireEditor();
+
+        final Album album = editableAlbum(albumId);
+        final Track track = new Track();
+
+        if (!StringUtils.hasText(input.title()) || input.trackNumber() < 1 || input.discNumber() < 1) {
+            throw new BadRequestException("error.track.invalid");
+        }
+        track.setAlbum(album);
+        track.setTitle(limit(input.title().strip()));
+        track.setDiscNumber(input.discNumber());
+        track.setTrackNumber(input.trackNumber());
+        track.setSide(blankToNull(input.side()));
+        track.setPerformers(blankToNull(input.performers()));
+        track.setMelody(blankToNull(input.melody()));
+        track.setLyricsAuthor(blankToNull(input.lyricsAuthor()));
+        track.setArranger(blankToNull(input.arranger()));
+        track.setLyrics(StringUtils.hasText(input.lyrics()) ? input.lyrics() : null);
+        track.setLyricsSynced(StringUtils.hasText(input.lyrics()) && input.lyricsSynced());
+        track.setPublished(!album.isPublished());
+        track.setLocation(Location.UNPUBLISHED);
+        trackRepository.save(track);
+        album.getTracks().add(track);
+        album.getTracks().sort(Comparator.comparingInt(Track::getDiscNumber).thenComparingInt(Track::getTrackNumber));
+        auditService.record("CREATE", "TRACK", track.getUuid(), "Lade till " + track.getTitle() + " utan ljud på " + album.getTitle());
         return toDto(track);
     }
 
@@ -812,6 +948,10 @@ public class CatalogService {
             track.setNumberId(number.id());
             track.setNumberTitle(number.title());
             track.setNumberKindId(number.kindId());
+            // The number's melody and credits replace the track's own
+            track.setMelody(null);
+            track.setLyricsAuthor(null);
+            track.setArranger(null);
         }
         auditService.record("UPDATE", "TRACK", track.getUuid(), numberId == null
                 ? "Tog bort numret från " + track.getTitle() : "Kopplade " + track.getTitle() + " till numret " + track.getNumberTitle());
@@ -919,6 +1059,12 @@ public class CatalogService {
                     trackRepository.save(track);
                     storage.storeNew(audio.file(), track, staged);
                     album.getTracks().add(track);
+                } else if (!track.hasAudio()) {
+                    // A track of the discography gets its first audio
+                    setAudio(track, audio);
+                    track.setSourceChecksum(checksum);
+                    track.setLocation(Location.UNPUBLISHED);
+                    storage.storeNew(audio.file(), track, staged);
                 } else {
                     final Path old = storage.trackFile(track);
 
@@ -955,6 +1101,36 @@ public class CatalogService {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Transactional
+    public void albumImportBackCover(final UUID albumId, final Path file, final String fileName) {
+        try {
+            albumBackCover(albumId, Files.readAllBytes(file), extension(fileName).equals("jpeg") ? "jpg" : extension(fileName));
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * IMPORT (as EDITOR). A track of the discography without audio, created or updated; an existing track keeps the
+     * audio it has. Null in a dry run.
+     */
+    @Transactional
+    public @Nullable UUID trackImportWithoutAudio(final UUID albumId, final @Nullable UUID existing, final TrackInput input,
+                                                  final @Nullable UUID numberId, final boolean dryRun) {
+        callerService.current().requireEditor();
+        if (dryRun) {
+            return null;
+        }
+
+        final UUID id = existing == null ? trackAdd(albumId, input).id() : trackUpdate(existing, input).id();
+
+        if (numberId != null) {
+            trackSetNumber(id, numberId);
+        }
+        auditService.record(existing == null ? "CREATE" : "UPDATE", "TRACK", id, "Importerade " + input.title() + " utan ljud");
+        return id;
     }
 
     /** The optimistic-lock version of an album or a track, or null when it is gone. */
@@ -1044,21 +1220,44 @@ public class CatalogService {
                         spex.getRevival(), spex.getParentId(), spex.familyId(), spex.getCategoryId(), spex.getCategoryName())).toList(),
                 album.getCoverExtension() != null, album.isPublished(), album.getPublishedAt(), album.getTrashedAt(),
                 album.getNavidromeId(), tracks.size(), tracks.stream().mapToLong(Track::getDurationMs).sum(),
-                album.getCreatedAt(), album.getLastModifiedAt());
+                album.getCreatedAt(), album.getLastModifiedAt(), album.getCatalogueNumber(),
+                album.getMedium() == null ? null : AlbumMediumService.toDto(album.getMedium()), album.getReleased(),
+                album.getRecorded(), album.getConductor(), album.getBackCoverExtension() != null);
     }
 
     TrackDto toDto(final Track track) {
         final Loudness loudness = track.loudness();
         final Loudness album = loudness == null || !track.isListed() ? null : track.albumLoudness();
+        final nu.fgv.spexify.server.spex.NumberCredits.Info number = numberInfo(track);
+        final boolean fromNumber = track.getNumberId() != null;
 
         return new TrackDto(track.getUuid(), track.getAlbum().getUuid(), track.getAlbum().getTitle(),
-                track.getDiscNumber(), track.getTrackNumber(), track.getTitle(), track.getPerformers(), track.getMelody(),
-                track.getLyricsAuthor(), track.getArranger(), track.getLyrics(), track.isLyricsSynced(),
+                track.getDiscNumber(), track.getTrackNumber(), track.getTitle(), track.getPerformers(),
+                fromNumber ? (number == null ? null : number.melody()) : track.getMelody(),
+                fromNumber ? joined(numberCredits == null ? List.of() : numberCredits.lyricsAuthors(number)) : track.getLyricsAuthor(),
+                fromNumber ? joined(numberCredits == null ? List.of() : numberCredits.arrangers(number)) : track.getArranger(),
+                track.getLyrics(), track.isLyricsSynced(),
                 track.getFileFormat(), track.getFileSize(), track.getDurationMs(), track.getBitrate(), track.isPublished(),
-                track.isListed(), track.getTrashedAt(), track.getNavidromeId(), !storage.exists(track),
+                track.isListed(), track.getTrashedAt(), track.getNavidromeId(), track.hasAudio() && !storage.exists(track),
                 loudness == null ? null : new ReplayGainDto(loudness.gainDb(), loudness.peakAmplitude(),
                         album == null ? null : album.gainDb(), album == null ? null : album.peakAmplitude()),
-                track.getNumberId(), track.getNumberTitle(), track.getNumberKindId());
+                track.getNumberId(), track.getNumberTitle(), track.getNumberKindId(), track.getSide(), track.hasAudio(),
+                fromNumber, number == null ? List.of() : number.credits().stream()
+                        .map(credit -> new CatalogDtos.TrackCreditDto(credit.kindId(), credit.kindNameSv(), credit.kindNameEn(),
+                                credit.spexareId(), credit.name()))
+                        .toList());
+    }
+
+    /**
+     * The number's credits for a track that is a recording of one, from Spexipedia; null for other tracks, or when
+     * Spexipedia cannot say.
+     */
+    nu.fgv.spexify.server.spex.NumberCredits.@Nullable Info numberInfo(final Track track) {
+        return track.getNumberId() == null || numberCredits == null ? null : numberCredits.of(track.getNumberId());
+    }
+
+    private static @Nullable String joined(final List<String> names) {
+        return names.isEmpty() ? null : String.join(", ", names);
     }
 
 }

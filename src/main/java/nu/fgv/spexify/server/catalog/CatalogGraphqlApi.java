@@ -196,6 +196,11 @@ public class CatalogGraphqlApi {
     }
 
     @MutationMapping
+    public AlbumDto albumBackCoverRemove(@Argument final UUID id) {
+        return service.albumBackCover(id, null, null);
+    }
+
+    @MutationMapping
     public AlbumDto tracksReorder(@Argument final UUID albumId, @Argument final List<UUID> trackIds) {
         return service.tracksReorder(albumId, trackIds);
     }
@@ -208,6 +213,11 @@ public class CatalogGraphqlApi {
     @MutationMapping
     public TrackDto trackUpdate(@Argument final UUID id, @Argument final TrackInput input) {
         return service.trackUpdate(id, input);
+    }
+
+    @MutationMapping
+    public TrackDto trackAdd(@Argument final UUID albumId, @Argument final TrackInput input) {
+        return service.trackAdd(albumId, input);
     }
 
     @MutationMapping

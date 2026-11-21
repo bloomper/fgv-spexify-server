@@ -110,6 +110,7 @@ public class SampleDataImporter {
     private final ListeningService listeningService;
     private final AlbumRepository albumRepository;
     private final AlbumKindRepository albumKindRepository;
+    private nu.fgv.spexify.server.catalog.@org.jspecify.annotations.Nullable AlbumMediumRepository albumMediumRepository;
     private final AlbumCollectionRepository collectionRepository;
     private final AppUserRepository userRepository;
     private final AppPasswordService appPasswordService;
@@ -424,8 +425,14 @@ public class SampleDataImporter {
      * The kinds the migrations seed, with the aliases the content migration uses: show (the default), studio,
      * compilation and other; kinds an admin added are removed.
      */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setAlbumMediumRepository(final nu.fgv.spexify.server.catalog.AlbumMediumRepository albumMediumRepository) {
+        this.albumMediumRepository = albumMediumRepository;
+    }
+
     private List<AlbumKind> createKinds() {
         jdbcTemplate.update("DELETE FROM album_kind WHERE created_by <> 'system'");
+        jdbcTemplate.update("DELETE FROM album_medium WHERE created_by <> 'system'");
         return albumKindRepository.findAllByOrderByPositionAscIdAsc();
     }
 
@@ -466,6 +473,16 @@ public class SampleDataImporter {
             album.setYear(picked.year());
             album.setKind(kinds.get(other ? 3 : studio ? 1 : 0));
             album.setDescription("Inspelat under föreställningarna " + picked.year() + ". Exempeldata.");
+            // The studio recordings are released records of the discography
+            if (studio && albumMediumRepository != null) {
+                final List<nu.fgv.spexify.server.catalog.AlbumMedium> media = albumMediumRepository.findAllByOrderByPositionAscIdAsc();
+
+                album.setCatalogueNumber("CEP %03d".formatted(index + 1));
+                album.setMedium(media.isEmpty() ? null : media.get(index % Math.min(3, media.size())));
+                album.setReleased(picked.year() == null ? null : String.valueOf(picked.year()));
+                album.setRecorded(picked.year() == null ? null : picked.year() - 1 + "-12");
+                album.setConductor("Kapellmästaren");
+            }
         }
         album.setPublished(index != 3 && index != 5);
         album.setPublishedAt(album.isPublished() ? clock.instant().minus(Duration.ofDays(index)) : null);
@@ -505,10 +522,13 @@ public class SampleDataImporter {
                 track.setNumberKindId(linked.kindId());
             }
             track.setPerformers(SampleCatalog.PERFORMERS.get(random.nextInt(SampleCatalog.PERFORMERS.size())));
-            if (random.nextInt(3) > 0) {
-                track.setMelody(SampleCatalog.MELODIES.get(random.nextInt(SampleCatalog.MELODIES.size())));
+            // A track of a number takes the melody and credits from Spexipedia
+            if (track.getNumberId() == null) {
+                if (random.nextInt(3) > 0) {
+                    track.setMelody(SampleCatalog.MELODIES.get(random.nextInt(SampleCatalog.MELODIES.size())));
+                }
+                track.setLyricsAuthor(SampleCatalog.LYRICS_AUTHORS.get(random.nextInt(SampleCatalog.LYRICS_AUTHORS.size())));
             }
-            track.setLyricsAuthor(SampleCatalog.LYRICS_AUTHORS.get(random.nextInt(SampleCatalog.LYRICS_AUTHORS.size())));
             if (number % 4 == 1) {
                 track.setLyrics(SampleCatalog.SYNCED_LYRICS);
                 track.setLyricsSynced(true);
@@ -517,6 +537,14 @@ public class SampleDataImporter {
             }
             track.setPublished(!(index == 2 && number == 2));
             track.setTrashedAt(index == 4 && number == 3 ? clock.instant().minus(Duration.ofDays(1)) : null);
+            track.setSide(album.getCatalogueNumber() != null ? (number <= trackCount / 2 ? "A" : "B") : null);
+            track.setLocation(Location.UNPUBLISHED);
+            track.setCreatedBy("system");
+            // A released record whose last two tracks are not digitised yet: entries of the discography only
+            if (album.getCatalogueNumber() != null && number > trackCount - 2) {
+                album.getTracks().add(track);
+                continue;
+            }
             track.setFileExtension(clip.format().extension());
             track.setFileFormat(clip.format().name());
             track.setFileSize(clip.size());
