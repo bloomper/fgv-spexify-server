@@ -159,11 +159,23 @@ It finds fgv-infra-deploy in ``../../fgv-infra-deploy``, or where ``INFRA_DEPLOY
 
 The same setup for staging and production is in https://github.com/bloomper/fgv-spexify-deploy[fgv-spexify-deploy] and fgv-infra-deploy.
 
+[[local_folders]]
+=== Local folders
+
+Docker Compose keeps everything on the host, under ``.docker``, one folder per service:
+
+* ``.docker/mysql``: the database and its error log
+* ``.docker/api``: the API's logs, media and imports
+* ``.docker/navidrome``: Navidrome's database and cache
+* ``.docker/secrets``: the secrets, see <<configuration>>
+
+An API started from the IDE or with ``./gradlew bootRun`` keeps its files in ``./data`` instead. Navidrome reads the music from the API's ``media/music``. To let the containers see the files of an API started from the IDE, set ``API_DATA=./data`` in ``.env``.
+
 [[media]]
 == Media
 
 The catalogue (albums linked to spex, and their tracks) lives in MySQL.
-Audio files and covers live in the media folder (``./data/media``, ``API_MEDIA_ROOT``), named by id, never in the database:
+Audio files and covers live in the media folder (``API_MEDIA_ROOT``; ``media`` in the API's folder, see <<local_folders>>), named by id, never in the database:
 
 |===
 |Folder|Content|Navidrome sees it
