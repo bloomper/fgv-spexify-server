@@ -159,6 +159,14 @@ class SpexipediaIntegrationTest extends AbstractIntegrationTest {
                 .variables(Map.of("spex", List.of(SPEX_ID), "numbers", List.of(NUMBER_ID)))
                 .execute()
                 .path("spexipediaLinks.tracks").entityList(Object.class).hasSize(1);
+
+        // One album for a section of a spex page, with signed links to the audio of its listed tracks
+        graphQlWithToken(serviceToken(SPEXIPEDIA_SERVICE)).document("query($id: ID!) { spexipediaAlbum(id: $id) { id tracks { id audioUrl } } }")
+                .variable("id", albumId).execute()
+                .path("spexipediaAlbum.id").entity(String.class).isEqualTo(albumId)
+                .path("spexipediaAlbum.tracks[0].audioUrl").entity(String.class).satisfies(url -> org.assertj.core.api.Assertions.assertThat(url).contains("/media/").endsWith("/audio"))
+                .path("spexipediaAlbum.tracks[1].audioUrl").valueIsNull();
+        expectError(graphQl(EDITOR).document("query($id: ID!) { spexipediaAlbum(id: $id) { id } }").variable("id", albumId).execute(), "FORBIDDEN");
         expectError(graphQl(EDITOR).document("query($spex: [ID!]!) { spexipediaDiscography(spexIds: $spex) { id } }")
                 .variable("spex", List.of(SPEX_ID)).execute(), "FORBIDDEN");
     }

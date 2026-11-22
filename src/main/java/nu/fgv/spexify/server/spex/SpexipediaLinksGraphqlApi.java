@@ -108,19 +108,39 @@ public class SpexipediaLinksGraphqlApi {
         if (spex.isEmpty()) {
             return List.of();
         }
-        return albumRepository.findListedBySpex(spex).stream().map(album -> new DiscographyAlbum(album.getUuid(), album.getTitle(),
-                        album.getYear(), album.getKind().getNameSv(), album.getKind().getNameEn(),
-                        album.getMedium() == null ? null : album.getMedium().getNameSv(),
-                        album.getMedium() == null ? null : album.getMedium().getNameEn(),
-                        album.getCatalogueNumber(), album.getReleased(), album.getRecorded(), album.getConductor(),
-                        matching(album, spex),
-                        album.getCoverExtension() == null ? null : signer.sign("albums/%s/cover".formatted(album.getUuid())).url(),
-                        album.getBackCoverExtension() == null ? null : signer.sign("albums/%s/back-cover".formatted(album.getUuid())).url(),
-                        album.getTracks().stream().filter(nu.fgv.spexify.server.catalog.Track::isInDiscography)
-                                .map(track -> new DiscographyTrack(track.getUuid(), track.getSide(), track.getDiscNumber(),
-                                        track.getTrackNumber(), track.getTitle(), track.getNumberId(), track.hasAudio()))
-                                .toList()))
-                .toList();
+        return albumRepository.findListedBySpex(spex).stream().map(album -> discography(album, matching(album, spex), false)).toList();
+    }
+
+    /**
+     * SPEXIPEDIA. A published album for a section of a spex page in Spexipedia (its spec, 4.2.1): as in the discography,
+     * with signed links to the audio of its listed tracks; null for an album that is not published or is in the trash.
+     * Spexipedia passes the links only to users with access to Spexify.
+     */
+    @QueryMapping
+    @Transactional(readOnly = true)
+    public @Nullable DiscographyAlbum spexipediaAlbum(@Argument final UUID id) {
+        if (!callerService.current().isSpexipediaService()) {
+            throw new AccessDeniedException("SPEXIPEDIA required");
+        }
+        return albumRepository.findByUuid(id).filter(Album::isListed)
+                .map(album -> discography(album, album.getSpex().isEmpty() ? null : album.getSpex().getFirst().getId(), true))
+                .orElse(null);
+    }
+
+    private DiscographyAlbum discography(final Album album, final @Nullable UUID spexId, final boolean audio) {
+        return new DiscographyAlbum(album.getUuid(), album.getTitle(),
+                album.getYear(), album.getKind().getNameSv(), album.getKind().getNameEn(),
+                album.getMedium() == null ? null : album.getMedium().getNameSv(),
+                album.getMedium() == null ? null : album.getMedium().getNameEn(),
+                album.getCatalogueNumber(), album.getReleased(), album.getRecorded(), album.getConductor(),
+                spexId,
+                album.getCoverExtension() == null ? null : signer.sign("albums/%s/cover".formatted(album.getUuid())).url(),
+                album.getBackCoverExtension() == null ? null : signer.sign("albums/%s/back-cover".formatted(album.getUuid())).url(),
+                album.getTracks().stream().filter(nu.fgv.spexify.server.catalog.Track::isInDiscography)
+                        .map(track -> new DiscographyTrack(track.getUuid(), track.getSide(), track.getDiscNumber(),
+                                track.getTrackNumber(), track.getTitle(), track.getNumberId(), track.hasAudio(),
+                                audio && track.isListed() ? signer.sign("tracks/%s/audio".formatted(track.getUuid())).url() : null))
+                        .toList());
     }
 
     /**
@@ -178,7 +198,10 @@ public class SpexipediaLinksGraphqlApi {
                                    @Nullable String backCoverUrl, List<DiscographyTrack> tracks) {
     }
 
+    /**
+     * @param audioUrl a signed link to the audio, from spexipediaAlbum only, for a listed track
+     */
     public record DiscographyTrack(UUID id, @Nullable String side, int discNumber, int trackNumber, String title,
-                                   @Nullable UUID numberId, boolean hasAudio) {
+                                   @Nullable UUID numberId, boolean hasAudio, @Nullable String audioUrl) {
     }
 }
