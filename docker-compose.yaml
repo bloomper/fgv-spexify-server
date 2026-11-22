@@ -71,6 +71,8 @@ services:
       API_SPEXIPEDIA_GRAPHQL_URL: http://spexipedia-api:8080/api/graphql
       SPEXIPEDIA_WEB_URL: ${SPEXIPEDIA_WEB_URL:-https://spexipedia.fgv.local.nu:8443}
       API_SPEXFLIX_GRAPHQL_URL: ${API_SPEXFLIX_GRAPHQL_URL:-}
+      API_ARCHIVE_GRAPHQL_URL: ${API_ARCHIVE_GRAPHQL_URL:-http://archive-api:8080/api/graphql}
+      ARCHIVE_WEB_URL: ${ARCHIVE_WEB_URL:-https://archive.fgv.local.nu:8443}
       API_IMPORT_SAMPLE_DATA: ${API_IMPORT_SAMPLE_DATA:-false}
       API_SAMPLE_DATA_SIZE: ${API_SAMPLE_DATA_SIZE:-small}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak-server:8080/auth/realms/fgv/protocol/openid-connect/certs

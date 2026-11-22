@@ -29,6 +29,7 @@ import nu.fgv.spexify.server.catalog.AlbumRepository;
 import nu.fgv.spexify.server.catalog.Location;
 import nu.fgv.spexify.server.catalog.SpexRef;
 import nu.fgv.spexify.server.catalog.Track;
+import nu.fgv.spexify.server.catalog.TrackRepository;
 import nu.fgv.spexify.server.config.SpexifyProperties;
 import nu.fgv.spexify.server.listening.ListeningService;
 import nu.fgv.spexify.server.media.AudioPreparer;
@@ -38,6 +39,12 @@ import nu.fgv.spexify.server.media.MediaStorage;
 import nu.fgv.spexify.server.media.PreparedAudio;
 import nu.fgv.spexify.server.navidrome.LibraryScanner;
 import nu.fgv.spexify.server.navidrome.NavidromeClient;
+import nu.fgv.spexify.server.scoresync.ScoreSync;
+import nu.fgv.spexify.server.scoresync.ScoreSyncRepository;
+import nu.fgv.spexify.server.sheetmusic.SheetMusicDtos.SheetFileDto;
+import nu.fgv.spexify.server.sheetmusic.SheetMusicDtos.SheetFileKind;
+import nu.fgv.spexify.server.sheetmusic.SheetMusicDtos.SheetMusicDto;
+import nu.fgv.spexify.server.sheetmusic.SheetMusicService;
 import nu.fgv.spexify.server.spex.SpexDto;
 import nu.fgv.spexify.server.spex.SpexService;
 import nu.fgv.spexify.server.spex.NumberDto;
@@ -115,6 +122,9 @@ public class SampleDataImporter {
     private final AppUserRepository userRepository;
     private final AppPasswordService appPasswordService;
     private final AuditEntryRepository auditRepository;
+    private final TrackRepository trackRepository;
+    private final SheetMusicService sheetMusicService;
+    private final ScoreSyncRepository scoreSyncRepository;
     private final Clock clock;
     // Set by an import, until Navidrome has scanned the new files and the sample listening can be given to it
     private volatile boolean listeningPending;
@@ -128,7 +138,9 @@ public class SampleDataImporter {
                               final ListeningService listeningService, final AlbumRepository albumRepository,
                               final AlbumKindRepository albumKindRepository, final AlbumCollectionRepository collectionRepository,
                               final AppUserRepository userRepository, final AppPasswordService appPasswordService,
-                              final AuditEntryRepository auditRepository, final Clock clock) {
+                              final AuditEntryRepository auditRepository, final TrackRepository trackRepository,
+                              final SheetMusicService sheetMusicService, final ScoreSyncRepository scoreSyncRepository,
+                              final Clock clock) {
         this.properties = properties;
         this.environment = environment;
         this.jdbcTemplate = jdbcTemplate;
@@ -148,6 +160,9 @@ public class SampleDataImporter {
         this.userRepository = userRepository;
         this.appPasswordService = appPasswordService;
         this.auditRepository = auditRepository;
+        this.trackRepository = trackRepository;
+        this.sheetMusicService = sheetMusicService;
+        this.scoreSyncRepository = scoreSyncRepository;
         this.clock = clock;
     }
 
@@ -193,8 +208,15 @@ public class SampleDataImporter {
             for (int i = 0; i < albumCount; i++) {
                 final int index = i;
 
-                transactionTemplate.executeWithoutResult(_ -> createAlbum(index, spex, kinds, clips, large));
+                transactionTemplate.executeWithoutResult(_ -> createAlbum(index, spex.get(index % spex.size()), spex, kinds, clips, large));
             }
+            // Spexarkivet's sample data gives the newest original spex sheet music, so one album of it shows notes. One
+            // past albumCount, as albumCount itself would be of the kind other (index % 7 == 6) for both sizes.
+            final int sheetMusicIndex = albumCount + 1;
+            final SpexDto newest = spex.stream().filter(each -> each.parentId() == null).reduce((first, second) -> second).orElse(spex.getLast());
+
+            transactionTemplate.executeWithoutResult(_ -> createAlbum(sheetMusicIndex, newest, spex, kinds, clips, large));
+            transactionTemplate.executeWithoutResult(_ -> createScoreSync(sheetMusicIndex));
             transactionTemplate.executeWithoutResult(_ -> createCollection());
             transactionTemplate.executeWithoutResult(_ -> createCredentials(users));
             transactionTemplate.executeWithoutResult(_ -> createAudit(users));
@@ -436,13 +458,12 @@ public class SampleDataImporter {
         return albumKindRepository.findAllByOrderByPositionAscIdAsc();
     }
 
-    private void createAlbum(final int index, final List<SpexDto> spex, final List<AlbumKind> kinds,
+    private void createAlbum(final int index, final SpexDto picked, final List<SpexDto> spex, final List<AlbumKind> kinds,
                              final List<PreparedAudio> clips, final boolean large) {
         final Random random = new Random(2028L + index);
         final Album album = new Album();
         final boolean compilation = index == 9;
         final boolean medley = index == 15 && spex.size() >= 2;
-        final SpexDto picked = spex.get(index % spex.size());
 
         album.setUuid(UUID.nameUUIDFromBytes(("spexify-sample-album-" + index).getBytes(StandardCharsets.UTF_8)));
         if (compilation) {
@@ -572,5 +593,50 @@ public class SampleDataImporter {
                 throw new java.io.UncheckedIOException(e);
             }
         }
+    }
+
+    /**
+     * A map made by hand between the first track of the album and its MusicXML in Spexarkivet, so that the cursor
+     * follows the recording. The sample audio is tones, not the melody, so the points are only spread evenly over the
+     * track: Spexarkivet's sample MusicXML is one measure of eight quarter notes. Left out when Spexarkivet is not
+     * configured, not up yet, or has no MusicXML for the number.
+     */
+    private void createScoreSync(final int index) {
+        final UUID trackId = UUID.nameUUIDFromBytes(("spexify-sample-track-" + index + "-1").getBytes(StandardCharsets.UTF_8));
+        final Track track = trackRepository.findByUuid(trackId).orElse(null);
+
+        if (track == null || track.getNumberId() == null || track.getDurationMs() < 2_000) {
+            return;
+        }
+
+        final SheetMusicDto sheetMusic = sheetMusicService.byNumbers(List.of(track.getNumberId())).get(track.getNumberId());
+        final SheetFileDto file = sheetMusic == null ? null : sheetMusic.versions().stream()
+                .flatMap(version -> version.files().stream())
+                .filter(each -> each.kind() == SheetFileKind.MUSIC_XML)
+                .findFirst().orElse(null);
+
+        if (file == null) {
+            log.info("Spexarkivet has no MusicXML for {} (yet), so the sample data has no score sync", track.getTitle());
+            return;
+        }
+
+        final int beats = 8;
+        final double first = 0.5;
+        final double step = (track.getDurationMs() / 1000.0 - 1.0 - first) / beats;
+        final ScoreSync sync = new ScoreSync();
+
+        sync.setTrack(track);
+        sync.setFileId(file.id());
+        sync.setMethod(ScoreSync.Method.MANUAL);
+        sync.setStatus(ScoreSync.Status.DONE);
+        sync.setPoints(java.util.stream.IntStream.rangeClosed(0, beats)
+                .mapToObj(beat -> String.format(java.util.Locale.ROOT, "[%.2f,0,%d]", first + beat * step, beat))
+                .collect(Collectors.joining(",", "[", "]")));
+        sync.setQuality(1.0);
+        sync.setScoreChecksum(file.checksum());
+        sync.setAudioChecksum(track.getFileChecksum());
+        sync.setCreatedBy("system");
+        scoreSyncRepository.save(sync);
+        log.info("Synced the sample track {} with its MusicXML in Spexarkivet", track.getTitle());
     }
 }

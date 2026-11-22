@@ -70,7 +70,7 @@ class SampleDataImporterIntegrationTest extends AbstractIntegrationTest {
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM app_user WHERE username = ?").param(SampleDataImporter.NO_ACCESS).query(Long.class).single())
                 .isEqualTo(1);
 
-        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album").query(Long.class).single()).isEqualTo(20);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album").query(Long.class).single()).isEqualTo(21);
         // The kinds are the migrations' own (as the tests reset them), and every one has albums
         assertThat(jdbcClient.sql("SELECT COUNT(*) FROM album_kind k WHERE NOT EXISTS (SELECT 1 FROM album a WHERE a.kind_id = k.id)")
                 .query(Long.class).single()).isZero();
