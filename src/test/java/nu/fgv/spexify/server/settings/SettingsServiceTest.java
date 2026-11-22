@@ -19,6 +19,7 @@ package nu.fgv.spexify.server.settings;
 import nu.fgv.spexify.server.TestCallers;
 import nu.fgv.spexify.server.TestClock;
 import nu.fgv.spexify.server.audit.AuditService;
+import nu.fgv.spexify.server.audit.AuditText;
 import nu.fgv.spexify.server.settings.SettingsService.SettingsDto;
 import nu.fgv.spexify.server.user.CallerService;
 import nu.fgv.spexify.server.util.error.BadRequestException;
@@ -75,7 +76,7 @@ class SettingsServiceTest {
         final SettingsDto saved = service.update(new SettingsDto("  Välkommen!  ", " ", 6, 5, 30));
 
         assertThat(saved).isEqualTo(new SettingsDto("Välkommen!", null, 6, 5, 30));
-        verify(auditService).record("UPDATE", "SETTINGS", null, "Ändrade inställningarna");
+        verify(auditService).record("UPDATE", "SETTINGS", null, AuditText.of("audit.settings.update"));
     }
 
     @Test

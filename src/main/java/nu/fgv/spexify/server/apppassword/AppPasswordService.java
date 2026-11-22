@@ -18,6 +18,7 @@ package nu.fgv.spexify.server.apppassword;
 
 import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.audit.AuditService;
+import nu.fgv.spexify.server.audit.AuditText;
 import nu.fgv.spexify.server.settings.SettingsService;
 import nu.fgv.spexify.server.user.AccessChecker;
 import nu.fgv.spexify.server.user.AppUser;
@@ -220,7 +221,7 @@ public class AppPasswordService {
 
         passwordRepository.findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(user.getId()).forEach(password -> password.setRevokedAt(now));
         apiKeyRepository.findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(user.getId()).forEach(apiKey -> apiKey.setRevokedAt(now));
-        auditService.record("REVOKE", "USER", userId, "Återkallade alla applösenord och nycklar för " + user.getUsername());
+        auditService.record("REVOKE", "USER", userId, AuditText.of("audit.user.revokeAppPasswords", user.getUsername()));
     }
 
     @Transactional(readOnly = true)

@@ -18,6 +18,7 @@ package nu.fgv.spexify.server.catalog;
 
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Files;
+import nu.fgv.spexify.server.audit.AuditText;
 import nu.fgv.spexify.server.util.Uuids;
 import lombok.extern.slf4j.Slf4j;
 import nu.fgv.spexify.server.audit.AuditService;
@@ -516,7 +517,7 @@ public class CatalogService {
 
         apply(album, input);
         albumRepository.save(album);
-        auditService.record("CREATE", "ALBUM", album.getUuid(), "Skapade albumet " + album.getTitle());
+        auditService.record("CREATE", "ALBUM", album.getUuid(), AuditText.of("audit.album.create", album.getTitle()));
         return toDto(album, caller);
     }
 
@@ -530,7 +531,7 @@ public class CatalogService {
 
         apply(album, input);
         place(album);
-        auditService.record("UPDATE", "ALBUM", album.getUuid(), "Ändrade albumet " + album.getTitle());
+        auditService.record("UPDATE", "ALBUM", album.getUuid(), AuditText.of("audit.album.update", album.getTitle()));
         return toDto(album, caller);
     }
 
@@ -617,7 +618,7 @@ public class CatalogService {
         }
         place(album);
         auditService.record(published ? "PUBLISH" : "UNPUBLISH", "ALBUM", album.getUuid(),
-                (published ? "Publicerade albumet " : "Avpublicerade albumet ") + album.getTitle());
+                AuditText.of(published ? "audit.album.publish" : "audit.album.unpublish", album.getTitle()));
         return toDto(album, caller);
     }
 
@@ -632,7 +633,7 @@ public class CatalogService {
         album.setTrashedAt(trashed ? clock.instant() : null);
         place(album);
         auditService.record(trashed ? "TRASH" : "RESTORE", "ALBUM", album.getUuid(),
-                (trashed ? "Lade albumet i papperskorgen: " : "Återställde albumet ") + album.getTitle());
+                AuditText.of(trashed ? "audit.album.trash" : "audit.album.restore", album.getTitle()));
         return toDto(album, caller);
     }
 
@@ -652,7 +653,7 @@ public class CatalogService {
         final boolean wasInMusic = album.getTracks().stream().anyMatch(track -> track.getLocation() == Location.MUSIC);
 
         storage.deleteAlbumAfterCommit(album);
-        auditService.record("DELETE", "ALBUM", album.getUuid(), "Raderade albumet " + album.getTitle());
+        auditService.record("DELETE", "ALBUM", album.getUuid(), AuditText.of("audit.album.delete", album.getTitle()));
         albumRepository.delete(album);
         if (wasInMusic) {
             scanner.requestScan();
@@ -678,7 +679,7 @@ public class CatalogService {
             throw new UncheckedIOException(e);
         }
         place(album);
-        auditService.record("UPDATE", "ALBUM", album.getUuid(), "Bytte omslag på albumet " + album.getTitle());
+        auditService.record("UPDATE", "ALBUM", album.getUuid(), AuditText.of("audit.album.replaceCover", album.getTitle()));
         return toDto(album, caller);
     }
 
@@ -703,8 +704,8 @@ public class CatalogService {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
-        auditService.record("UPDATE", "ALBUM", album.getUuid(), (content == null ? "Tog bort baksidan på albumet " : "Bytte baksida på albumet ")
-                + album.getTitle());
+        auditService.record("UPDATE", "ALBUM", album.getUuid(),
+                AuditText.of(content == null ? "audit.album.removeBack" : "audit.album.replaceBack", album.getTitle()));
         return toDto(album, caller);
     }
 
@@ -726,7 +727,7 @@ public class CatalogService {
                 throw new UncheckedIOException(e);
             }
             place(album);
-            auditService.record("UPDATE", "ALBUM", album.getUuid(), "Tog bort omslaget på albumet " + album.getTitle());
+            auditService.record("UPDATE", "ALBUM", album.getUuid(), AuditText.of("audit.album.removeCover", album.getTitle()));
         }
         return toDto(album, caller);
     }
@@ -751,7 +752,7 @@ public class CatalogService {
         }
         album.getTracks().sort(Comparator.comparingInt(Track::getDiscNumber).thenComparingInt(Track::getTrackNumber));
         place(album);
-        auditService.record("UPDATE", "ALBUM", album.getUuid(), "Ändrade ordningen på albumet " + album.getTitle());
+        auditService.record("UPDATE", "ALBUM", album.getUuid(), AuditText.of("audit.album.reorder", album.getTitle()));
         return toDto(album, caller);
     }
 
@@ -787,7 +788,7 @@ public class CatalogService {
         uploadService.release(uploadId);
         album.getTracks().add(track);
         place(album);
-        auditService.record("CREATE", "TRACK", track.getUuid(), "Laddade upp " + track.getTitle() + " till " + album.getTitle());
+        auditService.record("CREATE", "TRACK", track.getUuid(), AuditText.of("audit.track.upload", track.getTitle(), album.getTitle()));
         return toDto(track);
     }
 
@@ -822,7 +823,8 @@ public class CatalogService {
         if (wasInMusic) {
             scanner.requestScan();
         }
-        auditService.record("UPDATE", "TRACK", track.getUuid(), (first ? "Laddade upp ljudfil för " : "Bytte ljudfil för ") + track.getTitle());
+        auditService.record("UPDATE", "TRACK", track.getUuid(),
+                AuditText.of(first ? "audit.track.uploadAudio" : "audit.track.replaceAudio", track.getTitle()));
         return toDto(track);
     }
 
@@ -848,7 +850,7 @@ public class CatalogService {
         }
         setLyrics(track, input.lyrics(), input.lyricsSynced());
         place(track.getAlbum());
-        auditService.record("UPDATE", "TRACK", track.getUuid(), "Ändrade " + track.getTitle());
+        auditService.record("UPDATE", "TRACK", track.getUuid(), AuditText.of("audit.track.update", track.getTitle()));
         return toDto(track);
     }
 
@@ -882,7 +884,7 @@ public class CatalogService {
         trackRepository.save(track);
         album.getTracks().add(track);
         album.getTracks().sort(Comparator.comparingInt(Track::getDiscNumber).thenComparingInt(Track::getTrackNumber));
-        auditService.record("CREATE", "TRACK", track.getUuid(), "Lade till " + track.getTitle() + " utan ljud på " + album.getTitle());
+        auditService.record("CREATE", "TRACK", track.getUuid(), AuditText.of("audit.track.createSilent", track.getTitle(), album.getTitle()));
         return toDto(track);
     }
 
@@ -908,7 +910,7 @@ public class CatalogService {
 
         setLyrics(track, lyrics, synced);
         place(track.getAlbum());
-        auditService.record("UPDATE", "TRACK", track.getUuid(), "Ändrade texten till " + track.getTitle());
+        auditService.record("UPDATE", "TRACK", track.getUuid(), AuditText.of("audit.track.lyrics", track.getTitle()));
         return toDto(track);
     }
 
@@ -953,8 +955,9 @@ public class CatalogService {
             track.setLyricsAuthor(null);
             track.setArranger(null);
         }
-        auditService.record("UPDATE", "TRACK", track.getUuid(), numberId == null
-                ? "Tog bort numret från " + track.getTitle() : "Kopplade " + track.getTitle() + " till numret " + track.getNumberTitle());
+        auditService.record("UPDATE", "TRACK", track.getUuid(),
+                numberId == null ? AuditText.of("audit.track.unlinkNumber", track.getTitle())
+                        : AuditText.of("audit.track.linkNumber", track.getTitle(), track.getNumberTitle()));
         return toDto(track);
     }
 
@@ -967,7 +970,7 @@ public class CatalogService {
         track.setPublished(published);
         place(track.getAlbum());
         auditService.record(published ? "PUBLISH" : "UNPUBLISH", "TRACK", track.getUuid(),
-                (published ? "Publicerade " : "Avpublicerade ") + track.getTitle());
+                AuditText.of(published ? "audit.track.publish" : "audit.track.unpublish", track.getTitle()));
         return toDto(track);
     }
 
@@ -980,7 +983,7 @@ public class CatalogService {
         track.setTrashedAt(trashed ? clock.instant() : null);
         place(track.getAlbum());
         auditService.record(trashed ? "TRASH" : "RESTORE", "TRACK", track.getUuid(),
-                (trashed ? "Lade i papperskorgen: " : "Återställde ") + track.getTitle());
+                AuditText.of(trashed ? "audit.track.trash" : "audit.track.restore", track.getTitle()));
         return toDto(track);
     }
 
@@ -998,7 +1001,7 @@ public class CatalogService {
 
     private void deleteTrack(final Track track) {
         storage.deleteAfterCommit(track);
-        auditService.record("DELETE", "TRACK", track.getUuid(), "Raderade " + track.getTitle());
+        auditService.record("DELETE", "TRACK", track.getUuid(), AuditText.of("audit.track.delete", track.getTitle()));
         track.getAlbum().getTracks().remove(track);
         trackRepository.delete(track);
     }
@@ -1081,7 +1084,8 @@ public class CatalogService {
         if (numberId != null) {
             trackSetNumber(track.getUuid(), numberId);
         }
-        auditService.record(existing == null ? "CREATE" : "UPDATE", "TRACK", track.getUuid(), "Importerade " + track.getTitle() + " till " + album.getTitle());
+        auditService.record(existing == null ? "CREATE" : "UPDATE", "TRACK", track.getUuid(),
+                AuditText.of("audit.track.import", track.getTitle(), album.getTitle()));
         return track.getUuid();
     }
 
@@ -1129,7 +1133,7 @@ public class CatalogService {
         if (numberId != null) {
             trackSetNumber(id, numberId);
         }
-        auditService.record(existing == null ? "CREATE" : "UPDATE", "TRACK", id, "Importerade " + input.title() + " utan ljud");
+        auditService.record(existing == null ? "CREATE" : "UPDATE", "TRACK", id, AuditText.of("audit.track.importSilent", input.title()));
         return id;
     }
 
@@ -1167,7 +1171,7 @@ public class CatalogService {
         track.getAlbum().getTracks().remove(track);
         storage.deleteAfterCommit(track);
         trackRepository.delete(track);
-        auditService.record("DELETE", "TRACK", id, "Tog bort det importerade spåret " + track.getTitle());
+        auditService.record("DELETE", "TRACK", id, AuditText.of("audit.track.forgetImported", track.getTitle()));
         return true;
     }
 

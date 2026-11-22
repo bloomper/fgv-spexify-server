@@ -16,6 +16,7 @@
 package nu.fgv.spexify.server.catalog;
 
 import nu.fgv.spexify.server.audit.AuditService;
+import nu.fgv.spexify.server.audit.AuditText;
 import nu.fgv.spexify.server.user.Caller;
 import nu.fgv.spexify.server.user.CallerService;
 import nu.fgv.spexify.server.util.error.BadRequestException;
@@ -121,7 +122,8 @@ public class AlbumKindService {
         kind.setAliases(aliases(input.aliases()));
         kind.setPosition(repository.findAllByOrderByPositionAscIdAsc().stream().mapToInt(AlbumKind::getPosition).max().orElse(0) + 1);
         repository.save(kind);
-        auditService.record("CREATE", "ALBUM_KIND", kind.getUuid(), "Skapade albumsorten " + kind.getNameSv());
+        auditService.record("CREATE", "ALBUM_KIND", kind.getUuid(),
+                AuditText.of("audit.albumKind.create", AuditText.of("audit.name", kind.getNameSv(), kind.getNameEn())));
         return toDto(kind);
     }
 
@@ -136,7 +138,8 @@ public class AlbumKindService {
         if (input.aliases() != null) {
             kind.setAliases(aliases(input.aliases()));
         }
-        auditService.record("UPDATE", "ALBUM_KIND", kind.getUuid(), "Ändrade albumsorten " + kind.getNameSv());
+        auditService.record("UPDATE", "ALBUM_KIND", kind.getUuid(),
+                AuditText.of("audit.albumKind.update", AuditText.of("audit.name", kind.getNameSv(), kind.getNameEn())));
         return toDto(kind);
     }
 
@@ -155,7 +158,7 @@ public class AlbumKindService {
         for (int i = 0; i < ids.size(); i++) {
             byId.get(ids.get(i)).setPosition(i + 1);
         }
-        auditService.record("UPDATE", "ALBUM_KIND", null, "Ändrade ordningen på albumsorterna");
+        auditService.record("UPDATE", "ALBUM_KIND", null, AuditText.of("audit.albumKind.reorder"));
         return ids.stream().map(byId::get).map(AlbumKindService::toDto).toList();
     }
 
@@ -173,7 +176,8 @@ public class AlbumKindService {
             throw new BadRequestException("error.albumKind.last");
         }
         repository.delete(kind);
-        auditService.record("DELETE", "ALBUM_KIND", kind.getUuid(), "Raderade albumsorten " + kind.getNameSv());
+        auditService.record("DELETE", "ALBUM_KIND", kind.getUuid(),
+                AuditText.of("audit.albumKind.delete", AuditText.of("audit.name", kind.getNameSv(), kind.getNameEn())));
     }
 
     private AlbumKind kind(final UUID id) {
@@ -223,7 +227,8 @@ public class AlbumKindService {
         kind.setNameEn(kind.getNameSv());
         kind.setPosition(repository.findAllByOrderByPositionAscIdAsc().stream().mapToInt(AlbumKind::getPosition).max().orElse(0) + 1);
         repository.save(kind);
-        auditService.record("CREATE", "ALBUM_KIND", kind.getUuid(), "Skapade albumsorten " + kind.getNameSv() + " vid import");
+        auditService.record("CREATE", "ALBUM_KIND", kind.getUuid(),
+                AuditText.of("audit.albumKind.createForImport", AuditText.of("audit.name", kind.getNameSv(), kind.getNameEn())));
         return kind;
     }
 

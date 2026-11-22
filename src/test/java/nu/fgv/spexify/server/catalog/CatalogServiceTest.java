@@ -18,6 +18,7 @@ package nu.fgv.spexify.server.catalog;
 
 import nu.fgv.spexify.server.TestCallers;
 import nu.fgv.spexify.server.audit.AuditService;
+import nu.fgv.spexify.server.audit.AuditText;
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumDto;
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumFilter;
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumInput;
@@ -395,7 +396,7 @@ class CatalogServiceTest {
         assertThat(created.description()).isEqualTo("Inspelat live.");
         assertThat(created.kind().nameEn()).isEqualTo("Show");
         assertThat(created.spex()).extracting(CatalogDtos.AlbumSpexDto::id).containsExactly(uuid(7));
-        verify(auditService).record(eq("CREATE"), eq("ALBUM"), any(), eq("Skapade albumet Cleopatra"));
+        verify(auditService).record(eq("CREATE"), eq("ALBUM"), any(), eq(AuditText.of("audit.album.create", "Cleopatra")));
     }
 
     @Test
@@ -466,8 +467,8 @@ class CatalogServiceTest {
         assertThat(published.getTrashedAt()).isEqualTo(NOW);
         service.albumTrash(uuid(1), false);
         assertThat(published.getTrashedAt()).isNull();
-        verify(auditService).record("TRASH", "ALBUM", uuid(1), "Lade albumet i papperskorgen: Cleopatra");
-        verify(auditService).record("RESTORE", "ALBUM", uuid(1), "Återställde albumet Cleopatra");
+        verify(auditService).record("TRASH", "ALBUM", uuid(1), AuditText.of("audit.album.trash", "Cleopatra"));
+        verify(auditService).record("RESTORE", "ALBUM", uuid(1), AuditText.of("audit.album.restore", "Cleopatra"));
     }
 
     @Test

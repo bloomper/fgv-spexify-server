@@ -17,6 +17,7 @@
 package nu.fgv.spexify.server.catalog;
 
 import nu.fgv.spexify.server.audit.AuditService;
+import nu.fgv.spexify.server.audit.AuditText;
 import nu.fgv.spexify.server.catalog.CatalogDtos.AlbumDto;
 import nu.fgv.spexify.server.user.Caller;
 import nu.fgv.spexify.server.user.CallerService;
@@ -149,7 +150,7 @@ public class CollectionService {
 
         apply(collection, input);
         repository.save(collection);
-        auditService.record("CREATE", "COLLECTION", collection.getUuid(), "Skapade samlingen " + collection.getTitle());
+        auditService.record("CREATE", "COLLECTION", collection.getUuid(), AuditText.of("audit.collection.create", collection.getTitle()));
         return toDto(collection, caller);
     }
 
@@ -162,7 +163,7 @@ public class CollectionService {
         final AlbumCollection collection = find(id);
 
         apply(collection, input);
-        auditService.record("UPDATE", "COLLECTION", collection.getUuid(), "Ändrade samlingen " + collection.getTitle());
+        auditService.record("UPDATE", "COLLECTION", collection.getUuid(), AuditText.of("audit.collection.update", collection.getTitle()));
         return toDto(collection, caller);
     }
 
@@ -173,7 +174,7 @@ public class CollectionService {
         final AlbumCollection collection = find(id);
 
         repository.delete(collection);
-        auditService.record("DELETE", "COLLECTION", collection.getUuid(), "Tog bort samlingen " + collection.getTitle());
+        auditService.record("DELETE", "COLLECTION", collection.getUuid(), AuditText.of("audit.collection.delete", collection.getTitle()));
     }
 
     private void apply(final AlbumCollection collection, final CollectionInput input) {
