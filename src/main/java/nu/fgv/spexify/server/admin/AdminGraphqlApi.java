@@ -17,7 +17,7 @@
 package nu.fgv.spexify.server.admin;
 
 import java.util.Locale;
-import nu.fgv.spexify.server.audit.AuditText;
+import nu.fgv.spexify.server.util.StoredText;
 import org.springframework.context.MessageSource;
 import nu.fgv.spexify.server.audit.AuditEntry;
 import nu.fgv.spexify.server.audit.AuditFilter;
@@ -79,13 +79,13 @@ public class AdminGraphqlApi {
 
     @QueryMapping
     @Transactional(readOnly = true)
-    public LibraryStatusDto libraryStatus() {
+    public LibraryStatusDto libraryStatus(final Locale locale) {
         callerService.current().requireEditor();
 
         final LibraryScanner.Status status = scanner.status();
 
         return new LibraryStatusDto(status.available(), status.scanning(), status.pending(), status.lastScanAt(),
-                status.lastError(), trackRepository.count(), trackRepository.countByLocation(Location.MUSIC));
+                status.lastError() == null ? null : StoredText.decode(status.lastError()).in(messages, locale), trackRepository.count(), trackRepository.countByLocation(Location.MUSIC));
     }
 
     @MutationMapping
@@ -106,7 +106,7 @@ public class AdminGraphqlApi {
         return new AuditPageDto(entries.getContent().stream()
                 .map(entry -> new AuditLogEntryDto(entry.getId(), entry.getAt(), entry.getActorSubject(), entry.getActorName(),
                         entry.getAction(), entry.getEntityType(), entry.getEntityId(),
-                        AuditText.decode(entry.getSummary()).in(messages, locale)))
+                        StoredText.decode(entry.getSummary()).in(messages, locale)))
                 .toList(), entries.getTotalElements(), entries.getNumber(), entries.getSize());
     }
 

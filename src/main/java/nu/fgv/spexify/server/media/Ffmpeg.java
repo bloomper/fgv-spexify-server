@@ -17,6 +17,8 @@
 package nu.fgv.spexify.server.media;
 
 import lombok.extern.slf4j.Slf4j;
+import nu.fgv.spexify.server.util.StoredText;
+import nu.fgv.spexify.server.util.TextException;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -58,16 +60,16 @@ public class Ffmpeg {
         try {
             if (!process.waitFor(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                throw new IOException(command.getFirst() + " timed out");
+                throw TextException.io(StoredText.of("media.failed.timedOut", command.getFirst()), null);
             }
             if (process.exitValue() != 0) {
-                throw new IOException(command.getFirst() + " failed: " + stderr.join().strip());
+                throw TextException.io(StoredText.of("media.failed.tool", command.getFirst(), stderr.join().strip()), null);
             }
             return returnStderr ? stderr.join() : stdout.join();
         } catch (final InterruptedException e) {
             process.destroyForcibly();
             Thread.currentThread().interrupt();
-            throw new IOException(command.getFirst() + " was interrupted", e);
+            throw TextException.io(StoredText.of("media.failed.interrupted", command.getFirst()), e);
         }
     }
 
@@ -119,15 +121,15 @@ public class Ffmpeg {
         try {
             if (!process.waitFor(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                throw new IOException("ffmpeg timed out");
+                throw TextException.io(StoredText.of("media.failed.timedOut", "ffmpeg"), null);
             }
             if (process.exitValue() != 0) {
-                throw new IOException("ffmpeg failed: " + stderr.join().strip());
+                throw TextException.io(StoredText.of("media.failed.tool", "ffmpeg", stderr.join().strip()), null);
             }
         } catch (final InterruptedException e) {
             process.destroyForcibly();
             Thread.currentThread().interrupt();
-            throw new IOException("ffmpeg was interrupted", e);
+            throw TextException.io(StoredText.of("media.failed.interrupted", "ffmpeg"), e);
         }
 
         final java.nio.FloatBuffer floats = java.nio.ByteBuffer.wrap(bytes, 0, bytes.length - bytes.length % 4)

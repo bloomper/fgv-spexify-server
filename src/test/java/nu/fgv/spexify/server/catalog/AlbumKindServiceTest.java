@@ -17,7 +17,7 @@ package nu.fgv.spexify.server.catalog;
 
 import nu.fgv.spexify.server.TestCallers;
 import nu.fgv.spexify.server.audit.AuditService;
-import nu.fgv.spexify.server.audit.AuditText;
+import nu.fgv.spexify.server.util.StoredText;
 import nu.fgv.spexify.server.catalog.AlbumKindService.AlbumKindDto;
 import nu.fgv.spexify.server.catalog.AlbumKindService.AlbumKindInput;
 import nu.fgv.spexify.server.user.CallerService;
@@ -95,7 +95,7 @@ class AlbumKindServiceTest {
         assertThat(created.nameEn()).isEqualTo("Jubilee");
         assertThat(created.position()).isEqualTo(3);
         verify(auditService).record(eq("CREATE"), eq("ALBUM_KIND"), any(), argThat(text -> "audit.albumKind.create".equals(text.code())
-                && text.args().getFirst() instanceof AuditText name && name.args().contains("Jubileum")));
+                && text.args().getFirst() instanceof StoredText name && name.args().contains("Jubileum")));
     }
 
     @Test

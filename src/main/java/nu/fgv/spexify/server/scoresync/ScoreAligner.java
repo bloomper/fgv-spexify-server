@@ -22,6 +22,8 @@ import nu.fgv.spexify.server.scoresync.MusicXml.Note;
 import nu.fgv.spexify.server.scoresync.MusicXml.Score;
 import nu.fgv.spexify.server.scoresync.MusicXml.Syllable;
 import nu.fgv.spexify.server.scoresync.MusicXml.Tempo;
+import nu.fgv.spexify.server.util.StoredText;
+import nu.fgv.spexify.server.util.TextException;
 import org.jspecify.annotations.Nullable;
 
 import java.text.Normalizer;
@@ -1008,7 +1010,7 @@ public final class ScoreAligner {
         final AudioChroma recording = audioChroma(samples);
 
         if (recording.chroma().length < 20) {
-            throw new IllegalArgumentException("The recording is too short to align");
+            throw new TextException(StoredText.of("scoreSync.failed.tooShort"));
         }
 
         final List<LyricLine> lines = lrc(lyrics);
@@ -1023,7 +1025,7 @@ public final class ScoreAligner {
             final double[][] chroma = scoreChroma(score, order, knots);
 
             if ((long) recording.chroma().length * chroma.length > MAX_CELLS) {
-                throw new IllegalArgumentException("The recording and the score are too long to align");
+                throw new TextException(StoredText.of("scoreSync.failed.tooLong"));
             }
             if (chroma.length < 2) {
                 continue;
@@ -1039,7 +1041,7 @@ public final class ScoreAligner {
             }
         }
         if (best == null) {
-            throw new IllegalArgumentException("The score has no notes to align");
+            throw new TextException(StoredText.of("scoreSync.failed.noNotes"));
         }
 
         final Double agreement = agreement(best.path(), best.anchors(), best.knots());

@@ -18,7 +18,7 @@
 package nu.fgv.spexify.server.scoresync;
 
 import nu.fgv.spexify.server.audit.AuditService;
-import nu.fgv.spexify.server.audit.AuditText;
+import nu.fgv.spexify.server.util.StoredText;
 import nu.fgv.spexify.server.catalog.CatalogService;
 import nu.fgv.spexify.server.catalog.Track;
 import nu.fgv.spexify.server.catalog.TrackRepository;
@@ -155,7 +155,7 @@ public class ScoreSyncService {
 
         final ScoreSync saved = repository.saveAndFlush(sync);
 
-        auditService.record("UPDATE", "TRACK", track.getUuid(), AuditText.of("audit.track.syncScore", track.getTitle()));
+        auditService.record("UPDATE", "TRACK", track.getUuid(), StoredText.of("audit.track.syncScore", track.getTitle()));
         return toDto(saved, track.getUuid());
     }
 
@@ -168,7 +168,7 @@ public class ScoreSyncService {
 
         return repository.findByTrackAndFileIdAndMethod(track, fileId, ScoreSync.Method.MANUAL).map(sync -> {
             repository.delete(sync);
-            auditService.record("UPDATE", "TRACK", track.getUuid(), AuditText.of("audit.track.removeScoreSync", track.getTitle()));
+            auditService.record("UPDATE", "TRACK", track.getUuid(), StoredText.of("audit.track.removeScoreSync", track.getTitle()));
             return true;
         }).orElse(false);
     }
@@ -183,7 +183,7 @@ public class ScoreSyncService {
         final SheetFileDto file = score(track, fileId);
         final ScoreSync sync = queue(track, file);
 
-        auditService.record("UPDATE", "TRACK", track.getUuid(), AuditText.of("audit.track.autoSyncScore", track.getTitle()));
+        auditService.record("UPDATE", "TRACK", track.getUuid(), StoredText.of("audit.track.autoSyncScore", track.getTitle()));
         return toDto(sync, track.getUuid());
     }
 

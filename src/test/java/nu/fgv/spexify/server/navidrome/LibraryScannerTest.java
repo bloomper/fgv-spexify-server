@@ -22,6 +22,7 @@ import nu.fgv.spexify.server.catalog.Location;
 import nu.fgv.spexify.server.catalog.Track;
 import nu.fgv.spexify.server.catalog.TrackRepository;
 import nu.fgv.spexify.server.media.MediaStorage;
+import nu.fgv.spexify.server.util.StoredText;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -128,7 +129,7 @@ class LibraryScannerTest {
         scanner.tick();
 
         assertThat(scanner.status().available()).isFalse();
-        assertThat(scanner.status().lastError()).isEqualTo("Connection refused");
+        assertThat(StoredText.decode(scanner.status().lastError())).isEqualTo(StoredText.of("text.unexpected", "Connection refused"));
     }
 
     @Test

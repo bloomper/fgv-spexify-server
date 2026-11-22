@@ -16,7 +16,7 @@
 package nu.fgv.spexify.server.catalog;
 
 import nu.fgv.spexify.server.audit.AuditService;
-import nu.fgv.spexify.server.audit.AuditText;
+import nu.fgv.spexify.server.util.StoredText;
 import nu.fgv.spexify.server.user.Caller;
 import nu.fgv.spexify.server.user.CallerService;
 import nu.fgv.spexify.server.util.error.BadRequestException;
@@ -110,7 +110,7 @@ public class AlbumMediumService {
         medium.setPosition(repository.findAllByOrderByPositionAscIdAsc().stream().mapToInt(AlbumMedium::getPosition).max().orElse(0) + 1);
         repository.save(medium);
         auditService.record("CREATE", "ALBUM_MEDIUM", medium.getUuid(),
-                AuditText.of("audit.albumMedium.create", AuditText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
+                StoredText.of("audit.albumMedium.create", StoredText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
         return toDto(medium);
     }
 
@@ -126,7 +126,7 @@ public class AlbumMediumService {
             medium.setAliases(aliases(input.aliases()));
         }
         auditService.record("UPDATE", "ALBUM_MEDIUM", medium.getUuid(),
-                AuditText.of("audit.albumMedium.update", AuditText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
+                StoredText.of("audit.albumMedium.update", StoredText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
         return toDto(medium);
     }
 
@@ -145,7 +145,7 @@ public class AlbumMediumService {
         for (int i = 0; i < ids.size(); i++) {
             byId.get(ids.get(i)).setPosition(i + 1);
         }
-        auditService.record("UPDATE", "ALBUM_MEDIUM", null, AuditText.of("audit.albumMedium.reorder"));
+        auditService.record("UPDATE", "ALBUM_MEDIUM", null, StoredText.of("audit.albumMedium.reorder"));
         return ids.stream().map(byId::get).map(AlbumMediumService::toDto).toList();
     }
 
@@ -161,7 +161,7 @@ public class AlbumMediumService {
         }
         repository.delete(medium);
         auditService.record("DELETE", "ALBUM_MEDIUM", medium.getUuid(),
-                AuditText.of("audit.albumMedium.delete", AuditText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
+                StoredText.of("audit.albumMedium.delete", StoredText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
     }
 
     private AlbumMedium medium(final UUID id) {
@@ -212,7 +212,7 @@ public class AlbumMediumService {
         medium.setPosition(repository.findAllByOrderByPositionAscIdAsc().stream().mapToInt(AlbumMedium::getPosition).max().orElse(0) + 1);
         repository.save(medium);
         auditService.record("CREATE", "ALBUM_MEDIUM", medium.getUuid(),
-                AuditText.of("audit.albumMedium.createForImport", AuditText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
+                StoredText.of("audit.albumMedium.createForImport", StoredText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
         return medium;
     }
 
