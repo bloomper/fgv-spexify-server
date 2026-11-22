@@ -16,6 +16,9 @@
 
 package nu.fgv.spexify.server.admin;
 
+import java.util.Locale;
+import nu.fgv.spexify.server.util.StoredText;
+import org.springframework.context.MessageSource;
 import nu.fgv.spexify.server.audit.AuditEntry;
 import nu.fgv.spexify.server.audit.AuditFilter;
 import nu.fgv.spexify.server.audit.AuditService;
@@ -45,6 +48,7 @@ import java.util.List;
 @Controller
 public class AdminGraphqlApi {
 
+    private final MessageSource messages;
     private final SettingsService settingsService;
     private final AuditService auditService;
     private final LibraryScanner scanner;
@@ -53,7 +57,9 @@ public class AdminGraphqlApi {
 
     public AdminGraphqlApi(final SettingsService settingsService, final AuditService auditService,
                            final LibraryScanner scanner, final TrackRepository trackRepository,
-                           final CallerService callerService) {
+                           final CallerService callerService,
+                           final MessageSource messages) {
+        this.messages = messages;
         this.settingsService = settingsService;
         this.auditService = auditService;
         this.scanner = scanner;
@@ -73,13 +79,13 @@ public class AdminGraphqlApi {
 
     @QueryMapping
     @Transactional(readOnly = true)
-    public LibraryStatusDto libraryStatus() {
+    public LibraryStatusDto libraryStatus(final Locale locale) {
         callerService.current().requireEditor();
 
         final LibraryScanner.Status status = scanner.status();
 
         return new LibraryStatusDto(status.available(), status.scanning(), status.pending(), status.lastScanAt(),
-                status.lastError(), trackRepository.count(), trackRepository.countByLocation(Location.MUSIC));
+                status.lastError() == null ? null : StoredText.decode(status.lastError()).in(messages, locale), trackRepository.count(), trackRepository.countByLocation(Location.MUSIC));
     }
 
     @MutationMapping
@@ -91,14 +97,16 @@ public class AdminGraphqlApi {
 
     @QueryMapping
     public AuditPageDto auditLog(@Argument final @Nullable Integer page, @Argument final @Nullable Integer size,
-                                 @Argument final @Nullable AuditFilter filter) {
+                                 @Argument final @Nullable AuditFilter filter,
+                                 final Locale locale) {
         final int p = page == null ? 0 : page;
         final int s = size == null ? 50 : size;
         final Page<AuditEntry> entries = auditService.page(p, s, filter);
 
         return new AuditPageDto(entries.getContent().stream()
                 .map(entry -> new AuditLogEntryDto(entry.getId(), entry.getAt(), entry.getActorSubject(), entry.getActorName(),
-                        entry.getAction(), entry.getEntityType(), entry.getEntityId(), entry.getSummary()))
+                        entry.getAction(), entry.getEntityType(), entry.getEntityId(),
+                        StoredText.decode(entry.getSummary()).in(messages, locale)))
                 .toList(), entries.getTotalElements(), entries.getNumber(), entries.getSize());
     }
 

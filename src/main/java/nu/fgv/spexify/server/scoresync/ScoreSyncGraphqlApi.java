@@ -20,14 +20,18 @@ package nu.fgv.spexify.server.scoresync;
 import nu.fgv.spexify.server.catalog.CatalogDtos.TrackDto;
 import nu.fgv.spexify.server.scoresync.ScoreSyncDtos.ScoreSyncDto;
 import nu.fgv.spexify.server.scoresync.ScoreSyncDtos.ScoreSyncInput;
+import nu.fgv.spexify.server.util.StoredText;
 import org.jspecify.annotations.Nullable;
+import org.springframework.context.MessageSource;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.BatchMapping;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
+import org.springframework.graphql.data.method.annotation.SchemaMapping;
 import org.springframework.stereotype.Controller;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -41,9 +45,17 @@ import java.util.UUID;
 public class ScoreSyncGraphqlApi {
 
     private final ScoreSyncService service;
+    private final MessageSource messages;
 
-    public ScoreSyncGraphqlApi(final ScoreSyncService service) {
+    public ScoreSyncGraphqlApi(final ScoreSyncService service, final MessageSource messages) {
         this.service = service;
+        this.messages = messages;
+    }
+
+    /** Why the automatic sync failed, in the reader's language. */
+    @SchemaMapping(typeName = "ScoreSync", field = "error")
+    public @Nullable String error(final ScoreSyncDto sync, final Locale locale) {
+        return sync.error() == null ? null : StoredText.decode(sync.error()).in(messages, locale);
     }
 
     @BatchMapping(typeName = "Track", field = "scoreSyncs")

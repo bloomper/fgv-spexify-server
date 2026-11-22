@@ -91,7 +91,7 @@ public class SpexifyImport {
         }
         return media.match(name).map(AlbumMedium::getUuid).orElseGet(() -> {
             if (batch.createMissingKinds()) {
-                batch.warn("Nytt albummedium: " + name.strip());
+                batch.warn("import.warning.newMedium", name.strip());
                 return media.createForImport(name.strip()).getUuid();
             }
             throw new BadRequestException("error.kind.unknown", name,
@@ -105,7 +105,7 @@ public class SpexifyImport {
         }
         return kinds.match(name).map(AlbumKind::getUuid).orElseGet(() -> {
             if (batch.createMissingKinds()) {
-                batch.warn("Ny albumsort: " + name.strip());
+                batch.warn("import.warning.newAlbumKind", name.strip());
                 return kinds.createForImport(name.strip()).getUuid();
             }
             throw new BadRequestException("error.kind.unknown", name,

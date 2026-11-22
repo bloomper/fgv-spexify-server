@@ -21,6 +21,8 @@ import nu.fgv.spexify.server.catalog.Album;
 import nu.fgv.spexify.server.catalog.Location;
 import nu.fgv.spexify.server.catalog.Track;
 import nu.fgv.spexify.server.catalog.TrackRepository;
+import nu.fgv.spexify.server.util.StoredText;
+import nu.fgv.spexify.server.util.TextException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationEventPublisher;
@@ -67,6 +69,9 @@ public class LibraryScanner {
     private volatile boolean scanning;
     private volatile boolean available;
     private volatile @Nullable Instant lastScanAt;
+    private static final int MAX_ERROR = 1000;
+
+    /** Why the latest tick failed, as a {@link StoredText}. */
     private volatile @Nullable String lastError;
 
     public LibraryScanner(final NavidromeClient client, final TrackRepository trackRepository,
@@ -136,7 +141,7 @@ public class LibraryScanner {
             lastError = null;
         } catch (final IOException | RuntimeException e) {
             available = false;
-            lastError = e.getMessage();
+            lastError = TextException.text(e).encode(MAX_ERROR);
             log.debug("Navidrome scan tick failed", e);
         }
     }

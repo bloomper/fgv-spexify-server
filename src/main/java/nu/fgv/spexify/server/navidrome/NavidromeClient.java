@@ -17,6 +17,8 @@
 package nu.fgv.spexify.server.navidrome;
 
 import nu.fgv.spexify.server.config.SpexifyProperties;
+import nu.fgv.spexify.server.util.StoredText;
+import nu.fgv.spexify.server.util.TextException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -126,12 +128,12 @@ public class NavidromeClient {
             final HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
 
             if (response.statusCode() != 200) {
-                throw new IOException("Navidrome answered " + response.statusCode() + " when creating " + username);
+                throw TextException.io(StoredText.of("navidrome.failed.createUser", response.statusCode()), null);
             }
             knownUsers.put(username, Boolean.TRUE);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted", e);
+            throw TextException.io(StoredText.of("media.failed.interrupted", "Navidrome"), e);
         }
     }
 
@@ -166,7 +168,7 @@ public class NavidromeClient {
 
             try (InputStream body = response.body()) {
                 if (response.statusCode() != 200) {
-                    throw new IOException("Navidrome answered " + response.statusCode() + " to " + endpoint);
+                    throw TextException.io(StoredText.of("navidrome.failed.status", response.statusCode(), endpoint), null);
                 }
 
                 final JsonNode root = jsonMapper.readTree(body).path("subsonic-response");
@@ -176,13 +178,13 @@ public class NavidromeClient {
                     knownUsers.invalidate(username);
                 }
                 if (!"ok".equals(root.path("status").asString(""))) {
-                    throw new IOException("Navidrome failed " + endpoint + ": " + root.path("error").path("message").asString(""));
+                    throw TextException.io(StoredText.of("navidrome.failed.answer", endpoint, root.path("error").path("message").asString("")), null);
                 }
                 return root;
             }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted", e);
+            throw TextException.io(StoredText.of("media.failed.interrupted", "Navidrome"), e);
         }
     }
 

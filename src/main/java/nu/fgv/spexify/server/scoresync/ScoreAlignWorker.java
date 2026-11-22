@@ -24,6 +24,8 @@ import nu.fgv.spexify.server.media.MediaStorage;
 import nu.fgv.spexify.server.sheetmusic.SheetMusicDtos.SheetFileDto;
 import nu.fgv.spexify.server.sheetmusic.SheetMusicDtos.SheetMusicDto;
 import nu.fgv.spexify.server.sheetmusic.SheetMusicService;
+import nu.fgv.spexify.server.util.StoredText;
+import nu.fgv.spexify.server.util.TextException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -129,7 +131,7 @@ public class ScoreAlignWorker {
             final SheetFileDto file = sheetMusic == null ? null : sheetMusic.file(job.fileId());
 
             if (file == null) {
-                throw new IllegalStateException("The score is no longer in Spexarkivet");
+                throw new TextException(StoredText.of("scoreSync.failed.scoreGone"));
             }
 
             final MusicXml.Score score = MusicXml.parse(sheetMusicService.content(file));
@@ -151,11 +153,11 @@ public class ScoreAlignWorker {
         } catch (final Exception e) {
             log.info("Could not align score sync {}: {}", id, e.getMessage());
 
-            final String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            final StoredText error = TextException.text(e);
 
             finish(id, sync -> {
                 sync.setStatus(ScoreSync.Status.FAILED);
-                sync.setError(message.length() > MAX_ERROR ? message.substring(0, MAX_ERROR) : message);
+                sync.setError(error.encode(MAX_ERROR));
                 sync.setAudioChecksum(job.audioChecksum());
             });
         }

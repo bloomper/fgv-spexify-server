@@ -16,6 +16,7 @@
 package nu.fgv.spexify.server.catalog;
 
 import nu.fgv.spexify.server.audit.AuditService;
+import nu.fgv.spexify.server.util.StoredText;
 import nu.fgv.spexify.server.user.Caller;
 import nu.fgv.spexify.server.user.CallerService;
 import nu.fgv.spexify.server.util.error.BadRequestException;
@@ -108,7 +109,8 @@ public class AlbumMediumService {
         medium.setAliases(aliases(input.aliases()));
         medium.setPosition(repository.findAllByOrderByPositionAscIdAsc().stream().mapToInt(AlbumMedium::getPosition).max().orElse(0) + 1);
         repository.save(medium);
-        auditService.record("CREATE", "ALBUM_MEDIUM", medium.getUuid(), "Skapade albummediet " + medium.getNameSv());
+        auditService.record("CREATE", "ALBUM_MEDIUM", medium.getUuid(),
+                StoredText.of("audit.albumMedium.create", StoredText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
         return toDto(medium);
     }
 
@@ -123,7 +125,8 @@ public class AlbumMediumService {
         if (input.aliases() != null) {
             medium.setAliases(aliases(input.aliases()));
         }
-        auditService.record("UPDATE", "ALBUM_MEDIUM", medium.getUuid(), "Ändrade albummediet " + medium.getNameSv());
+        auditService.record("UPDATE", "ALBUM_MEDIUM", medium.getUuid(),
+                StoredText.of("audit.albumMedium.update", StoredText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
         return toDto(medium);
     }
 
@@ -142,7 +145,7 @@ public class AlbumMediumService {
         for (int i = 0; i < ids.size(); i++) {
             byId.get(ids.get(i)).setPosition(i + 1);
         }
-        auditService.record("UPDATE", "ALBUM_MEDIUM", null, "Ändrade ordningen på albummedierna");
+        auditService.record("UPDATE", "ALBUM_MEDIUM", null, StoredText.of("audit.albumMedium.reorder"));
         return ids.stream().map(byId::get).map(AlbumMediumService::toDto).toList();
     }
 
@@ -157,7 +160,8 @@ public class AlbumMediumService {
             throw new ConflictException("error.albumMedium.inUse", albums);
         }
         repository.delete(medium);
-        auditService.record("DELETE", "ALBUM_MEDIUM", medium.getUuid(), "Raderade albummediet " + medium.getNameSv());
+        auditService.record("DELETE", "ALBUM_MEDIUM", medium.getUuid(),
+                StoredText.of("audit.albumMedium.delete", StoredText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
     }
 
     private AlbumMedium medium(final UUID id) {
@@ -207,7 +211,8 @@ public class AlbumMediumService {
         medium.setNameEn(medium.getNameSv());
         medium.setPosition(repository.findAllByOrderByPositionAscIdAsc().stream().mapToInt(AlbumMedium::getPosition).max().orElse(0) + 1);
         repository.save(medium);
-        auditService.record("CREATE", "ALBUM_MEDIUM", medium.getUuid(), "Skapade albummediet " + medium.getNameSv() + " vid import");
+        auditService.record("CREATE", "ALBUM_MEDIUM", medium.getUuid(),
+                StoredText.of("audit.albumMedium.createForImport", StoredText.of("audit.name", medium.getNameSv(), medium.getNameEn())));
         return medium;
     }
 

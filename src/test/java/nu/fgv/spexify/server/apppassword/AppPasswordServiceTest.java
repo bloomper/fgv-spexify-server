@@ -19,6 +19,7 @@ package nu.fgv.spexify.server.apppassword;
 import nu.fgv.spexify.server.TestCallers;
 import nu.fgv.spexify.server.TestClock;
 import nu.fgv.spexify.server.audit.AuditService;
+import nu.fgv.spexify.server.util.StoredText;
 import nu.fgv.spexify.server.config.SpexifyProperties;
 import nu.fgv.spexify.server.settings.Settings;
 import nu.fgv.spexify.server.settings.SettingsService;
@@ -211,7 +212,7 @@ class AppPasswordServiceTest {
 
         assertThat(passwords).allSatisfy(password -> assertThat(password.getRevokedAt()).isNotNull());
         verify(throttle).unlock("lisa@spexify.test");
-        verify(auditService).record("REVOKE", "USER", uuid(1), "Återkallade alla applösenord och nycklar för lisa@spexify.test");
+        verify(auditService).record("REVOKE", "USER", uuid(1), StoredText.of("audit.user.revokeAppPasswords", "lisa@spexify.test"));
     }
 
     @Test

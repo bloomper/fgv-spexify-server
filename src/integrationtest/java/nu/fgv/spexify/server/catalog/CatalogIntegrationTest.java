@@ -200,19 +200,30 @@ class CatalogIntegrationTest extends AbstractIntegrationTest {
                 .path("auditLog.page").entity(Integer.class).isEqualTo(0)
                 .path("auditLog.size").entity(Integer.class).isEqualTo(200);
 
+        // A summary is in the reader's language; the search finds the names and titles in it
+        final String title = graphQl(EDITOR).document("query($id: ID!) { album(id: $id) { title } }").variable("id", albumId).execute()
+                .path("album.title").entity(String.class).get();
+
+        for (final String[] language : new String[][]{{"sv", "Publicerade albumet "}, {"en", "Published the album "}}) {
+            graphQl(EDITOR).mutate().header(HttpHeaders.ACCEPT_LANGUAGE, language[0]).build()
+                    .document("{ auditLog(filter: {action: \"PUBLISH\"}) { entries { summary } } }").execute()
+                    .path("auditLog.entries[0].summary").entity(String.class).isEqualTo(language[1] + title);
+        }
+
         // Narrowed by action, record, text and period; the editor sees only their own changes and only themselves as actor
         graphQl(EDITOR)
-                .document("query($id: ID!) { published: auditLog(filter: {action: \"PUBLISH\"}) { totalCount entries { entityId actorId } } "
+                .document("query($id: ID!, $title: String!) { published: auditLog(filter: {action: \"PUBLISH\"}) { totalCount entries { entityId actorId } } "
                         + "album: auditLog(filter: {entityType: \"ALBUM\", entityId: $id}) { totalCount } "
-                        + "text: auditLog(filter: {q: \"PUBLICERADE\"}) { totalCount } "
+                        + "text: auditLog(filter: {q: $title}) { totalCount } "
                         + "future: auditLog(filter: {from: \"2999-01-01T00:00:00Z\"}) { totalCount } "
                         + "auditActors { id name } }")
                 .variable("id", albumId)
+                .variable("title", title)
                 .execute()
                 .path("published.totalCount").entity(Integer.class).isEqualTo(1)
                 .path("published.entries[0].entityId").entity(String.class).isEqualTo(albumId)
                 .path("album.totalCount").entity(Integer.class).isEqualTo(2)
-                .path("text.totalCount").entity(Integer.class).isEqualTo(1)
+                .path("text.totalCount").entity(Integer.class).isEqualTo(2)
                 .path("future.totalCount").entity(Integer.class).isEqualTo(0)
                 .path("auditActors").entityList(Object.class).hasSize(1);
         graphQl(ADMIN).document("{ auditLog(filter: {actorId: \"nobody\"}) { totalCount } }").execute()

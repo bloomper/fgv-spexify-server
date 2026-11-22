@@ -17,6 +17,8 @@
 
 package nu.fgv.spexify.server.scoresync;
 
+import nu.fgv.spexify.server.util.StoredText;
+import nu.fgv.spexify.server.util.TextException;
 import org.jspecify.annotations.Nullable;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -93,7 +95,7 @@ public final class MusicXml {
 
                     total += bytes.length;
                     if (bytes.length > MAX_BYTES || total > MAX_BYTES) {
-                        throw new IOException("Compressed MusicXML is too large");
+                        throw TextException.io(StoredText.of("scoreSync.failed.tooLarge"), null);
                     }
                     entries.put(entry.getName(), bytes);
                 }
@@ -110,7 +112,7 @@ public final class MusicXml {
             if (root == null || !entries.containsKey(root)) {
                 root = entries.keySet().stream()
                         .filter(name -> !name.startsWith("META-INF/") && (name.endsWith(".xml") || name.endsWith(".musicxml")))
-                        .findFirst().orElseThrow(() -> new IOException("No score in the compressed MusicXML"));
+                        .findFirst().orElseThrow(() -> TextException.io(StoredText.of("scoreSync.failed.noScore"), null));
             }
             return xml(entries.get(root));
         }
@@ -140,7 +142,7 @@ public final class MusicXml {
         } catch (final IOException e) {
             throw e;
         } catch (final Exception e) {
-            throw new IOException("Not MusicXML: " + e.getMessage(), e);
+            throw TextException.io(StoredText.of("scoreSync.failed.notMusicXml", String.valueOf(e.getMessage())), e);
         }
     }
 
@@ -148,13 +150,13 @@ public final class MusicXml {
         final Element root = document.getDocumentElement();
 
         if (root == null || !"score-partwise".equals(root.getTagName())) {
-            throw new IOException("Not a partwise MusicXML score");
+            throw TextException.io(StoredText.of("scoreSync.failed.notPartwise"), null);
         }
 
         final List<Element> parts = children(root, "part");
 
         if (parts.isEmpty()) {
-            throw new IOException("The score has no parts");
+            throw TextException.io(StoredText.of("scoreSync.failed.noParts"), null);
         }
 
         final List<MeasureInfo> measures = new ArrayList<>();
@@ -333,7 +335,7 @@ public final class MusicXml {
             t += info.length;
         }
         if (result.isEmpty()) {
-            throw new IOException("The score has no measures");
+            throw TextException.io(StoredText.of("scoreSync.failed.noMeasures"), null);
         }
         return new Score(result, notes, syllables, tempi);
     }

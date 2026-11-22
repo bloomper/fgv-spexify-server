@@ -17,6 +17,7 @@ package nu.fgv.spexify.server.catalog;
 
 import nu.fgv.spexify.server.TestCallers;
 import nu.fgv.spexify.server.audit.AuditService;
+import nu.fgv.spexify.server.util.StoredText;
 import nu.fgv.spexify.server.catalog.AlbumKindService.AlbumKindDto;
 import nu.fgv.spexify.server.catalog.AlbumKindService.AlbumKindInput;
 import nu.fgv.spexify.server.user.CallerService;
@@ -36,6 +37,7 @@ import java.util.Optional;
 import static nu.fgv.spexify.server.util.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -92,7 +94,8 @@ class AlbumKindServiceTest {
         assertThat(created.nameSv()).isEqualTo("Jubileum");
         assertThat(created.nameEn()).isEqualTo("Jubilee");
         assertThat(created.position()).isEqualTo(3);
-        verify(auditService).record(eq("CREATE"), eq("ALBUM_KIND"), any(), eq("Skapade albumsorten Jubileum"));
+        verify(auditService).record(eq("CREATE"), eq("ALBUM_KIND"), any(), argThat(text -> "audit.albumKind.create".equals(text.code())
+                && text.args().getFirst() instanceof StoredText name && name.args().contains("Jubileum")));
     }
 
     @Test
