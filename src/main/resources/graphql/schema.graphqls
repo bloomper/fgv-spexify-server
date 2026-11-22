@@ -52,6 +52,8 @@ type Query {
     spexipediaLinks(spexIds: [ID!]!, numberIds: [ID!]!): SpexipediaLinks!
     "SPEXIPEDIA. The discography of the spex (or revivals of them): published albums with every published track, also those without audio, and signed links to the covers. At most 500 ids."
     spexipediaDiscography(spexIds: [ID!]!): [DiscographyAlbum!]!
+    "SPEXIPEDIA. A published album for a section of a spex page in Spexipedia: as in the discography, with signed links to the audio of its listed tracks; null for other albums."
+    spexipediaAlbum(id: ID!): DiscographyAlbum
     "USER. The caller's app passwords that are not revoked."
     appPasswords: [AppPassword!]!
     "USER. The caller's API keys that are not revoked."
@@ -518,6 +520,8 @@ type DiscographyTrack {
     numberId: ID
     "Whether it can be listened to in Spexify."
     hasAudio: Boolean!
+    "A signed link to the audio of a listed track, valid for some hours; only from spexipediaAlbum."
+    audioUrl: String
 }
 
 type SpexipediaLinks {
