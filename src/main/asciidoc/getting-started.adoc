@@ -74,15 +74,15 @@ $ ./scripts/configure-keycloak.sh    # the Keycloak client secrets, read from th
 
 Both keep the values that are already set, so they can be run again, and tell git to leave your values alone so they are never committed (``git update-index --skip-worktree .docker/secrets/*``).
 The database passwords take effect only when the databases are created, i.e. with empty data folders.
-To set a value by hand, write it without a trailing newline, e.g. ``printf '%s' 'verysecret' > .docker/secrets/FGV_SPEXIFY_MYSQL_ROOT_PASSWORD``.
+To set a value by hand, write it without a trailing newline, e.g. ``printf '%s' 'verysecret' > .docker/secrets/MYSQL_ROOT_PASSWORD``.
 
 To see a changed placeholder after a pull, undo it with ``git update-index --no-skip-worktree .docker/secrets/*``.
 
 |===
 |Parameter|Purpose|Comment|Example value
 
-|FGV_SPEXIFY_MYSQL_ROOT_PASSWORD|The password for the root user of Spexify Server's database||verysecret
-|FGV_SPEXIFY_MYSQL_USER_PASSWORD|The password for the user of Spexify Server's database||secret
+|MYSQL_ROOT_PASSWORD|The password for the root user of Spexify Server's database||verysecret
+|MYSQL_USER_PASSWORD|The password for the user of Spexify Server's database||secret
 |API_KEYCLOAK_SERVICE_CLIENT_SECRET|The client secret of ``fgv-spexify-service``, with which Spexify Server calls Spexipedia and Spexflix and checks that users still have access|Must match the value in ``realm/fgv.json`` in fgv-keycloak, search for ``fgv-spexify-service`` and pick the value for ``secret`` in the same section|
 |API_APP_PASSWORD_ENCRYPTION_KEY|Encrypts the app passwords, which Subsonic's token login needs to read back|32 random bytes, base64, e.g. from ``openssl rand -base64 32``|
 |API_MEDIA_SIGNING_KEY|Signs the links with which the web's player and downloads fetch audio from the API without a token|A long random string, e.g. from ``openssl rand -base64 32``|
@@ -94,9 +94,9 @@ There are also configuration parameters in ``.env`` that can be tweaked if so de
 |===
 |Parameter|Purpose|Default value
 
-|FGV_SPEXIFY_MYSQL_DATABASE|The name of the database used by Spexify Server|spexify
-|FGV_SPEXIFY_MYSQL_ROOT_USER|The root user of Spexify Server's database|root
-|FGV_SPEXIFY_MYSQL_USER|The user of Spexify Server's database|spexify
+|MYSQL_DATABASE|The name of the database used by Spexify Server|spexify
+|MYSQL_ROOT_USER|The root user of Spexify Server's database|root
+|MYSQL_USER|The user of Spexify Server's database|spexify
 |API_KEYCLOAK_REALM|The Keycloak realm of Spexify Server|fgv
 |API_KEYCLOAK_CLIENT_CLIENT_ID|The Keycloak client id of Spexify Web|fgv-spexify
 |API_SPEXFLIX_GRAPHQL_URL|Spexflix's GraphQL endpoint, for the links to Spexflix; empty for none|(empty); ``http://spexflix-api:8080/api/graphql`` when Spexflix runs too
@@ -144,7 +144,7 @@ When the ``spexify-api`` container isn't running, Caddy forwards ``https://api.s
 [source,bash]
 ----
 $ docker compose up -d spexify-mysql spexify-navidrome
-$ MYSQL_API_USER_PASSWORD=<FGV_SPEXIFY_MYSQL_USER_PASSWORD> \
+$ MYSQL_API_USER_PASSWORD=<MYSQL_USER_PASSWORD> \
   API_KEYCLOAK_SERVICE_CLIENT_SECRET=<…> API_APP_PASSWORD_ENCRYPTION_KEY=<…> \
   ./gradlew bootRun --args='--spring.profiles.active=local'
 ----
