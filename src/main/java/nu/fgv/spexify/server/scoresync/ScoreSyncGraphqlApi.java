@@ -52,7 +52,9 @@ public class ScoreSyncGraphqlApi {
         this.messages = messages;
     }
 
-    /** Why the automatic sync failed, in the reader's language. */
+    /**
+     * Why the automatic sync failed, in the reader's language.
+     */
     @SchemaMapping(typeName = "ScoreSync", field = "error")
     public @Nullable String error(final ScoreSyncDto sync, final Locale locale) {
         return sync.error() == null ? null : StoredText.decode(sync.error()).in(messages, locale);

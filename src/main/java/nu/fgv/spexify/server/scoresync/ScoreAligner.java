@@ -1138,7 +1138,8 @@ public final class ScoreAligner {
     record Anchor(double seconds, double quarter) {
     }
 
-    private record Candidate2(int[] order, Knots knots, List<Anchor> anchors, List<int[]> path, double cost, double base, int shift) {
+    private record Candidate2(int[] order, Knots knots, List<Anchor> anchors, List<int[]> path, double cost,
+                              double base, int shift) {
     }
 
     /**

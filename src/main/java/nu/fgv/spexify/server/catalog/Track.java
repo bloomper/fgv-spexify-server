@@ -122,7 +122,9 @@ public class Track extends AbstractAuditable {
     @Column(name = "file_size", nullable = false)
     private long fileSize;
 
-    /** The SHA-256 of the file an import brought, before any conversion. */
+    /**
+     * The SHA-256 of the file an import brought, before any conversion.
+     */
     @Column(name = "source_checksum")
     private @org.jspecify.annotations.Nullable String sourceChecksum;
 

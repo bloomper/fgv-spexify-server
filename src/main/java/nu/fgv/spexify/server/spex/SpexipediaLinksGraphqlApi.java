@@ -193,7 +193,8 @@ public class SpexipediaLinksGraphqlApi {
 
     public record DiscographyAlbum(UUID id, String title, @Nullable Integer year, String kindNameSv, String kindNameEn,
                                    @Nullable String mediumNameSv, @Nullable String mediumNameEn,
-                                   @Nullable String catalogueNumber, @Nullable String released, @Nullable String recorded,
+                                   @Nullable String catalogueNumber, @Nullable String released,
+                                   @Nullable String recorded,
                                    @Nullable String conductor, @Nullable UUID spexId, @Nullable String coverUrl,
                                    @Nullable String backCoverUrl, List<DiscographyTrack> tracks) {
     }

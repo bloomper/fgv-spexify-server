@@ -53,7 +53,7 @@ public class AlbumMediumService {
     private final AuditService auditService;
 
     public AlbumMediumService(final AlbumMediumRepository repository, final CallerService callerService,
-                            final AuditService auditService) {
+                              final AuditService auditService) {
         this.repository = repository;
         this.callerService = callerService;
         this.auditService = auditService;
@@ -190,7 +190,7 @@ public class AlbumMediumService {
             return java.util.Optional.empty();
         }
         return repository.findAllByOrderByPositionAscIdAsc().stream().filter(medium -> normalize(medium.getNameSv()).equals(wanted)
-                || normalize(medium.getNameEn()).equals(wanted) || medium.aliasList().stream().anyMatch(alias -> normalize(alias).equals(wanted)))
+                        || normalize(medium.getNameEn()).equals(wanted) || medium.aliasList().stream().anyMatch(alias -> normalize(alias).equals(wanted)))
                 .findFirst();
     }
 
