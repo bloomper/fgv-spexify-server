@@ -103,8 +103,8 @@ public class CallerService {
 
     public Optional<Caller> currentIfAny() {
         return SecurityUtil.currentJwt().map(jwt -> fromJwt(jwt, SecurityUtil.currentAuthentication()
-                .map(authentication -> authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList())
-                .orElse(java.util.List.of())))
+                        .map(authentication -> authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList())
+                        .orElse(java.util.List.of())))
                 .map(CallerService::elevated);
     }
 

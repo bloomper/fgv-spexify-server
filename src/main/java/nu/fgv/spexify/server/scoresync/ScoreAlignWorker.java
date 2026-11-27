@@ -167,6 +167,7 @@ public class ScoreAlignWorker {
         transaction.executeWithoutResult(_ -> repository.findById(id).ifPresent(change));
     }
 
-    private record Job(java.util.UUID fileId, java.util.@Nullable UUID numberId, Path audio, @Nullable String lyrics, String audioChecksum) {
+    private record Job(java.util.UUID fileId, java.util.@Nullable UUID numberId, Path audio, @Nullable String lyrics,
+                       String audioChecksum) {
     }
 }

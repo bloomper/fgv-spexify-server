@@ -244,7 +244,8 @@ public class SpexipediaSync {
                                     category_name = COALESCE((SELECT name FROM spexipedia_category WHERE id = :into), category_name)
                                 WHERE category_id = :from""")
                         .param("into", into).param("from", id).update();
-                case "NUMBER" -> jdbc.sql("UPDATE track SET number_id = :into WHERE number_id = :from").param("into", into).param("from", id).update();
+                case "NUMBER" ->
+                        jdbc.sql("UPDATE track SET number_id = :into WHERE number_id = :from").param("into", into).param("from", id).update();
                 default -> {
                     // Kinds Spexify does not keep
                 }

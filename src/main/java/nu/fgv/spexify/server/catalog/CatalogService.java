@@ -18,6 +18,7 @@ package nu.fgv.spexify.server.catalog;
 
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Files;
+
 import nu.fgv.spexify.server.util.StoredText;
 import nu.fgv.spexify.server.util.Uuids;
 import lombok.extern.slf4j.Slf4j;
@@ -1137,7 +1138,9 @@ public class CatalogService {
         return id;
     }
 
-    /** The optimistic-lock version of an album or a track, or null when it is gone. */
+    /**
+     * The optimistic-lock version of an album or a track, or null when it is gone.
+     */
     @Transactional(readOnly = true)
     public @Nullable Long recordVersion(final UUID id) {
         return albumRepository.findByUuid(id).map(Album::getVersion)
@@ -1247,9 +1250,9 @@ public class CatalogService {
                         album == null ? null : album.gainDb(), album == null ? null : album.peakAmplitude()),
                 track.getNumberId(), track.getNumberTitle(), track.getNumberKindId(), track.getSide(), track.hasAudio(),
                 fromNumber, number == null ? List.of() : number.credits().stream()
-                        .map(credit -> new CatalogDtos.TrackCreditDto(credit.kindId(), credit.kindNameSv(), credit.kindNameEn(),
-                                credit.spexareId(), credit.name()))
-                        .toList());
+                .map(credit -> new CatalogDtos.TrackCreditDto(credit.kindId(), credit.kindNameSv(), credit.kindNameEn(),
+                        credit.spexareId(), credit.name()))
+                .toList());
     }
 
     /**

@@ -97,7 +97,8 @@ public final class CatalogDtos {
     /**
      * One credit of the number a track is a recording of, from Spexipedia.
      */
-    public record TrackCreditDto(UUID kindId, String kindNameSv, String kindNameEn, @Nullable UUID spexareId, String name) {
+    public record TrackCreditDto(UUID kindId, String kindNameSv, String kindNameEn, @Nullable UUID spexareId,
+                                 String name) {
     }
 
     /**

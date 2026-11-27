@@ -61,9 +61,9 @@ public record SpexifyProperties(String timeZone,
     }
 
     /**
-     * @param graphqlUrl  Spexipedia's GraphQL API, e.g. {@code http://spexipedia-api:8080/api/graphql}
-     * @param webUrl      Spexipedia's web, for links to its pages; empty for none
-     * @param syncEnabled whether to follow its change feed
+     * @param graphqlUrl            Spexipedia's GraphQL API, e.g. {@code http://spexipedia-api:8080/api/graphql}
+     * @param webUrl                Spexipedia's web, for links to its pages; empty for none
+     * @param syncEnabled           whether to follow its change feed
      * @param lyricsCreditKind      the credit kind whose credits are a track's lyrics author for browsing (by default
      *                              Spexipedia's default kind Lyrics); a number's other credits are shown by their kind
      * @param arrangementCreditKind the credit kind whose credits are a track's arranger (by default Arrangement)

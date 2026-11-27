@@ -161,7 +161,8 @@ public class CatalogMcpTools {
     public record Track(String id, String title, String albumId, String albumTitle, @Nullable Integer year,
                         @Nullable String spex, int disc, int number, String duration, @Nullable String performers,
                         @Nullable String melody, @Nullable String lyricsAuthor, @Nullable String arranger,
-                        @Nullable String spexipediaNumberId, @Nullable String spexipediaNumberTitle, boolean published) {
+                        @Nullable String spexipediaNumberId, @Nullable String spexipediaNumberTitle,
+                        boolean published) {
 
         static Track of(final TrackDto track, final @Nullable AlbumDto album) {
             final AlbumSpexDto main = album == null || album.spex().isEmpty() ? null : album.spex().getFirst();

@@ -237,7 +237,8 @@ public class LyricsService {
         return new RevisionDto(revision.getId(), revision.getLyrics(), revision.isSynced(), revision.getCreatedAt(), revision.getCreatedByName());
     }
 
-    public record RevisionDto(Long id, @Nullable String lyrics, boolean synced, Instant createdAt, @Nullable String createdBy) {
+    public record RevisionDto(Long id, @Nullable String lyrics, boolean synced, Instant createdAt,
+                              @Nullable String createdBy) {
     }
 
     public record SingerDto(String label, String name) {

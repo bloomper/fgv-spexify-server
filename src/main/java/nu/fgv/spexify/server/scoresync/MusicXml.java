@@ -425,7 +425,8 @@ public final class MusicXml {
      * @param times    how often the repeated section is played
      * @param volta    the numbered endings it belongs to, empty for none
      */
-    public record Measure(double start, double length, boolean forward, boolean backward, int times, Set<Integer> volta) {
+    public record Measure(double start, double length, boolean forward, boolean backward, int times,
+                          Set<Integer> volta) {
     }
 
     /**

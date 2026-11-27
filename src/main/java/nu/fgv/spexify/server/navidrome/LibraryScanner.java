@@ -71,7 +71,9 @@ public class LibraryScanner {
     private volatile @Nullable Instant lastScanAt;
     private static final int MAX_ERROR = 1000;
 
-    /** Why the latest tick failed, as a {@link StoredText}. */
+    /**
+     * Why the latest tick failed, as a {@link StoredText}.
+     */
     private volatile @Nullable String lastError;
 
     public LibraryScanner(final NavidromeClient client, final TrackRepository trackRepository,

@@ -166,11 +166,13 @@ public class ArchiveClient {
     public record Arrangement(String arrangementId, String numberId, List<Version> versions) {
     }
 
-    public record Version(String id, String label, @Nullable String arranger, boolean recommended, @Nullable String keyTonic,
+    public record Version(String id, String label, @Nullable String arranger, boolean recommended,
+                          @Nullable String keyTonic,
                           @Nullable String keyMode, @Nullable String tempo, List<File> files) {
     }
 
-    public record File(String id, String title, String name, String extension, String contentType, double size, String checksum,
+    public record File(String id, String title, String name, String extension, String contentType, double size,
+                       String checksum,
                        @Nullable Integer pages, String roleSv, String roleEn, List<String> instrumentsSv,
                        List<String> instrumentsEn, @Nullable String desk) {
     }
